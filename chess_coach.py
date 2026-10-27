@@ -204,7 +204,7 @@ with tab1:
             with st.spinner('Il GM sta analizzando la partita. Generazione della lezione in corso...'):
                 try:
                     genai.configure(api_key=chiave_attiva)
-                    model = genai.GenerativeModel(model_name="gemini-2.5-flash", system_instruction=istruzioni_avanzate)
+                    model = genai.GenerativeModel(model_name="gemini-3.8-flash", system_instruction=istruzioni_avanzate)
                     
                     prompt = f"Analizza questo PGN e restituisci il JSON:\n{pgn_input}"
                     risposta = model.generate_content(prompt)
@@ -268,7 +268,7 @@ with tab3:
             with st.spinner("Estrazione sequenza, traduzione e sincronizzazione in corso..."):
                 try:
                     genai.configure(api_key=chiave_attiva)
-                    model = genai.GenerativeModel(model_name="gemini-2.5-flash")
+                    model = genai.GenerativeModel(model_name="gemini-3.8-flash")
                     
                     prompt_libro = f"""
                     Analizza questo testo tratto da un libro di scacchi. 
@@ -384,7 +384,7 @@ with tab3:
                 with st.spinner("Il Grande Maestro sta esaminando la posizione..."):
                     try:
                         genai.configure(api_key=chiave_attiva)
-                        model_ai = genai.GenerativeModel(model_name="gemini-2.5-flash")
+                        model_ai = genai.GenerativeModel(model_name="gemini-3.8-flash")
                         fen_corrente = step_corrente['fen']
                         mossa_fatta = step_corrente['mossa_giocata']
                         
