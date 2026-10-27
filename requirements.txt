@@ -1,0 +1,7 @@
+streamlit
+google-generativeai
+chess
+pandas
+fpdf2
+pillow
+cairosvg
