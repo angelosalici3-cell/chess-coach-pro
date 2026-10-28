@@ -56,19 +56,19 @@ def save_api_key_to_db(api_key):
     conn.commit()
     conn.close()
 
-# --- MOTORE DI ANALISI ONLINE ROBUSTO (STOCKFISH ONLINE API) ---
-def analizza_partita_stockfish_online(pgn_text):
+# --- MOTORE DI ANALISI ONLINE STABILE (CHESS-API.COM CLOUD) ---
+def analizza_partita_chess_api(pgn_text):
     game = chess.pgn.read_game(io.StringIO(pgn_text))
     if not game:
         return [], None, "Impossibile leggere il PGN fornito."
 
     board = game.board()
     evaluations = []
-    headers_req = {"User-Agent": "ChessCoachPro/1.0"}
+    headers_req = {"User-Agent": "ChessCoachPro/1.0", "Content-Type": "application/json"}
     prev_eval = 0.0
     
     main_moves = list(game.mainline_moves())
-    progress_bar = st.progress(0, text="Analisi cloud Stockfish in corso...")
+    progress_bar = st.progress(0, text="Analisi cloud avanzata in corso...")
     
     for idx, move in enumerate(main_moves):
         fen_before = board.fen()
@@ -84,32 +84,30 @@ def analizza_partita_stockfish_online(pgn_text):
         curr_eval = prev_eval
         valid_eval_found = False
         
-        # Interroghiamo l'API cloud pubblica per la FEN risultante
+        # Interroghiamo chess-api.com via POST con JSON
         for attempt in range(2):
             try:
-                url_api = f"https://stockfish.online/api/m/v2?fen={requests.utils.quote(fen_after)}&depth=12"
-                r = requests.get(url_api, headers=headers_req, timeout=5)
+                payload = {"fen": fen_after, "depth": 12}
+                r = requests.post("https://chess-api.com/v1", json=payload, headers=headers_req, timeout=6)
                 if r.status_code == 200:
                     data = r.json()
-                    if data.get("success"):
-                        eval_cp = data.get("evaluation")
-                        eval_mate = data.get("mate")
-                        
-                        if eval_cp is not None:
-                            curr_eval = float(eval_cp)
-                            valid_eval_found = True
-                            break
-                        elif eval_mate is not None:
-                            curr_eval = 100.0 if eval_mate > 0 else -100.0
-                            valid_eval_found = True
-                            break
+                    # Chess-api restituisce direttamente 'eval' (es. -1.54 o in centipawns a seconda della versione) o 'mate'
+                    eval_val = data.get("eval")
+                    mate_val = data.get("mate")
+                    
+                    if eval_val is not None:
+                        curr_eval = float(eval_val)
+                        valid_eval_found = True
+                        break
+                    elif mate_val is not None:
+                        curr_eval = 100.0 if mate_val > 0 else -100.0
+                        valid_eval_found = True
+                        break
             except Exception:
                 time.sleep(0.3)
                 
-        # Pausa di cortesia per evitare rate-limit dell'API
-        time.sleep(0.15)
+        time.sleep(0.1) # Pausa di cortesia per l'API
 
-        # Se non otteniamo una valutazione valida dall'API, stimiamo la continuità per evitare blocchi
         if not valid_eval_found and idx > 0:
             curr_eval = prev_eval
 
@@ -236,7 +234,7 @@ if 'pending_pgn_transfer' in st.session_state:
     st.session_state['pgn_manual_input'] = st.session_state['pending_pgn_transfer']
     del st.session_state['pending_pgn_transfer']
 
-st.title("♟️ Chess Coach Pro (Stockfish Cloud API + Gemini AI)")
+st.title("♟️ Chess Coach Pro (Chess-API Cloud + Gemini AI)")
 
 # --- SIDEBAR: GESTIONE API KEY E ACCOUNT LICHESS ---
 with st.sidebar:
@@ -297,26 +295,26 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "🌐 Importa & Filtra Partite"
 ])
 
-# --- TAB 1: ANALISI PGN CON STOCKFISH ONLINE CLOUD + GEMINI ---
+# --- TAB 1: ANALISI PGN CON CHESS-API CLOUD + GEMINI ---
 with tab1:
-    st.subheader("🤖 Analisi Cloud Stockfish (Imprecisioni, Errori, Blunder) + Lezioni AI")
-    st.write("L'app analizzerà la partita in tempo reale interrogando il motore Stockfish Cloud mossa per mossa, restituendo l'elenco completo delle criticità.")
+    st.subheader("🤖 Analisi Cloud Professionale (Imprecisioni, Errori, Blunder) + Lezioni AI")
+    st.write("L'app analizzerà la partita interrogando il motore cloud mossa per mossa, individuando tutte le criticità senza richiedere installazioni locali.")
     
     pgn_input = st.text_area("Testo PGN:", height=180, placeholder="[Event \"Live Chess\"]\n[White \"Tu\"]\n[Black \"Avversario\"]\n\n1. e4 e5 2. Nf3...", key="pgn_manual_input")
     
-    if st.button("🔍 Avvia Analisi Stockfish Cloud", type="primary"):
+    if st.button("🔍 Avvia Analisi Cloud", type="primary"):
         if not pgn_input.strip():
             st.warning("Inserisci un PGN valido.")
         else:
             with st.spinner("Elaborazione analisi cloud in corso..."):
-                errori, game_url, err_msg = analizza_partita_stockfish_online(pgn_input.strip())
+                errori, game_url, err_msg = analizza_partita_chess_api(pgn_input.strip())
                 st.session_state['stockfish_errors'] = errori
                 st.session_state['current_game_url'] = game_url
                 
                 if err_msg:
                     st.warning(err_msg)
                 elif errori:
-                    st.success(f"Stockfish Cloud ha identificato {len(errori)} criticità nella partita!")
+                    st.success(f"Il motore cloud ha identificato {len(errori)} criticità nella partita!")
                     
                     if chiave_attiva:
                         with st.spinner("L'AI sta categorizzando gli errori per la tua Dashboard..."):
@@ -325,7 +323,7 @@ with tab1:
                                 model = genai.GenerativeModel("gemini-2.5-flash")
                                 
                                 prompt_cluster = f"""
-                                Data questa lista di criticità rilevate da Stockfish con relativa FEN e tipo di problema:
+                                Data questa lista di criticità rilevate dal motore con relativa FEN e tipo di problema:
                                 {json.dumps(errori)}
                                 
                                 Categorizza CIASCUN errore assegnando UNA sola etichetta sintetica tra queste:
@@ -341,18 +339,18 @@ with tab1:
                                 clusters = json.loads(testo_c)
                                 
                                 for item in clusters:
-                                    salva_errore(item.get("categoria", "Tattica"), item.get("label_mossa", "Mossa"), "Criticità rilevata da Stockfish Cloud")
+                                    salva_errore(item.get("categoria", "Tattica"), item.get("label_mossa", "Mossa"), "Criticità rilevata da Chess-API Cloud")
                                 
                                 st.info("💾 Categorie salvate con successo nella tua Dashboard Errori!")
                             except Exception as e:
                                 st.warning(f"Impossibile auto-categorizzare gli errori: {e}")
                 else:
-                    st.info("Stockfish non ha rilevato imprecisioni o errori rilevanti in questa partita. Ottima prestazione!")
+                    st.info("Il motore cloud non ha rilevato imprecisioni o errori rilevanti in questa partita. Ottima prestazione!")
 
     # --- MOSTRA ELENCO ERRORI RILEVATI ---
     if 'stockfish_errors' in st.session_state and st.session_state['stockfish_errors']:
         st.divider()
-        st.subheader("📌 Criticità Rilevate da Stockfish Cloud")
+        st.subheader("📌 Criticità Rilevate dal Motore Cloud")
         
         for idx, err in enumerate(st.session_state['stockfish_errors']):
             with st.expander(f"{err['tipo_problema']}: Mossa `{err['label_mossa']}` (Perdita: -{err['perdita_cp']} pedoni)", expanded=(idx==0)):
