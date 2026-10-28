@@ -400,7 +400,6 @@ with tab4:
             t_str = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
             st.download_button(f"📥 Scarica PDF (v{v})", data=st.session_state['pdf_bytes_diario'], file_name=f"diario_{t_str}_v{v}.pdf", mime="application/pdf", use_container_width=True)
 
-
 # --- TAB 5: IMPORTAZIONE & FILTRI PARTITE (LICHESS / CHESS.COM) ---
 with tab5:
     st.subheader("🌐 Importa, Filtra e Seleziona le Partite dal tuo Profilo")
@@ -434,51 +433,61 @@ with tab5:
                     import chess.pgn
                     
                     if piattaforma_sel == "Lichess":
-                        # Utilizziamo l'endpoint JSON ufficiale di Lichess (molto più affidabile)
+                        # Endpoint ufficiale Lichess per esportare le partite in formato PGN
                         url = f"https://lichess.org/api/games/user/{user_lower}"
-                        params = {"max": filtro_limite, "pgnInJson": "true"}
-                        headers = {"Accept": "application/json"}
+                        params = {"max": filtro_limite}
+                        headers = {
+                            "Accept": "application/x-chess-pgn",
+                            "User-Agent": "ChessCoachPro/1.0"
+                        }
                         
-                        # Se l'utente ha inserito il token ed è il suo account, usiamo l'autenticazione per sbloccare anche partite private/studi
+                        # Se l'utente è autenticato con token ed è il suo account, aggiungiamo l'autorizzazione
                         if st.session_state.get('lichess_token') and st.session_state.get('lichess_user', '').lower() == user_lower:
                             headers["Authorization"] = f"Bearer {st.session_state['lichess_token']}"
                             
                         r = requests.get(url, params=params, headers=headers, timeout=20)
                         
                         if r.status_code == 200:
-                            # Lichess risponde con linee JSON separate (NDJSON)
-                            for line in r.text.strip().split("\n"):
-                                if not line.strip():
-                                    continue
-                                game_json = json.loads(line)
-                                pgn_str = game_json.get("pgn", "")
-                                if not pgn_str:
-                                    continue
-                                    
-                                game = chess.pgn.read_game(io.StringIO(pgn_str))
-                                if not game:
-                                    continue
-                                    
+                            # Leggiamo il flusso PGN restituito da Lichess in modo sequenziale
+                            pgn_io = io.StringIO(r.text)
+                            idx = 1
+                            while True:
+                                game = chess.pgn.read_game(pgn_io)
+                                if game is None:
+                                    break
+                                
+                                exporter = chess.pgn.StringExporter(headers=True, comments=True, variations=True)
+                                pgn_str = game.accept(exporter)
+                                
                                 headers_game = game.headers
                                 white_p = headers_game.get("White", "").lower()
                                 black_p = headers_game.get("Black", "").lower()
                                 result = headers_game.get("Result", "*")
-                                speed = game_json.get("speed", "").lower()
                                 
                                 is_white = user_lower in white_p
                                 is_black = user_lower in black_p
                                 
                                 # Applicazione filtri
-                                if filtro_colore == "Bianco" and not is_white: continue
-                                if filtro_colore == "Nero" and not is_black: continue
-                                if filtro_esito == "Vinte" and not ((is_white and result == "1-0") or (is_black and result == "0-1")): continue
-                                if filtro_esito == "Perse" and not ((is_white and result == "0-1") or (is_black and result == "1-0")): continue
-                                if filtro_esito == "Patte" and result != "1/2-1/2": continue
-                                if filtro_tempo != "Tutti" and filtro_tempo.lower() not in speed: continue
-                                
+                                if filtro_colore == "Bianco" and not is_white: 
+                                    idx += 1
+                                    continue
+                                if filtro_colore == "Nero" and not is_black: 
+                                    idx += 1
+                                    continue
+                                if filtro_esito == "Vinte" and not ((is_white and result == "1-0") or (is_black and result == "0-1")): 
+                                    idx += 1
+                                    continue
+                                if filtro_esito == "Perse" and not ((is_white and result == "0-1") or (is_black and result == "1-0")): 
+                                    idx += 1
+                                    continue
+                                if filtro_esito == "Patte" and result != "1/2-1/2": 
+                                    idx += 1
+                                    continue
+                                    
                                 avversario = headers_game.get("Black", "Avversario") if is_white else headers_game.get("White", "Avversario")
-                                titolo_dettagliato = f"Lichess vs {avversario} ({result}) [{game_json.get('speed', 'game')}]"
+                                titolo_dettagliato = f"Partita #{idx}: vs {avversario} ({result})"
                                 partite_filtrate.append((titolo_dettagliato, pgn_str))
+                                idx += 1
                         else:
                             st.error(f"Errore di connessione a Lichess (Codice HTTP: {r.status_code}). Verifica che il nome utente esista.")
                             
@@ -504,7 +513,6 @@ with tab5:
                                         white_p = headers_game.get("White", "").lower()
                                         black_p = headers_game.get("Black", "").lower()
                                         result = headers_game.get("Result", "*")
-                                        time_class = g.get("time_class", "").lower()
                                         
                                         is_white = user_lower in white_p
                                         is_black = user_lower in black_p
@@ -514,7 +522,6 @@ with tab5:
                                         if filtro_esito == "Vinte" and not ((is_white and result == "1-0") or (is_black and result == "0-1")): continue
                                         if filtro_esito == "Perse" and not ((is_white and result == "0-1") or (is_black and result == "1-0")): continue
                                         if filtro_esito == "Patte" and result != "1/2-1/2": continue
-                                        if filtro_tempo != "Tutti" and filtro_tempo.lower() not in time_class: continue
                                         
                                         w = headers_game.get("White", "Bianco")
                                         b = headers_game.get("Black", "Nero")
@@ -524,9 +531,10 @@ with tab5:
                     if partite_filtrate:
                         st.success(f"Trovate e filtrate con successo {len(partite_filtrate)} partite per l'utente '{username_cerca}'!")
                     else:
-                        st.warning("Nessuna partita trovata con i filtri attuali. Prova a impostare 'Tutti' su Colore, Esito e Tempo.")
+                        st.warning("Nessuna partita trovata con i filtri attuali. Prova a impostare 'Tutti' su Colore ed Esito.")
                 except Exception as e:
                     st.error(f"Errore durante il download o l'elaborazione: {e}")
+
 
     # --- MOSTRA E SELEZIONA LE PARTITE FILTRATE ---
     if 'partite_scaricate' in st.session_state and st.session_state['partite_scaricate']:
