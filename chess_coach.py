@@ -63,23 +63,18 @@ def analizza_partita_stockfish_cloud(pgn_text):
 
     board = game.board()
     evaluations = []
-    
-    # Valutiamo mossa per mossa tramite Lichess Cloud Eval API
     headers_req = {"User-Agent": "ChessCoachPro/1.0"}
-    
-    prev_eval = 0.0 # Valutazione iniziale approssimata a parità
+    prev_eval = 0.0
     
     for idx, move in enumerate(game.mainline_moves()):
         fen_before = board.fen()
         board.push(move)
         fen_after = board.fen()
         
-        # Mossa corrente
         num_mossa = (idx // 2) + 1
         is_white_move = (idx % 2 == 0)
         label_mossa = f"{num_mossa}. {move.uci()}" if is_white_move else f"{num_mossa}... {move.uci()}"
         
-        # Interroghiamo Lichess Cloud Eval per la FEN risultante
         try:
             r = requests.get("https://lichess.org/api/cloud-eval", params={"fen": fen_after}, headers=headers_req, timeout=3)
             if r.status_code == 200:
@@ -101,10 +96,8 @@ def analizza_partita_stockfish_cloud(pgn_text):
         except Exception:
             curr_eval = prev_eval
 
-        # Calcolo delta dal punto di vista di chi ha mosso
         delta = (prev_eval - curr_eval) if is_white_move else (curr_eval - prev_eval)
         
-        # Consideriamo Errore se la perdita supera 1.5 centipawns / pedoni
         if delta > 1.5:
             evaluations.append({
                 "mossa_num": idx + 1,
@@ -208,6 +201,11 @@ def genera_pdf_partita(board, mosse_lista, note_mosse, note_finali):
 st.set_page_config(page_title="Chess Coach Pro", layout="wide", page_icon="♟️")
 init_db()
 
+# --- GESTIONE SICURA TRASFERIMENTO PGN (RISOLVE L'ERRORE DI INSTANTIATION) ---
+if 'pending_pgn_transfer' in st.session_state:
+    st.session_state['pgn_manual_input'] = st.session_state['pending_pgn_transfer']
+    del st.session_state['pending_pgn_transfer']
+
 st.title("♟️ Chess Coach Pro (Stockfish Engine + Gemini AI)")
 
 # --- SIDEBAR: GESTIONE API KEY E ACCOUNT LICHESS ---
@@ -288,7 +286,6 @@ with tab1:
                 if errori:
                     st.success(f"Stockfish ha identificato {len(errori)} sviste/errori critici nella partita!")
                     
-                    # Clusterizzazione snella con Gemini per popolare il DB
                     if chiave_attiva:
                         with st.spinner("L'AI sta categorizzando gli errori per la tua Dashboard..."):
                             try:
@@ -311,7 +308,6 @@ with tab1:
                                 testo_c = resp_c.text.replace("```json", "").replace("```", "").strip()
                                 clusters = json.loads(testo_c)
                                 
-                                # Salva ogni errore nel database SQLite dell'utente
                                 for item in clusters:
                                     salva_errore(item.get("categoria", "Tattica"), item.get("label_mossa", "Mossa"), "Errore rilevato da Stockfish")
                                 
@@ -645,8 +641,8 @@ with tab5:
         c_act1, c_act2 = st.columns(2)
         with c_act1:
             if st.button("🚀 Invia a Stockfish + AI (Tab 1)", use_container_width=True, type="primary"):
-                st.session_state['pgn_manual_input'] = pgn_selezionato_val
-                st.success("Partita trasferita! Apri la scheda '📖 Analizza PGN' per avviare la scansione di Stockfish.")
+                st.session_state['pending_pgn_transfer'] = pgn_selezionato_val
+                st.success("Partita trasferita! Clicca sulla scheda '📖 Analizza PGN (Stockfish + AI)' in alto per visualizzarla e avviare la scansione.")
         with c_act2:
             if st.button("📝 Invia al Diario & PDF (Tab 4)", use_container_width=True):
                 game = chess.pgn.read_game(io.StringIO(pgn_selezionato_val))
