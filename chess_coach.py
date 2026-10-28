@@ -400,6 +400,7 @@ with tab4:
             t_str = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
             st.download_button(f"📥 Scarica PDF (v{v})", data=st.session_state['pdf_bytes_diario'], file_name=f"diario_{t_str}_v{v}.pdf", mime="application/pdf", use_container_width=True)
 
+
 # --- TAB 5: IMPORTAZIONE & FILTRI PARTITE (LICHESS / CHESS.COM) ---
 with tab5:
     st.subheader("🌐 Importa, Filtra e Seleziona le Partite dal tuo Profilo")
@@ -408,7 +409,7 @@ with tab5:
     with col_input1:
         piattaforma_sel = st.radio("Scegli Piattaforma:", ["Lichess", "Chess.com"], horizontal=True)
     with col_input2:
-        username_cerca = st.text_input("Nome Utente Utente:", value=st.session_state.get('lichess_user', ''), placeholder="es. Carlsen")
+        username_cerca = st.text_input("Nome Utente:", value=st.session_state.get('lichess_user', 'Chene91'), placeholder="es. Chene91")
 
     st.markdown("### 🎛️ Filtri Partita Avanzati")
     f_col1, f_col2, f_col3, f_col4 = st.columns(4)
@@ -425,33 +426,66 @@ with tab5:
         if not username_cerca.strip():
             st.warning("Inserisci un Nome Utente valido.")
         else:
-            with st.spinner(f"Scaricamento e filtraggio partite da {piattaforma_sel}..."):
-                elenco_partite = []
+            with st.spinner(f"Scaricamento e filtraggio partite da {piattaforma_sel} per '{username_cerca}'..."):
+                partite_filtrate = []
+                user_lower = username_cerca.strip().lower()
                 
                 try:
+                    import chess.pgn
+                    
                     if piattaforma_sel == "Lichess":
-                        # Uso berserk se autenticato o API pubblica
-                        if st.session_state.get('lichess_token') and st.session_state.get('lichess_user') == username_cerca.strip():
-                            session = berserk.TokenSession(st.session_state['lichess_token'])
-                            client = berserk.Client(session=session)
-                            pgn_gen = client.games.export_by_user(username_cerca.strip(), max=filtro_limite, as_pgn=True)
-                            for idx, pgn in enumerate(pgn_gen):
-                                if pgn.strip(): elenco_partite.append((f"Lichess #{idx+1}", pgn))
+                        # Utilizziamo l'endpoint JSON ufficiale di Lichess (molto più affidabile)
+                        url = f"https://lichess.org/api/games/user/{user_lower}"
+                        params = {"max": filtro_limite, "pgnInJson": "true"}
+                        headers = {"Accept": "application/json"}
+                        
+                        # Se l'utente ha inserito il token ed è il suo account, usiamo l'autenticazione per sbloccare anche partite private/studi
+                        if st.session_state.get('lichess_token') and st.session_state.get('lichess_user', '').lower() == user_lower:
+                            headers["Authorization"] = f"Bearer {st.session_state['lichess_token']}"
+                            
+                        r = requests.get(url, params=params, headers=headers, timeout=20)
+                        
+                        if r.status_code == 200:
+                            # Lichess risponde con linee JSON separate (NDJSON)
+                            for line in r.text.strip().split("\n"):
+                                if not line.strip():
+                                    continue
+                                game_json = json.loads(line)
+                                pgn_str = game_json.get("pgn", "")
+                                if not pgn_str:
+                                    continue
+                                    
+                                game = chess.pgn.read_game(io.StringIO(pgn_str))
+                                if not game:
+                                    continue
+                                    
+                                headers_game = game.headers
+                                white_p = headers_game.get("White", "").lower()
+                                black_p = headers_game.get("Black", "").lower()
+                                result = headers_game.get("Result", "*")
+                                speed = game_json.get("speed", "").lower()
+                                
+                                is_white = user_lower in white_p
+                                is_black = user_lower in black_p
+                                
+                                # Applicazione filtri
+                                if filtro_colore == "Bianco" and not is_white: continue
+                                if filtro_colore == "Nero" and not is_black: continue
+                                if filtro_esito == "Vinte" and not ((is_white and result == "1-0") or (is_black and result == "0-1")): continue
+                                if filtro_esito == "Perse" and not ((is_white and result == "0-1") or (is_black and result == "1-0")): continue
+                                if filtro_esito == "Patte" and result != "1/2-1/2": continue
+                                if filtro_tempo != "Tutti" and filtro_tempo.lower() not in speed: continue
+                                
+                                avversario = headers_game.get("Black", "Avversario") if is_white else headers_game.get("White", "Avversario")
+                                titolo_dettagliato = f"Lichess vs {avversario} ({result}) [{game_json.get('speed', 'game')}]"
+                                partite_filtrate.append((titolo_dettagliato, pgn_str))
                         else:
-                            # Richiesta API Pubblica Lichess
-                            url = f"https://lichess.org/api/games/user/{username_cerca.strip()}"
-                            params = {"max": filtro_limite}
-                            headers = {"Accept": "application/x-chess-pgn"}
-                            r = requests.get(url, params=params, headers=headers, timeout=12)
-                            if r.status_code == 200:
-                                raw_p = [p.strip() for p in r.text.split("\n\n[Event ") if p.strip()]
-                                for idx, p in enumerate(raw_p):
-                                    if not p.startswith("[Event "): p = "[Event " + p
-                                    elenco_partite.append((f"Lichess #{idx+1}", p))
+                            st.error(f"Errore di connessione a Lichess (Codice HTTP: {r.status_code}). Verifica che il nome utente esista.")
+                            
                     else:
                         # Chess.com API Pubblica
-                        headers_c = {"User-Agent": "ChessCoachProApp/1.0 (Contatto: app@chesscoach.local)"}
-                        arch_url = f"https://api.chess.com/pub/player/{username_cerca.strip().lower()}/games/archives"
+                        headers_c = {"User-Agent": "ChessCoachProApp/1.0"}
+                        arch_url = f"https://api.chess.com/pub/player/{user_lower}/games/archives"
                         r_arch = requests.get(arch_url, headers=headers_c, timeout=10)
                         if r_arch.status_code == 200:
                             archives = r_arch.json().get("archives", [])
@@ -459,57 +493,40 @@ with tab5:
                                 r_m = requests.get(archives[-1], headers=headers_c, timeout=10)
                                 if r_m.status_code == 200:
                                     games_j = r_m.json().get("games", [])[-filtro_limite:][::-1]
-                                    for idx, g in enumerate(games_j):
+                                    for g in games_j:
                                         pgn_g = g.get("pgn", "")
-                                        w = g.get("white", {}).get("username", "Bianco")
-                                        b = g.get("black", {}).get("username", "Nero")
-                                        if pgn_g: elenco_partite.append((f"Chess.com: {w} vs {b}", pgn_g))
+                                        if not pgn_g: continue
+                                        
+                                        game = chess.pgn.read_game(io.StringIO(pgn_g))
+                                        if not game: continue
+                                        
+                                        headers_game = game.headers
+                                        white_p = headers_game.get("White", "").lower()
+                                        black_p = headers_game.get("Black", "").lower()
+                                        result = headers_game.get("Result", "*")
+                                        time_class = g.get("time_class", "").lower()
+                                        
+                                        is_white = user_lower in white_p
+                                        is_black = user_lower in black_p
+                                        
+                                        if filtro_colore == "Bianco" and not is_white: continue
+                                        if filtro_colore == "Nero" and not is_black: continue
+                                        if filtro_esito == "Vinte" and not ((is_white and result == "1-0") or (is_black and result == "0-1")): continue
+                                        if filtro_esito == "Perse" and not ((is_white and result == "0-1") or (is_black and result == "1-0")): continue
+                                        if filtro_esito == "Patte" and result != "1/2-1/2": continue
+                                        if filtro_tempo != "Tutti" and filtro_tempo.lower() not in time_class: continue
+                                        
+                                        w = headers_game.get("White", "Bianco")
+                                        b = headers_game.get("Black", "Nero")
+                                        partite_filtrate.append((f"Chess.com: {w} vs {b} ({result})", pgn_g))
 
-                    # Applicazione Filtri Client-Side
-                    partite_filtrate = []
-                    import chess.pgn
-                    
-                    user_lower = username_cerca.strip().lower()
-                    for idx, (titolo, pgn) in enumerate(elenco_partite):
-                        game = chess.pgn.read_game(io.StringIO(pgn))
-                        if not game: continue
-                        
-                        headers_game = game.headers
-                        white_p = headers_game.get("White", "").lower()
-                        black_p = headers_game.get("Black", "").lower()
-                        result = headers_game.get("Result", "*")
-                        time_control = headers_game.get("Event", "").lower()
-                        
-                        # Filtro Colore
-                        is_white = user_lower in white_p
-                        is_black = user_lower in black_p
-                        if filtro_colore == "Bianco" and not is_white: continue
-                        if filtro_colore == "Nero" and not is_black: continue
-                        
-                        # Filtro Esito
-                        if filtro_esito == "Vinte":
-                            if not ((is_white and result == "1-0") or (is_black and result == "0-1")): continue
-                        elif filtro_esito == "Perse":
-                            if not ((is_white and result == "0-1") or (is_black and result == "1-0")): continue
-                        elif filtro_esito == "Patte":
-                            if result != "1/2-1/2": continue
-                            
-                        # Filtro Tempo (Verifica tag Event)
-                        if filtro_tempo != "Tutti":
-                            if filtro_tempo.lower() not in time_control: continue
-                            
-                        # Costruzione Titolo Filtrato didattico
-                        vs_opponent = headers_game.get("Black", "Avversario") if is_white else headers_game.get("White", "Avversario")
-                        titolo_dettagliato = f"Partita #{idx+1}: vs {vs_opponent} ({headers_game.get('Result', '*')}) [{headers_game.get('Event', 'Standard')}]"
-                        partite_filtrate.append((titolo_dettagliato, pgn))
-                        
                     st.session_state['partite_scaricate'] = partite_filtrate
                     if partite_filtrate:
-                        st.success(f"Trovate e filtrate {len(partite_filtrate)} partite in base ai criteri impostati!")
+                        st.success(f"Trovate e filtrate con successo {len(partite_filtrate)} partite per l'utente '{username_cerca}'!")
                     else:
-                        st.warning("Nessuna partita trovata che soddisfi i filtri selezionati.")
+                        st.warning("Nessuna partita trovata con i filtri attuali. Prova a impostare 'Tutti' su Colore, Esito e Tempo.")
                 except Exception as e:
-                    st.error(f"Errore durante l'elaborazione o il download: {e}")
+                    st.error(f"Errore durante il download o l'elaborazione: {e}")
 
     # --- MOSTRA E SELEZIONA LE PARTITE FILTRATE ---
     if 'partite_scaricate' in st.session_state and st.session_state['partite_scaricate']:
@@ -527,7 +544,7 @@ with tab5:
         with c_act1:
             if st.button("🚀 Invia e Analizza (Tab 1)", use_container_width=True, type="primary"):
                 st.session_state['pgn_manual_input'] = pgn_selezionato_val
-                st.success("Partita trasferita! Apri la scheda '📖 Analizza PGN' e avvia la lezione del GM.")
+                st.success("Partita trasferita! Apri la scheda '📖 Analizza PGN' per avviare l'analisi del GM.")
         with c_act2:
             if st.button("📝 Invia al Diario & PDF (Tab 4)", use_container_width=True):
                 import chess.pgn
