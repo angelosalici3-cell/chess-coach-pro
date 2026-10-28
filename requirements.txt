@@ -5,3 +5,4 @@ pandas
 fpdf2
 pillow
 cairosvg
+berserk
