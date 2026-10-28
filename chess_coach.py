@@ -10,6 +10,7 @@ import datetime
 import io
 import os
 import tempfile
+import time
 import requests
 import berserk
 from fpdf import FPDF
@@ -55,12 +56,8 @@ def save_api_key_to_db(api_key):
     conn.commit()
     conn.close()
 
-# --- MOTORE DI ANALISI CLOUD REALE (STOCKFISH ONLINE REST API) ---
+# --- MOTORE DI ANALISI CLOUD AFFIDABILE (CON GESTIONE DEL RITARDO E DEGLI ERRORI) ---
 def analizza_partita_lichess_cloud(pgn_text):
-    """
-    Analizza ogni mossa del PGN interrogando il motore Stockfish Cloud REST API.
-    Garantisce l'analisi mossa per mossa in tempo reale senza limiti di cache.
-    """
     game = chess.pgn.read_game(io.StringIO(pgn_text))
     if not game:
         return [], None, "Impossibile leggere il PGN fornito."
@@ -71,7 +68,7 @@ def analizza_partita_lichess_cloud(pgn_text):
     prev_eval = 0.0
     
     main_moves = list(game.mainline_moves())
-    progress_bar = st.progress(0, text="Stockfish Cloud sta analizzando la partita...")
+    progress_bar = st.progress(0, text="Avvio analisi Stockfish Cloud...")
     
     for idx, move in enumerate(main_moves):
         fen_before = board.fen()
@@ -83,29 +80,38 @@ def analizza_partita_lichess_cloud(pgn_text):
         label_mossa = f"{num_mossa}. {move.uci()}" if is_white_move else f"{num_mossa}... {move.uci()}"
         
         # Aggiorna la barra di avanzamento
-        progress_bar.progress((idx + 1) / len(main_moves), text=f"Stockfish analizza mossa {num_mossa} di {len(main_moves)}...")
+        progress_bar.progress((idx + 1) / len(main_moves), text=f"Analisi mossa {num_mossa} di {len(main_moves)}...")
         
         curr_eval = prev_eval
-        try:
-            # Chiamata alla Stockfish Online REST API (depth 12-15)
-            url_sf = f"https://stockfish.online/api/m/v2?fen={requests.utils.quote(fen_after)}&depth=12"
-            r = requests.get(url_sf, headers=headers_req, timeout=4)
-            if r.status_code == 200:
-                res_j = r.json()
-                if res_j.get("success"):
-                    # Legge la valutazione (in centipawns o mate)
-                    eval_val = res_j.get("evaluation")
-                    mate_val = res_j.get("mate")
-                    if eval_val is not None:
-                        curr_eval = float(eval_val)
-                    elif mate_val is not None:
-                        curr_eval = 100.0 if mate_val > 0 else -100.0
-        except Exception:
-            curr_eval = prev_eval
+        success_eval = False
+        
+        # Tentativi multipli per mossa per garantire stabilità di rete
+        for attempt in range(2):
+            try:
+                url_sf = f"https://stockfish.online/api/m/v2?fen={requests.utils.quote(fen_after)}&depth=10"
+                r = requests.get(url_sf, headers=headers_req, timeout=5)
+                if r.status_code == 200:
+                    res_j = r.json()
+                    if res_j.get("success"):
+                        eval_val = res_j.get("evaluation")
+                        mate_val = res_j.get("mate")
+                        if eval_val is not None:
+                            curr_eval = float(eval_val)
+                            success_eval = True
+                            break
+                        elif mate_val is not None:
+                            curr_eval = 100.0 if mate_val > 0 else -100.0
+                            success_eval = True
+                            break
+            except Exception:
+                time.sleep(0.5)
+                
+        # Pausa di cortesia per non intasare l'API pubblica ed evitare blocchi 429
+        time.sleep(0.2)
 
         delta = (prev_eval - curr_eval) if is_white_move else (curr_eval - prev_eval)
         
-        # Soglie per la classificazione a 3 livelli
+        # Classificazione a 3 livelli
         if delta >= 2.0:
             tipo_problema = "🔴 Errore Grave (Blunder)"
         elif delta >= 1.0:
@@ -286,10 +292,10 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "🌐 Importa & Filtra Partite"
 ])
 
-# --- TAB 1: ANALISI PGN CON LICHESS CLOUD EVAL + GEMINI ---
+# --- TAB 1: ANALISI PGN CON STOCKFISH CLOUD + GEMINI ---
 with tab1:
     st.subheader("🤖 Analisi Cloud Stockfish (Imprecisioni, Errori, Blunder) + Lezioni AI")
-    st.write("La partita verrà inviata al motore Stockfish Cloud per estrarre con precisione tutte le imprecisioni, gli errori e le sviste. Successivamente l'AI categorizzerà i problemi nel tuo DB e potrai richiedere lezioni mirate.")
+    st.write("La partita verrà analizzata mossa per mossa per estrarre con precisione tutte le imprecisioni, gli errori e le sviste.")
     
     pgn_input = st.text_area("Testo PGN:", height=180, placeholder="[Event \"Live Chess\"]\n[White \"Tu\"]\n[Black \"Avversario\"]\n\n1. e4 e5 2. Nf3...", key="pgn_manual_input")
     
@@ -306,8 +312,6 @@ with tab1:
                     st.error(err_msg)
                 elif errori:
                     st.success(f"Stockfish ha identificato {len(errori)} criticità (imprecisioni/errori/blunder) nella partita!")
-                    if game_url:
-                        st.markdown(f"🔗 [Apri l'analisi completa su Lichess]({game_url})")
                     
                     if chiave_attiva:
                         with st.spinner("L'AI sta categorizzando gli errori per la tua Dashboard..."):
@@ -340,7 +344,7 @@ with tab1:
                 else:
                     st.info("Stockfish non ha rilevato imprecisioni o errori rilevanti in questa partita. Partita eccellente!")
 
-    # --- MOSTRA ELENCO ERRORI RILEVATI DA STOCKFISH CLOUD ---
+    # --- MOSTRA ELENCO ERRORI RILEVATI ---
     if 'stockfish_errors' in st.session_state and st.session_state['stockfish_errors']:
         st.divider()
         st.subheader("📌 Criticità Rilevate da Stockfish Cloud")
@@ -564,7 +568,7 @@ with tab5:
                 try:
                     if piattaforma_sel == "Lichess":
                         url = f"https://lichess.org/api/games/user/{user_lower}"
-                        params = {"max": filtro_limite, "evals": "true"}
+                        params = {"max": filtro_limite}
                         headers = {
                             "Accept": "application/x-chess-pgn",
                             "User-Agent": "ChessCoachPro/1.0"
