@@ -55,7 +55,7 @@ def save_api_key_to_db(api_key):
     conn.commit()
     conn.close()
 
-# --- MOTORE DI VALUTAZIONE STOCKFISH (LICHESS CLOUD EVAL API) ---
+# --- MOTORE DI VALUTAZIONE STOCKFISH (A 3 LIVELLI: IMPRECISIONI, ERRORI, ERRORI GRAVI) ---
 def analizza_partita_stockfish_cloud(pgn_text):
     game = chess.pgn.read_game(io.StringIO(pgn_text))
     if not game:
@@ -98,7 +98,17 @@ def analizza_partita_stockfish_cloud(pgn_text):
 
         delta = (prev_eval - curr_eval) if is_white_move else (curr_eval - prev_eval)
         
-        if delta > 1.5:
+        # Classificazione a 3 livelli coerente con gli standard di analisi
+        if delta >= 2.0:
+            tipo_problema = "🔴 Errore Grave (Blunder)"
+        elif delta >= 1.0:
+            tipo_problema = "🟠 Errore (Mistake)"
+        elif delta >= 0.5:
+            tipo_problema = "🟡 Imprecisione (Inaccuracy)"
+        else:
+            tipo_problema = None
+
+        if tipo_problema:
             evaluations.append({
                 "mossa_num": idx + 1,
                 "label_mossa": label_mossa,
@@ -106,7 +116,8 @@ def analizza_partita_stockfish_cloud(pgn_text):
                 "fen_dopo": fen_after,
                 "mossa_giocata": move.uci(),
                 "perdita_cp": round(delta, 2),
-                "eval_dopo": curr_eval
+                "eval_dopo": curr_eval,
+                "tipo_problema": tipo_problema
             })
             
         prev_eval = curr_eval
@@ -201,7 +212,7 @@ def genera_pdf_partita(board, mosse_lista, note_mosse, note_finali):
 st.set_page_config(page_title="Chess Coach Pro", layout="wide", page_icon="♟️")
 init_db()
 
-# --- GESTIONE SICURA TRASFERIMENTO PGN (RISOLVE L'ERRORE DI INSTANTIATION) ---
+# --- GESTIONE SICURA TRASFERIMENTO PGN ---
 if 'pending_pgn_transfer' in st.session_state:
     st.session_state['pgn_manual_input'] = st.session_state['pending_pgn_transfer']
     del st.session_state['pending_pgn_transfer']
@@ -269,8 +280,8 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 
 # --- TAB 1: ANALISI PGN CON STOCKFISH + GEMINI ---
 with tab1:
-    st.subheader("🤖 Analisi Oggettiva Stockfish + Lezioni Gemini AI")
-    st.write("Il motore Stockfish analizzerà prima la partita per isolare le mosse errate. Successivamente l'AI clusterizzerà gli errori nel tuo DB e potrai richiedere una lezione per ciascuna mossa.")
+    st.subheader("🤖 Analisi Oggettiva Stockfish (Imprecisioni, Errori e Blunder) + Lezioni AI")
+    st.write("Stockfish analizzerà la partita identificando imprecisioni, errori e sviste. L'AI categorizzerà i problemi nel tuo DB e potrai richiedere una lezione mirata per ciascuna mossa.")
     
     pgn_input = st.text_area("Testo PGN:", height=180, placeholder="[Event \"Live Chess\"]\n[White \"Tu\"]\n[Black \"Avversario\"]\n\n1. e4 e5 2. Nf3...", key="pgn_manual_input")
     
@@ -278,13 +289,13 @@ with tab1:
         if not pgn_input.strip():
             st.warning("Inserisci un PGN valido.")
         else:
-            with st.spinner("Stockfish sta valutando la partita mossa per mossa..."):
+            with st.spinner("Stockfish sta valutando imprecisioni, errori e sviste mossa per mossa..."):
                 errori, game_obj = analizza_partita_stockfish_cloud(pgn_input.strip())
                 st.session_state['stockfish_errors'] = errori
                 st.session_state['current_game_pgn'] = pgn_input.strip()
                 
                 if errori:
-                    st.success(f"Stockfish ha identificato {len(errori)} sviste/errori critici nella partita!")
+                    st.success(f"Stockfish ha identificato {len(errori)} criticità (imprecisioni/errori/blunder) nella partita!")
                     
                     if chiave_attiva:
                         with st.spinner("L'AI sta categorizzando gli errori per la tua Dashboard..."):
@@ -293,7 +304,7 @@ with tab1:
                                 model = genai.GenerativeModel("gemini-2.5-flash")
                                 
                                 prompt_cluster = f"""
-                                Data questa lista di mosse errate rilevate da Stockfish con relativa FEN prima della mossa e calo di valutazione:
+                                Data questa lista di criticità rilevate da Stockfish con relativa FEN e tipo di problema:
                                 {json.dumps(errori)}
                                 
                                 Categorizza CIASCUN errore assegnando UNA sola etichetta sintetica tra queste:
@@ -309,21 +320,21 @@ with tab1:
                                 clusters = json.loads(testo_c)
                                 
                                 for item in clusters:
-                                    salva_errore(item.get("categoria", "Tattica"), item.get("label_mossa", "Mossa"), "Errore rilevato da Stockfish")
+                                    salva_errore(item.get("categoria", "Tattica"), item.get("label_mossa", "Mossa"), "Criticità rilevata da Stockfish")
                                 
                                 st.info("💾 Categorie salvate con successo nella tua Dashboard Errori!")
                             except Exception as e:
                                 st.warning(f"Impossibile auto-categorizzare gli errori: {e}")
                 else:
-                    st.info("Stockfish non ha rilevato errori gravi (calo > 1.5 pedoni) in questa partita. Ottimo gioco!")
+                    st.info("Stockfish non ha rilevato imprecisioni o errori rilevanti in questa partita. Partita eccellente!")
 
     # --- MOSTRA ELENCO ERRORI RILEVATI DA STOCKFISH ---
     if 'stockfish_errors' in st.session_state and st.session_state['stockfish_errors']:
         st.divider()
-        st.subheader("📌 Errori Rilevati da Stockfish")
+        st.subheader("📌 Criticità Rilevate da Stockfish")
         
         for idx, err in enumerate(st.session_state['stockfish_errors']):
-            with st.expander(f"⚠️ Errore #{idx+1}: Mossa `{err['label_mossa']}` (Perdita: -{err['perdita_cp']} pedoni)", expanded=(idx==0)):
+            with st.expander(f"{err['tipo_problema']}: Mossa `{err['label_mossa']}` (Perdita: -{err['perdita_cp']} pedoni)", expanded=(idx==0)):
                 col_b, col_t = st.columns([1, 1])
                 
                 with col_b:
@@ -332,8 +343,9 @@ with tab1:
                     st.write(chess.svg.board(board=b_prima, size=320), unsafe_allow_html=True)
                     
                 with col_t:
+                    st.markdown(f"**Gravità:** `{err['tipo_problema']}`")
                     st.markdown(f"**Mossa Giocata:** `{err['mossa_giocata']}`")
-                    st.markdown(f"**Calo Valutazione:** `-{err['perdita_cp']}` centipawns")
+                    st.markdown(f"**Perdita Valutazione:** `-{err['perdita_cp']}` pedoni")
                     st.markdown(f"**Valutazione Risultante:** `{err['eval_dopo']}`")
                     
                     st.markdown("---")
@@ -349,12 +361,12 @@ with tab1:
                                     
                                     prompt_lesson = f"""
                                     Sei un Grande Maestro di scacchi che allena un allievo di 1800 Elo.
-                                    In questa posizione (FEN: {err['fen_prima']}), l'allievo ha giocato la mossa {err['mossa_giocata']}, subendo una perdita di valutazione di {err['perdita_cp']} pedoni secondo Stockfish.
+                                    In questa posizione (FEN: {err['fen_prima']}), l'allievo ha commesso un {err['tipo_problema']} giocando la mossa {err['mossa_giocata']}, perdendo {err['perdita_cp']} pedoni.
                                     
                                     Fornisci una lezione strutturata in italiano che spieghi:
-                                    1. **Perché la mossa giocata è un errore concettuale/tattico.**
+                                    1. **Perché la mossa giocata è imprecisa o errata a livello concettuale/tattico.**
                                     2. **Qual era il piano corretto o la mossa migliore e perché.**
-                                    3. **La regola d'oro / modello mentale per evitare questo errore nelle prossime partite.**
+                                    3. **La regola d'oro / modello mentale per evitare questo tipo di errore nelle prossime partite.**
                                     """
                                     resp_lesson = model_gm.generate_content(prompt_lesson)
                                     st.session_state[f"lesson_res_{idx}"] = resp_lesson.text
@@ -540,7 +552,8 @@ with tab5:
                 try:
                     if piattaforma_sel == "Lichess":
                         url = f"https://lichess.org/api/games/user/{user_lower}"
-                        params = {"max": filtro_limite}
+                        # Richiediamo anche le valutazioni/evals se disponibili su Lichess
+                        params = {"max": filtro_limite, "evals": "true"}
                         headers = {
                             "Accept": "application/x-chess-pgn",
                             "User-Agent": "ChessCoachPro/1.0"
