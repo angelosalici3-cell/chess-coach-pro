@@ -320,7 +320,7 @@ with tab1:
                         with st.spinner("L'AI sta categorizzando gli errori per la tua Dashboard..."):
                             try:
                                 genai.configure(api_key=chiave_attiva)
-                                model = genai.GenerativeModel("gemini-2.5-flash")
+                                model = genai.GenerativeModel("gemini-3.8-flash")
                                 
                                 prompt_cluster = f"""
                                 Data questa lista di criticità rilevate dal motore con relativa FEN e tipo di problema:
@@ -376,7 +376,7 @@ with tab1:
                             with st.spinner("Il Grande Maestro sta preparando la lezione didattica su questa posizione..."):
                                 try:
                                     genai.configure(api_key=chiave_attiva)
-                                    model_gm = genai.GenerativeModel("gemini-2.5-flash")
+                                    model_gm = genai.GenerativeModel("gemini-3.8-flash")
                                     
                                     prompt_lesson = f"""
                                     Sei un Grande Maestro di scacchi che allena un allievo di 1800 Elo.
@@ -426,7 +426,7 @@ with tab3:
             with st.spinner("Elaborazione in corso..."):
                 try:
                     genai.configure(api_key=chiave_attiva)
-                    model = genai.GenerativeModel("gemini-2.5-flash")
+                    model = genai.GenerativeModel("gemini-3.8-flash")
                     
                     prompt_libro = f"""
                     Analizza questo testo di scacchi. Traduci i commenti in italiano fluida.
