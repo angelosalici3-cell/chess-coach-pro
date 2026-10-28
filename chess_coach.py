@@ -57,6 +57,7 @@ def save_api_key_to_db(api_key):
     conn.close()
 
 # --- MOTORE DI ANALISI CLOUD AFFIDABILE (CON GESTIONE DEL RITARDO E DEGLI ERRORI) ---
+# --- MOTORE DI ANALISI CLOUD POTENZIATO CON DEBUG VISIVO ---
 def analizza_partita_lichess_cloud(pgn_text):
     game = chess.pgn.read_game(io.StringIO(pgn_text))
     if not game:
@@ -69,6 +70,7 @@ def analizza_partita_lichess_cloud(pgn_text):
     
     main_moves = list(game.mainline_moves())
     progress_bar = st.progress(0, text="Avvio analisi Stockfish Cloud...")
+    status_text = st.empty()
     
     for idx, move in enumerate(main_moves):
         fen_before = board.fen()
@@ -79,17 +81,16 @@ def analizza_partita_lichess_cloud(pgn_text):
         is_white_move = (idx % 2 == 0)
         label_mossa = f"{num_mossa}. {move.uci()}" if is_white_move else f"{num_mossa}... {move.uci()}"
         
-        # Aggiorna la barra di avanzamento
         progress_bar.progress((idx + 1) / len(main_moves), text=f"Analisi mossa {num_mossa} di {len(main_moves)}...")
         
         curr_eval = prev_eval
-        success_eval = False
+        api_success = False
         
-        # Tentativi multipli per mossa per garantire stabilità di rete
-        for attempt in range(2):
+        # Interroghiamo l'API con tentativi multipli
+        for attempt in range(3):
             try:
-                url_sf = f"https://stockfish.online/api/m/v2?fen={requests.utils.quote(fen_after)}&depth=10"
-                r = requests.get(url_sf, headers=headers_req, timeout=5)
+                url_sf = f"https://stockfish.online/api/m/v2?fen={requests.utils.quote(fen_after)}&depth=12"
+                r = requests.get(url_sf, headers=headers_req, timeout=6)
                 if r.status_code == 200:
                     res_j = r.json()
                     if res_j.get("success"):
@@ -97,21 +98,25 @@ def analizza_partita_lichess_cloud(pgn_text):
                         mate_val = res_j.get("mate")
                         if eval_val is not None:
                             curr_eval = float(eval_val)
-                            success_eval = True
+                            api_success = True
                             break
                         elif mate_val is not None:
                             curr_eval = 100.0 if mate_val > 0 else -100.0
-                            success_eval = True
+                            api_success = True
                             break
             except Exception:
-                time.sleep(0.5)
+                time.sleep(0.3)
                 
-        # Pausa di cortesia per non intasare l'API pubblica ed evitare blocchi 429
+        # Pausa di cortesia per stabilizzare la connessione
         time.sleep(0.2)
 
+        # Calcolo della perdita di centipawns / pedoni
         delta = (prev_eval - curr_eval) if is_white_move else (curr_eval - prev_eval)
         
-        # Classificazione a 3 livelli
+        # Debug visivo temporaneo per capire cosa legge il motore
+        status_text.caption(f"Mossa {label_mossa} | Eval: {curr_eval} | Delta perdita: {round(delta, 2)}")
+
+        # Classificazione a 3 livelli (Soglie: Imprecisione >= 0.5, Errore >= 1.0, Blunder >= 2.0)
         if delta >= 2.0:
             tipo_problema = "🔴 Errore Grave (Blunder)"
         elif delta >= 1.0:
@@ -121,7 +126,7 @@ def analizza_partita_lichess_cloud(pgn_text):
         else:
             tipo_problema = None
 
-        if tipo_problema:
+        if tipo_problema and api_success:
             evaluations.append({
                 "mossa_num": idx + 1,
                 "label_mossa": label_mossa,
@@ -136,6 +141,7 @@ def analizza_partita_lichess_cloud(pgn_text):
         prev_eval = curr_eval
         
     progress_bar.empty()
+    status_text.empty()
     return evaluations, None, None
 
 # --- GENERAZIONE IMMAGINE SCACCHIERA PER PDF ---
