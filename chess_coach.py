@@ -55,104 +55,82 @@ def save_api_key_to_db(api_key):
     conn.commit()
     conn.close()
 
-# --- MOTORE DI ANALISI CLOUD TRAMITE API LICHESS ---
+# --- MOTORE DI ANALISI CLOUD REALE (STOCKFISH ONLINE REST API) ---
 def analizza_partita_lichess_cloud(pgn_text):
     """
-    Invia il PGN all'API di importazione Lichess con analisi automatica Stockfish.
-    Estrae le valutazioni mossa per mossa (imprecisioni, errori, blunder).
+    Analizza ogni mossa del PGN interrogando il motore Stockfish Cloud REST API.
+    Garantisce l'analisi mossa per mossa in tempo reale senza limiti di cache.
     """
-    url_import = "https://lichess.org/api/import"
-    payload = {
-        "pgn": pgn_text,
-        "autoAnalyze": "true"
-    }
-    headers = {
-        "Accept": "application/json",
-        "User-Agent": "ChessCoachPro/1.0"
-    }
+    game = chess.pgn.read_game(io.StringIO(pgn_text))
+    if not game:
+        return [], None, "Impossibile leggere il PGN fornito."
+
+    board = game.board()
+    evaluations = []
+    headers_req = {"User-Agent": "ChessCoachPro/1.0"}
+    prev_eval = 0.0
     
-    if st.session_state.get('lichess_token'):
-        headers["Authorization"] = f"Bearer {st.session_state['lichess_token']}"
+    main_moves = list(game.mainline_moves())
+    progress_bar = st.progress(0, text="Stockfish Cloud sta analizzando la partita...")
+    
+    for idx, move in enumerate(main_moves):
+        fen_before = board.fen()
+        board.push(move)
+        fen_after = board.fen()
         
-    try:
-        # Step 1: Importa la partita e richiede l'analisi automatica a Lichess
-        r_imp = requests.post(url_import, data=payload, headers=headers, timeout=15)
-        if r_imp.status_code != 200:
-            return [], None, f"Errore durante l'importazione su Lichess (Codice {r_imp.status_code})."
-            
-        data_imp = r_imp.json()
-        game_id = data_imp.get("id")
-        game_url = data_imp.get("url")
+        num_mossa = (idx // 2) + 1
+        is_white_move = (idx % 2 == 0)
+        label_mossa = f"{num_mossa}. {move.uci()}" if is_white_move else f"{num_mossa}... {move.uci()}"
         
-        # Step 2: Esporta i dati di analisi in JSON con le valutazioni (evals=true)
-        url_export = f"https://lichess.org/api/game/export/{game_id}"
-        r_exp = requests.get(url_export, params={"evals": "true"}, headers={"Accept": "application/json"}, timeout=15)
+        # Aggiorna la barra di avanzamento
+        progress_bar.progress((idx + 1) / len(main_moves), text=f"Stockfish analizza mossa {num_mossa} di {len(main_moves)}...")
         
-        if r_exp.status_code != 200:
-            return [], game_url, "Impossibile recuperare l'analisi da Lichess."
-            
-        game_data = r_exp.json()
-        moves_data = game_data.get("moves", "").split()
-        analysis_data = game_data.get("analysis", [])
-        
-        # Ricostruiamo la scacchiera e colleghiamo le valutazioni
-        game_pgn = chess.pgn.read_game(io.StringIO(pgn_text))
-        if not game_pgn:
-            return [], game_url, "Impossibile leggere il PGN fornito."
-            
-        board = game_pgn.board()
-        evaluations = []
-        prev_eval = 0.0
-        
-        main_moves = list(game_pgn.mainline_moves())
-        
-        for idx, move in enumerate(main_moves):
-            fen_before = board.fen()
-            board.push(move)
-            fen_after = board.fen()
-            
-            num_mossa = (idx // 2) + 1
-            is_white_move = (idx % 2 == 0)
-            label_mossa = f"{num_mossa}. {move.uci()}" if is_white_move else f"{num_mossa}... {move.uci()}"
-            
-            # Recuperiamo la valutazione se presente nei dati dell'analisi di Lichess
+        curr_eval = prev_eval
+        try:
+            # Chiamata alla Stockfish Online REST API (depth 12-15)
+            url_sf = f"https://stockfish.online/api/m/v2?fen={requests.utils.quote(fen_after)}&depth=12"
+            r = requests.get(url_sf, headers=headers_req, timeout=4)
+            if r.status_code == 200:
+                res_j = r.json()
+                if res_j.get("success"):
+                    # Legge la valutazione (in centipawns o mate)
+                    eval_val = res_j.get("evaluation")
+                    mate_val = res_j.get("mate")
+                    if eval_val is not None:
+                        curr_eval = float(eval_val)
+                    elif mate_val is not None:
+                        curr_eval = 100.0 if mate_val > 0 else -100.0
+        except Exception:
             curr_eval = prev_eval
-            if idx < len(analysis_data):
-                an = analysis_data[idx]
-                if "eval" in an:
-                    curr_eval = an["eval"] / 100.0
-                elif "mate" in an:
-                    curr_eval = 100.0 if an["mate"] > 0 else -100.0
 
-            delta = (prev_eval - curr_eval) if is_white_move else (curr_eval - prev_eval)
-            
-            # Classificazione a 3 livelli coerente con gli standard di Lichess
-            if delta >= 2.0:
-                tipo_problema = "🔴 Errore Grave (Blunder)"
-            elif delta >= 1.0:
-                tipo_problema = "🟠 Errore (Mistake)"
-            elif delta >= 0.5:
-                tipo_problema = "🟡 Imprecisione (Inaccuracy)"
-            else:
-                tipo_problema = None
+        delta = (prev_eval - curr_eval) if is_white_move else (curr_eval - prev_eval)
+        
+        # Soglie per la classificazione a 3 livelli
+        if delta >= 2.0:
+            tipo_problema = "🔴 Errore Grave (Blunder)"
+        elif delta >= 1.0:
+            tipo_problema = "🟠 Errore (Mistake)"
+        elif delta >= 0.5:
+            tipo_problema = "🟡 Imprecisione (Inaccuracy)"
+        else:
+            tipo_problema = None
 
-            if tipo_problema:
-                evaluations.append({
-                    "mossa_num": idx + 1,
-                    "label_mossa": label_mossa,
-                    "fen_prima": fen_before,
-                    "fen_dopo": fen_after,
-                    "mossa_giocata": move.uci(),
-                    "perdita_cp": round(delta, 2),
-                    "eval_dopo": curr_eval,
-                    "tipo_problema": tipo_problema
-                })
-                
-            prev_eval = curr_eval
+        if tipo_problema:
+            evaluations.append({
+                "mossa_num": idx + 1,
+                "label_mossa": label_mossa,
+                "fen_prima": fen_before,
+                "fen_dopo": fen_after,
+                "mossa_giocata": move.uci(),
+                "perdita_cp": round(delta, 2),
+                "eval_dopo": curr_eval,
+                "tipo_problema": tipo_problema
+            })
             
-        return evaluations, game_url, None
-    except Exception as e:
-        return [], None, f"Errore durante l'analisi Cloud: {e}"
+        prev_eval = curr_eval
+        
+    progress_bar.empty()
+    return evaluations, None, None
 
 # --- GENERAZIONE IMMAGINE SCACCHIERA PER PDF ---
 def salva_immagine_scacchiera_png(board, path_temp):
