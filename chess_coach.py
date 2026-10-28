@@ -56,93 +56,116 @@ def save_api_key_to_db(api_key):
     conn.commit()
     conn.close()
 
-# --- MOTORE DI ANALISI CLOUD AFFIDABILE (CON GESTIONE DEL RITARDO E DEGLI ERRORI) ---
-# --- MOTORE DI ANALISI CLOUD POTENZIATO CON DEBUG VISIVO ---
-def analizza_partita_lichess_cloud(pgn_text):
-    game = chess.pgn.read_game(io.StringIO(pgn_text))
-    if not game:
-        return [], None, "Impossibile leggere il PGN fornito."
-
-    board = game.board()
-    evaluations = []
-    headers_req = {"User-Agent": "ChessCoachPro/1.0"}
-    prev_eval = 0.0
+# --- MOTORE DI ANALISI ONLINE (LICHESS IMPORT + POLLING) ---
+def analizza_partita_lichess_poll(pgn_text):
+    """
+    Invia il PGN a Lichess con autoAnalyze=true e attende in polling che l'analisi Stockfish
+    venga completata sui server di Lichess prima di estrarre imprecisioni, errori e blunder.
+    """
+    url_import = "https://lichess.org/api/import"
+    payload = {
+        "pgn": pgn_text,
+        "autoAnalyze": "true"
+    }
+    headers = {
+        "Accept": "application/json",
+        "User-Agent": "ChessCoachPro/1.0"
+    }
     
-    main_moves = list(game.mainline_moves())
-    progress_bar = st.progress(0, text="Avvio analisi Stockfish Cloud...")
-    status_text = st.empty()
-    
-    for idx, move in enumerate(main_moves):
-        fen_before = board.fen()
-        board.push(move)
-        fen_after = board.fen()
+    if st.session_state.get('lichess_token'):
+        headers["Authorization"] = f"Bearer {st.session_state['lichess_token']}"
         
-        num_mossa = (idx // 2) + 1
-        is_white_move = (idx % 2 == 0)
-        label_mossa = f"{num_mossa}. {move.uci()}" if is_white_move else f"{num_mossa}... {move.uci()}"
-        
-        progress_bar.progress((idx + 1) / len(main_moves), text=f"Analisi mossa {num_mossa} di {len(main_moves)}...")
-        
-        curr_eval = prev_eval
-        api_success = False
-        
-        # Interroghiamo l'API con tentativi multipli
-        for attempt in range(3):
-            try:
-                url_sf = f"https://stockfish.online/api/m/v2?fen={requests.utils.quote(fen_after)}&depth=12"
-                r = requests.get(url_sf, headers=headers_req, timeout=6)
-                if r.status_code == 200:
-                    res_j = r.json()
-                    if res_j.get("success"):
-                        eval_val = res_j.get("evaluation")
-                        mate_val = res_j.get("mate")
-                        if eval_val is not None:
-                            curr_eval = float(eval_val)
-                            api_success = True
-                            break
-                        elif mate_val is not None:
-                            curr_eval = 100.0 if mate_val > 0 else -100.0
-                            api_success = True
-                            break
-            except Exception:
-                time.sleep(0.3)
-                
-        # Pausa di cortesia per stabilizzare la connessione
-        time.sleep(0.2)
-
-        # Calcolo della perdita di centipawns / pedoni
-        delta = (prev_eval - curr_eval) if is_white_move else (curr_eval - prev_eval)
-        
-        # Debug visivo temporaneo per capire cosa legge il motore
-        status_text.caption(f"Mossa {label_mossa} | Eval: {curr_eval} | Delta perdita: {round(delta, 2)}")
-
-        # Classificazione a 3 livelli (Soglie: Imprecisione >= 0.5, Errore >= 1.0, Blunder >= 2.0)
-        if delta >= 2.0:
-            tipo_problema = "🔴 Errore Grave (Blunder)"
-        elif delta >= 1.0:
-            tipo_problema = "🟠 Errore (Mistake)"
-        elif delta >= 0.5:
-            tipo_problema = "🟡 Imprecisione (Inaccuracy)"
-        else:
-            tipo_problema = None
-
-        if tipo_problema and api_success:
-            evaluations.append({
-                "mossa_num": idx + 1,
-                "label_mossa": label_mossa,
-                "fen_prima": fen_before,
-                "fen_dopo": fen_after,
-                "mossa_giocata": move.uci(),
-                "perdita_cp": round(delta, 2),
-                "eval_dopo": curr_eval,
-                "tipo_problema": tipo_problema
-            })
+    try:
+        # Step 1: Invia la partita a Lichess
+        r_imp = requests.post(url_import, data=payload, headers=headers, timeout=12)
+        if r_imp.status_code != 200:
+            return [], None, f"Errore di connessione a Lichess (Codice HTTP {r_imp.status_code})."
             
-        prev_eval = curr_eval
+        data_imp = r_imp.json()
+        game_id = data_imp.get("id")
+        game_url = data_imp.get("url")
         
-    progress_bar.empty()
-    status_text.empty()
-    return evaluations, None, None
+        if not game_id:
+            return [], None, "Impossibile ottenere l'ID della partita da Lichess."
+            
+        # Step 2: Polling per attendere il completamento dell'analisi Stockfish
+        url_export = f"https://lichess.org/api/game/export/{game_id}"
+        analysis_data = []
+        
+        progress_bar = st.progress(0, text="Lichess sta analizzando la partita sui suoi server cloud...")
+        
+        for attempt in range(8):  # Fino a ~24 secondi di attesa complessivi
+            progress_bar.progress((attempt + 1) / 8, text=f"Elaborazione Stockfish Cloud in corso (Tentativo {attempt + 1}/8)...")
+            time.sleep(3)
+            
+            r_exp = requests.get(url_export, params={"evals": "true"}, headers={"Accept": "application/json"}, timeout=10)
+            if r_exp.status_code == 200:
+                game_data = r_exp.json()
+                if "analysis" in game_data and len(game_data["analysis"]) > 0:
+                    analysis_data = game_data["analysis"]
+                    break
+                    
+        progress_bar.empty()
+        
+        if not analysis_data:
+            return [], game_url, "Lichess sta ancora elaborando l'analisi. Attendi 10 secondi e clicca di nuovo su Analizza."
+            
+        # Step 3: Parsing e isolamento delle imprecisioni, errori e blunder
+        game_pgn = chess.pgn.read_game(io.StringIO(pgn_text))
+        if not game_pgn:
+            return [], game_url, "Impossibile leggere il PGN formattato."
+            
+        board = game_pgn.board()
+        evaluations = []
+        prev_eval = 0.0
+        
+        main_moves = list(game_pgn.mainline_moves())
+        
+        for idx, move in enumerate(main_moves):
+            fen_before = board.fen()
+            board.push(move)
+            
+            num_mossa = (idx // 2) + 1
+            is_white_move = (idx % 2 == 0)
+            label_mossa = f"{num_mossa}. {move.uci()}" if is_white_move else f"{num_mossa}... {move.uci()}"
+            
+            curr_eval = prev_eval
+            if idx < len(analysis_data):
+                an = analysis_data[idx]
+                if "eval" in an:
+                    curr_eval = an["eval"] / 100.0
+                elif "mate" in an:
+                    curr_eval = 100.0 if an["mate"] > 0 else -100.0
+
+            delta = (prev_eval - curr_eval) if is_white_move else (curr_eval - prev_eval)
+            
+            # Classificazione professionale a 3 livelli
+            if delta >= 2.0:
+                tipo_problema = "🔴 Errore Grave (Blunder)"
+            elif delta >= 1.0:
+                tipo_problema = "🟠 Errore (Mistake)"
+            elif delta >= 0.5:
+                tipo_problema = "🟡 Imprecisione (Inaccuracy)"
+            else:
+                tipo_problema = None
+
+            if tipo_problema:
+                evaluations.append({
+                    "mossa_num": idx + 1,
+                    "label_mossa": label_mossa,
+                    "fen_prima": fen_before,
+                    "mossa_giocata": move.uci(),
+                    "perdita_cp": round(delta, 2),
+                    "eval_dopo": curr_eval,
+                    "tipo_problema": tipo_problema
+                })
+                
+            prev_eval = curr_eval
+            
+        return evaluations, game_url, None
+        
+    except Exception as e:
+        return [], None, f"Errore durante la comunicazione con Lichess Cloud: {e}"
 
 # --- GENERAZIONE IMMAGINE SCACCHIERA PER PDF ---
 def salva_immagine_scacchiera_png(board, path_temp):
@@ -237,7 +260,7 @@ if 'pending_pgn_transfer' in st.session_state:
     st.session_state['pgn_manual_input'] = st.session_state['pending_pgn_transfer']
     del st.session_state['pending_pgn_transfer']
 
-st.title("♟️ Chess Coach Pro (Stockfish Cloud API + Gemini AI)")
+st.title("♟️ Chess Coach Pro (Stockfish Cloud + Gemini AI)")
 
 # --- SIDEBAR: GESTIONE API KEY E ACCOUNT LICHESS ---
 with st.sidebar:
@@ -301,7 +324,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 # --- TAB 1: ANALISI PGN CON STOCKFISH CLOUD + GEMINI ---
 with tab1:
     st.subheader("🤖 Analisi Cloud Stockfish (Imprecisioni, Errori, Blunder) + Lezioni AI")
-    st.write("La partita verrà analizzata mossa per mossa per estrarre con precisione tutte le imprecisioni, gli errori e le sviste.")
+    st.write("La partita verrà inviata a Lichess Cloud per l'analisi automatica. L'app attenderà il completamento del calcolo, isolerà imprecisioni ed errori nel database e consentirà di generare lezioni con il GM Gemini.")
     
     pgn_input = st.text_area("Testo PGN:", height=180, placeholder="[Event \"Live Chess\"]\n[White \"Tu\"]\n[Black \"Avversario\"]\n\n1. e4 e5 2. Nf3...", key="pgn_manual_input")
     
@@ -309,15 +332,17 @@ with tab1:
         if not pgn_input.strip():
             st.warning("Inserisci un PGN valido.")
         else:
-            with st.spinner("Il motore Stockfish Cloud sta analizzando la partita mossa per mossa..."):
-                errori, game_url, err_msg = analizza_partita_lichess_cloud(pgn_input.strip())
+            with st.spinner("Invio della partita a Lichess e calcolo Stockfish Cloud in corso..."):
+                errori, game_url, err_msg = analizza_partita_lichess_poll(pgn_input.strip())
                 st.session_state['stockfish_errors'] = errori
                 st.session_state['current_game_url'] = game_url
                 
                 if err_msg:
-                    st.error(err_msg)
+                    st.warning(err_msg)
                 elif errori:
                     st.success(f"Stockfish ha identificato {len(errori)} criticità (imprecisioni/errori/blunder) nella partita!")
+                    if game_url:
+                        st.markdown(f"🔗 [Apri l'analisi interattiva direttamente su Lichess]({game_url})")
                     
                     if chiave_attiva:
                         with st.spinner("L'AI sta categorizzando gli errori per la tua Dashboard..."):
@@ -348,9 +373,9 @@ with tab1:
                             except Exception as e:
                                 st.warning(f"Impossibile auto-categorizzare gli errori: {e}")
                 else:
-                    st.info("Stockfish non ha rilevato imprecisioni o errori rilevanti in questa partita. Partita eccellente!")
+                    st.info("Stockfish non ha rilevato imprecisioni o errori rilevanti in questa partita. Ottima prestazione!")
 
-    # --- MOSTRA ELENCO ERRORI RILEVATI ---
+    # --- MOSTRA ELENCO ERRORI RILEVATI DA STOCKFISH CLOUD ---
     if 'stockfish_errors' in st.session_state and st.session_state['stockfish_errors']:
         st.divider()
         st.subheader("📌 Criticità Rilevate da Stockfish Cloud")
