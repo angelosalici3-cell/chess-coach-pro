@@ -16,10 +16,7 @@ from fpdf import FPDF
 from PIL import Image
 from supabase import create_client, Client
 
-# --- IMPOSTAZIONE PAGINA STREAMLIT ---
-st.set_page_config(page_title="Chess Coach Pro", layout="wide", page_icon="♟️")
-
-# --- RECURACIO SICURA DEI SECRETS ---
+# --- CONFIGURAZIONE CENTRALIZZATA ---
 MASTER_GEMINI_KEY = st.secrets.get("GEMINI_API_KEY", "")
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", "")
 SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "")
@@ -30,7 +27,7 @@ def init_supabase() -> Client:
         return None
     try:
         return create_client(SUPABASE_URL.strip(), SUPABASE_KEY.strip())
-    except Exception as e:
+    except Exception:
         return None
 
 supabase = init_supabase()
@@ -58,7 +55,10 @@ TEXTS = {
         "critique_found": "criticità identificate nella partita!",
         "no_errors": "Stockfish non ha rilevato imprecisioni o errori rilevanti. Partita eccellente!",
         "gm_lesson_btn": "🎓 Chiedi Lezione al GM su Mossa",
-        "prompt_lang": "Rispondi in LINGUA ITALIANA."
+        "prompt_lang": "Rispondi in LINGUA ITALIANA.",
+        "profile_setup_title": "🎯 Configura i tuoi Profili Scacchistici",
+        "profile_setup_desc": "Collega i tuoi account ufficiali per analizzare le tue partite in un click.",
+        "continue_btn": "🚀 Entra nella Piattaforma"
     },
     "en": {
         "title": "♟️ Chess Coach Pro",
@@ -66,7 +66,7 @@ TEXTS = {
         "tab1": "📖 Analyze PGN (Stockfish + AI)",
         "tab2": "📊 Mistakes Dashboard",
         "tab3": "📚 Book Study",
-        "tab4": "📝 Diary & PDF",
+        "tab4": "📝 Diario & PDF",
         "tab5": "🌐 Import & Filter Games",
         "settings": "⚙️ Account & Preferences",
         "lang_select": "🌐 Language:",
@@ -81,7 +81,10 @@ TEXTS = {
         "critique_found": "critical issues identified in the game!",
         "no_errors": "Stockfish detected no significant mistakes or inaccuracies. Great game!",
         "gm_lesson_btn": "🎓 Ask GM Lesson for Move",
-        "prompt_lang": "Respond in ENGLISH language."
+        "prompt_lang": "Respond in ENGLISH language.",
+        "profile_setup_title": "🎯 Setup your Chess Profiles",
+        "profile_setup_desc": "Link your official accounts to analyze your games in one click.",
+        "continue_btn": "🚀 Enter Platform"
     },
     "es": {
         "title": "♟️ Chess Coach Pro",
@@ -104,16 +107,73 @@ TEXTS = {
         "critique_found": "¡críticas identificadas en la partida!",
         "no_errors": "¡Stockfish no detectó errores ni imprecisiones importantes. Excelente partida!",
         "gm_lesson_btn": "🎓 Pedir Lección al Gran Maestro",
-        "prompt_lang": "Responde en IDIOMA ESPAÑOL."
+        "prompt_lang": "Responde en IDIOMA ESPAÑOL.",
+        "profile_setup_title": "🎯 Configura tus Perfiles de Ajedrez",
+        "profile_setup_desc": "Vincula tus cuentas oficiales para analizar tus partidas en un clic.",
+        "continue_btn": "🚀 Entrar a la Plataforma"
     }
 }
+
+st.set_page_config(page_title="Chess Coach Pro", layout="wide", page_icon="♟️")
 
 if 'user' not in st.session_state:
     st.session_state['user'] = None
 if 'lang' not in st.session_state:
     st.session_state['lang'] = 'it'
+if 'profile_setup_done' not in st.session_state:
+    st.session_state['profile_setup_done'] = False
 
 t = TEXTS[st.session_state['lang']]
+
+# --- FUNZIONI DATABASE SUPABASE (PROFILI E TIER) ---
+def get_user_tier(email):
+    if supabase:
+        try:
+            res = supabase.table("config_utenti").select("tier").eq("user_email", email).execute()
+            if res.data and res.data[0].get("tier"):
+                return res.data[0].get("tier")
+        except Exception:
+            pass
+    return "Free"
+
+def get_user_profiles(email):
+    if supabase:
+        try:
+            res = supabase.table("profili_scacchi").select("*").eq("user_email", email).execute()
+            if res.data:
+                return res.data
+        except Exception:
+            pass
+    return []
+
+def add_user_profile(email, piattaforma, username):
+    tier = get_user_tier(email)
+    limit = 1 if tier == "Free" else (3 if tier == "Pro" else 5)
+    current_profiles = get_user_profiles(email)
+    
+    if len(current_profiles) >= limit:
+        return False, f"Limite raggiunto per il tuo piano ({tier}): massimo {limit} profil{'io' if limit==1 else 'i'}."
+    
+    if supabase:
+        try:
+            supabase.table("profili_scacchi").insert({
+                "user_email": email,
+                "piattaforma": piattaforma,
+                "username": username.strip()
+            }).execute()
+            return True, "Profilo aggiunto con successo!"
+        except Exception as e:
+            return False, f"Errore database: {e}"
+    return False, "Supabase non connesso."
+
+def delete_user_profile(profile_id):
+    if supabase:
+        try:
+            supabase.table("profili_scacchi").delete().eq("id", profile_id).execute()
+            return True
+        except Exception:
+            pass
+    return False
 
 def salva_errore_db(user_email, categoria, mossa, spiegazione):
     if supabase:
@@ -140,7 +200,7 @@ def carica_errori_db(user_email):
     return pd.DataFrame(columns=["data", "categoria_errore", "mossa_critica", "spiegazione"])
 
 # ==========================================
-# SEZIONE 1: SCHERMATA DI LOGIN / REGISTRAZIONE CON DIAGNOSTICA
+# 1. SCHERMATA DI LOGIN / REGISTRAZIONE
 # ==========================================
 if not st.session_state['user']:
     col_l1, col_l2, col_l3 = st.columns([1, 1.3, 1])
@@ -150,22 +210,18 @@ if not st.session_state['user']:
         st.markdown(f"<p style='text-align: center; color: gray;'>{t['subtitle']}</p>", unsafe_allow_html=True)
         st.divider()
         
-        # --- PANNELLO DI DIAGNOSTICA INTEGRATA ---
         with st.expander("🛠️ Diagnostica di Connessione Supabase", expanded=False):
-            st.write(f"**URL configurato:** `{SUPABASE_URL if SUPABASE_URL else 'Mancante o Vuoto'}`")
-            st.write(f"**KEY configurata:** `{SUPABASE_KEY[:10]}...` (lunghezza: {len(SUPABASE_KEY)} caratteri)" if SUPABASE_KEY else "**KEY:** ❌ Mancante")
-            
+            st.write(f"**URL configurato:** `{SUPABASE_URL if SUPABASE_URL else 'Mancante'}`")
             if st.button("🧪 Esegui Test di Connessione"):
                 if not SUPABASE_URL or not SUPABASE_KEY:
-                    st.error("❌ URL o KEY di Supabase assenti nei Secrets.")
+                    st.error("❌ Credenziali assenti nei Secrets.")
                 else:
                     try:
                         test_client = create_client(SUPABASE_URL.strip(), SUPABASE_KEY.strip())
-                        # Test rapido di lettura sulla tabella
-                        res = test_client.table("errori_utenti").select("*").limit(1).execute()
-                        st.success("✅ Connessione a Supabase riuscita con successo! Le tabelle rispondono correttamente.")
+                        test_client.table("errori_utenti").select("*").limit(1).execute()
+                        st.success("✅ Connessione a Supabase riuscita!")
                     except Exception as e:
-                        st.error(f"❌ Errore di connessione a Supabase: {e}")
+                        st.error(f"❌ Errore: {e}")
         
         scelta_lingua_benvenuto = st.selectbox(
             t["lang_select"],
@@ -179,7 +235,6 @@ if not st.session_state['user']:
             st.rerun()
 
         tab_log, tab_reg = st.tabs([t["login_header"], t["register_header"]])
-        
         supabase_configurato = supabase is not None
         
         with tab_log:
@@ -191,13 +246,15 @@ if not st.session_state['user']:
                     try:
                         res = supabase.auth.sign_in_with_password({"email": email_log, "password": pass_log})
                         st.session_state['user'] = res.user.email
-                        st.success("Accesso effettuato con successo!")
+                        st.session_state['profile_setup_done'] = False
+                        st.success("Accesso effettuato!")
                         st.rerun()
                     except Exception as e:
                         st.error(f"Errore di accesso: {e}")
                 else:
                     st.session_state['user'] = email_log if email_log else "beta_tester@chess.com"
-                    st.success("Accesso eseguito in modalità Beta Demo!")
+                    st.session_state['profile_setup_done'] = False
+                    st.success("Accesso in modalità Beta Demo!")
                     st.rerun()
                     
         with tab_reg:
@@ -208,19 +265,71 @@ if not st.session_state['user']:
                 if supabase_configurato and email_reg and pass_reg:
                     try:
                         supabase.auth.sign_up({"email": email_reg, "password": pass_reg})
-                        st.success("Registrazione completata! Controlla la tua email per confermare l'account o effettua il login.")
+                        st.success("Registrazione completata! Effettua il login.")
                     except Exception as e:
-                        st.error(f"Errore durante la registrazione: {e}")
+                        st.error(f"Errore: {e}")
                 else:
-                    st.warning("⚠️ Supabase non configurato o campi vuoti. Cliccando di nuovo verrai fatto entrare in modalità Demo.")
+                    st.warning("⚠️ Modalità Demo attiva.")
                     if email_reg:
                         st.session_state['user'] = email_reg
+                        st.session_state['profile_setup_done'] = False
                         st.rerun()
                         
     st.stop()
 
 # ==========================================
-# SEZIONE 2: APPLICAZIONE PRINCIPALE
+# 2. SCHERMATA ONBOARDING / CONFIGURAZIONE PROFILI
+# ==========================================
+user_email = st.session_state['user']
+user_tier = get_user_tier(user_email)
+user_profiles = get_user_profiles(user_email)
+
+if not st.session_state.get('profile_setup_done', False):
+    col_p1, col_p2, col_p3 = st.columns([1, 1.5, 1])
+    with col_p2:
+        st.markdown(f"<h2>{t['profile_setup_title']}</h2>", unsafe_allow_html=True)
+        st.write(t['profile_setup_desc'])
+        st.info(f"🏷️ Il tuo piano attuale: **{user_tier}** (Limite: {'1 profilo' if user_tier=='Free' else ('3 profili' if user_tier=='Pro' else '5 profili')})")
+        st.divider()
+        
+        st.markdown("### ➕ Aggiungi un Profilo")
+        with st.form("form_add_profile"):
+            piattaforma_in = st.selectbox("Piattaforma:", ["Lichess", "Chess.com"])
+            username_in = st.text_input("Nome Utente (Username):", placeholder="es. Chene91")
+            submit_prof = st.form_submit_button("Salva Profilo", type="primary")
+            
+            if submit_prof:
+                if username_in.strip():
+                    success, msg = add_user_profile(user_email, piattaforma_in, username_in.strip())
+                    if success:
+                        st.success(msg)
+                        time.sleep(0.8)
+                        st.rerun()
+                    else:
+                        st.error(msg)
+                else:
+                    st.warning("Inserisci un username valido.")
+                    
+        st.markdown("### 📋 I tuoi Profili Salvati")
+        profiles_attuali = get_user_profiles(user_email)
+        if profiles_attuali:
+            for p in profiles_attuali:
+                cols_pr = st.columns([2, 1, 1])
+                cols_pr[0].write(f"**{p['piattaforma']}**: `{p['username']}`")
+                if cols_pr[1].button("🗑️ Rimuovi", key=f"del_prof_{p['id']}"):
+                    delete_user_profile(p['id'])
+                    st.rerun()
+        else:
+            st.info("Nessun profilo salvato finora.")
+            
+        st.divider()
+        if st.button(t['continue_btn'], type="primary", use_container_width=True):
+            st.session_state['profile_setup_done'] = True
+            st.rerun()
+    st.stop()
+
+# ==========================================
+# 3. APPLICAZIONE PRINCIPALE
 # ==========================================
 def analizza_partita_chess_api(pgn_text):
     game = chess.pgn.read_game(io.StringIO(pgn_text))
@@ -358,10 +467,15 @@ def genera_pdf_partita(board, mosse_lista, note_mosse, note_finali):
         
     return bytes(pdf.output())
 
+# --- SIDEBAR PRINCIPALE ---
 with st.sidebar:
     st.header(t["settings"])
-    st.info(f"👤 Utente: **{st.session_state['user']}**")
+    st.info(f"👤 **{user_email}**\n\n🏷️ Piano: **{user_tier}**")
     
+    if st.button("⚙️ Gestisci Profili Scacchistici", use_container_width=True):
+        st.session_state['profile_setup_done'] = False
+        st.rerun()
+
     scelta_lingua = st.selectbox(
         t["lang_select"],
         options=["Italiano", "English", "Español"],
@@ -378,6 +492,7 @@ with st.sidebar:
             try: supabase.auth.sign_out()
             except Exception: pass
         st.session_state['user'] = None
+        st.session_state['profile_setup_done'] = False
         st.rerun()
 
 st.title(t["title"])
@@ -386,9 +501,13 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
     t["tab1"], t["tab2"], t["tab3"], t["tab4"], t["tab5"]
 ])
 
+# --- TAB 1: ANALISI PGN CON MASTER GEMINI KEY ---
 with tab1:
     st.subheader(t["tab1"])
-    pgn_input = st.text_area("PGN:", height=150, key="pgn_manual_input")
+    
+    # Se arriva una partita trasferita dalla Tab 5, la inserisce in automatico nella textarea
+    default_pgn = st.session_state.pop('selected_game_pgn', st.session_state.get('pgn_manual_input', ''))
+    pgn_input = st.text_area("PGN della partita:", value=default_pgn, height=150, key="pgn_manual_input")
     
     if st.button(t["analyze_btn"], type="primary"):
         if not pgn_input.strip():
@@ -408,7 +527,7 @@ with tab1:
                             resp_c = model.generate_content(prompt_c)
                             clusters = json.loads(resp_c.text.replace("```json", "").replace("```", "").strip())
                             for item in clusters:
-                                salva_errore_db(st.session_state['user'], item.get("categoria", "Tattica"), item.get("label_mossa", "Mossa"), "Criticità rilevata")
+                                salva_errore_db(user_email, item.get("categoria", "Tattica"), item.get("label_mossa", "Mossa"), "Criticità rilevata")
                         except Exception:
                             pass
                 else:
@@ -426,7 +545,7 @@ with tab1:
                     btn_key = f"btn_lesson_{idx}"
                     if st.button(f"{t['gm_lesson_btn']} {err['label_mossa']}", key=btn_key, type="primary"):
                         if not MASTER_GEMINI_KEY:
-                            st.error("Chiave Master Gemini non configurata dal proprietario dell'app.")
+                            st.error("Chiave Master Gemini non configurata.")
                         else:
                             with st.spinner("GM AI..."):
                                 try:
@@ -444,9 +563,10 @@ with tab1:
                     if f"lesson_{idx}" in st.session_state:
                         st.success(st.session_state[f"lesson_{idx}"])
 
+# --- TAB 2: DASHBOARD UTENTE PERSISTENTE ---
 with tab2:
     st.subheader(t["tab2"])
-    df_err = carica_errori_db(st.session_state['user'])
+    df_err = carica_errori_db(user_email)
     if not df_err.empty:
         c1, c2 = st.columns(2)
         with c1: st.bar_chart(df_err['categoria_errore'].value_counts())
@@ -454,6 +574,7 @@ with tab2:
     else:
         st.info("Nessun errore salvato nel tuo database cloud.")
 
+# --- TAB 3: STUDIO LIBRI INTERATTIVO ---
 with tab3:
     st.subheader(t["tab3"])
     testo_libro_input = st.text_area("Testo del libro:", height=150)
@@ -493,6 +614,7 @@ with tab3:
         with col_v1: st.write(chess.svg.board(board=chess.Board(cur['fen']), size=320), unsafe_allow_html=True)
         with col_v2: st.info(cur['commento'])
 
+# --- TAB 4: DIARIO & PDF ---
 with tab4:
     st.subheader(t["tab4"])
     input_diario = st.text_area("Mosse:", height=100)
@@ -524,28 +646,139 @@ with tab4:
             pdf_b = genera_pdf_partita(b_d, mosse_d, st.session_state['diario_note_mosse'], "")
             st.download_button("📥 Scarica PDF", data=pdf_b, file_name="diario_partita.pdf", mime="application/pdf")
 
+# --- TAB 5: IMPORTA E FILTRA PARTITE CON FILTRI AVANZATI ---
 with tab5:
     st.subheader(t["tab5"])
-    plat = st.radio("Piattaforma:", ["Lichess", "Chess.com"], horizontal=True)
-    usr = st.text_input("Username:", value="Chene91")
-    if st.button("📥 Scarica Partite"):
+    
+    saved_profiles = get_user_profiles(user_email)
+    
+    col_i1, col_i2 = st.columns([2, 1])
+    with col_i1:
+        if saved_profiles:
+            profile_options = [f"{p['piattaforma']}: {p['username']}" for p in saved_profiles]
+            scelta_profilo = st.selectbox("Seleziona il tuo profilo salvato:", profile_options)
+            idx_sel = profile_options.index(scelta_profilo)
+            plat = saved_profiles[idx_sel]['piattaforma']
+            usr = saved_profiles[idx_sel]['username']
+        else:
+            st.info("Nessun profilo salvato. Inseriscine uno al volo:")
+            plat = st.radio("Piattaforma:", ["Lichess", "Chess.com"], horizontal=True)
+            usr = st.text_input("Username:", value="")
+    with col_i2:
+        limite_partite = st.number_input("Partite da scaricare:", min_value=5, max_value=50, value=20)
+
+    if st.button("📥 Scarica Ultime Partite", type="primary"):
         if usr.strip():
-            with st.spinner("Download..."):
+            with st.spinner(f"Scaricamento partite per {usr} da {plat} in corso..."):
                 try:
+                    user_lower = usr.strip().lower()
                     if plat == "Lichess":
-                        r = requests.get(f"https://lichess.org/api/games/user/{usr.strip().lower()}?max=10", headers={"Accept": "application/x-chess-pgn"}, timeout=15)
+                        url_lic = f"https://lichess.org/api/games/user/{user_lower}"
+                        headers_lic = {"Accept": "application/x-chess-pgn", "User-Agent": "ChessCoachPro/1.0"}
+                        params_lic = {"max": limite_partite}
+                        r = requests.get(url_lic, params=params_lic, headers=headers_lic, timeout=20)
                         if r.status_code == 200:
                             st.session_state['partite_importate'] = r.text
-                            st.success("Partite scaricate con successo!")
+                            st.success(f"Scaricamento completato per {usr}!")
+                        else:
+                            st.error(f"Errore Lichess (Codice HTTP {r.status_code}).")
                     else:
-                        r_a = requests.get(f"https://api.chess.com/pub/player/{usr.strip().lower()}/games/archives", timeout=10)
-                        if r_a.status_code == 200 and r_a.json().get("archives"):
-                            r_g = requests.get(r_a.json()["archives"][-1], timeout=10)
-                            if r_g.status_code == 200:
-                                pgn_all = "\n\n".join([g.get("pgn", "") for g in r_g.json().get("games", [])[-10:] if g.get("pgn")])
-                                st.session_state['partite_importate'] = pgn_all
-                                st.success("Partite scaricate con successo!")
-                except Exception as e: st.error(f"Errore download: {e}")
+                        headers_c = {"User-Agent": "ChessCoachPro/1.0 (Contact: support@chesscoachpro.com)"}
+                        arch_url = f"https://api.chess.com/pub/player/{user_lower}/games/archives"
+                        r_arch = requests.get(arch_url, headers=headers_c, timeout=10)
+                        if r_arch.status_code == 200:
+                            archives = r_arch.json().get("archives", [])
+                            if archives:
+                                r_m = requests.get(archives[-1], headers=headers_c, timeout=10)
+                                if r_m.status_code == 200:
+                                    games_j = r_m.json().get("games", [])[-limite_partite:][::-1]
+                                    pgn_all = "\n\n".join([g.get("pgn", "") for g in games_j if g.get("pgn")])
+                                    st.session_state['partite_importate'] = pgn_all
+                                    st.success(f"Scaricamento completato per {usr}!")
+                                else:
+                                    st.error("Impossibile recuperare i dati dall'archivio Chess.com.")
+                            else:
+                                st.warning("Nessun archivio trovato per questo utente.")
+                        else:
+                            st.error(f"Utente non trovato o errore HTTP {r_arch.status_code}.")
+                except Exception as e: 
+                    st.error(f"Errore durante il download: {e}")
+        else:
+            st.warning("Inserisci o seleziona un username valido.")
 
-    if 'partite_importate' in st.session_state:
-        st.code(st.session_state['partite_importate'][:1000] + "...", language="text")
+    # --- FILTRI INTELLIGENTI SULLE PARTITE SCARICATE ---
+    if 'partite_importate' in st.session_state and st.session_state['partite_importate']:
+        st.divider()
+        st.markdown("### 🔍 Filtra Partite Scaricate")
+        
+        # Suddividiamo il blocco PGN in singole partite
+        raw_pgns = [p.strip() for p in st.session_state['partite_importate'].split("\n\n\n") if p.strip()]
+        if len(raw_pgns) <= 1:
+            raw_pgns = [p.strip() for p in st.session_state['partite_importate'].split("\n[Event ") if p.strip()]
+            raw_pgns = ["[Event " + p if not p.startswith("[Event") else p for p in raw_pgns]
+
+        parsed_games = []
+        for pgn_str in raw_pgns:
+            g_io = io.StringIO(pgn_str)
+            game_obj = chess.pgn.read_game(g_io)
+            if game_obj:
+                headers = game_obj.headers
+                white = headers.get("White", "Unknown")
+                black = headers.get("Black", "Unknown")
+                result = headers.get("Result", "*")
+                eco = headers.get("ECO", "?")
+                date = headers.get("Date", "????.??.??")
+                event = headers.get("Event", "Casual Game")
+                
+                # Determina il controllo del tempo in base all'evento o al tempo
+                event_lower = event.lower()
+                if "bullet" in event_lower: tc = "Bullet"
+                elif "blitz" in event_lower: tc = "Blitz"
+                elif "rapid" in event_lower: tc = "Rapid"
+                elif "classical" in event_lower or "class" in event_lower: tc = "Classical"
+                else: tc = "Altro/Custom"
+
+                parsed_games.append({
+                    "summary": f"{date} | {white} vs {black} [{result}] ({tc}, ECO: {eco})",
+                    "pgn": pgn_str,
+                    "tc": tc,
+                    "result": result,
+                    "white": white,
+                    "black": black
+                })
+
+        if parsed_games:
+            col_f1, col_f2 = st.columns(2)
+            with col_f1:
+                filtro_tc = st.selectbox("Filtra per Controllo Tempo:", ["Tutti", "Blitz", "Rapid", "Bullet", "Classical", "Altro/Custom"])
+            with col_f2:
+                filtro_res = st.selectbox("Filtra per Risultato:", ["Tutti", "Vittorie Bianco (1-0)", "Vittorie Nero (0-1)", "Patte (1/2-1/2)"])
+
+            # Applica i filtri
+            filtered_games = parsed_games
+            if filtro_tc != "Tutti":
+                filtered_games = [g for g in filtered_games if g['tc'] == filtro_tc]
+            if filtro_res == "Vittorie Bianco (1-0)":
+                filtered_games = [g for g in filtered_games if g['result'] == "1-0"]
+            elif filtro_res == "Vittorie Nero (0-1)":
+                filtered_games = [g for g in filtered_games if g['result'] == "0-1"]
+            elif filtro_res == "Patte (1/2-1/2)":
+                filtered_games = [g for g in filtered_games if g['result'] == "1/2-1/2"]
+
+            st.write(f"Trovate **{len(filtered_games)}** partite corrispondenti ai filtri (su {len(parsed_games)} totali).")
+
+            if filtered_games:
+                game_options = [g['summary'] for g in filtered_games]
+                scelta_partita = st.selectbox("Seleziona la partita da analizzare:", game_options)
+                
+                # Trova la partita selezionata
+                selected_idx = game_options.index(scelta_partita)
+                chosen_pgn = filtered_games[selected_idx]['pgn']
+
+                if st.button("🚀 Invia questa partita ad Analisi Stockfish + AI (Tab 1)", type="primary"):
+                    st.session_state['selected_game_pgn'] = chosen_pgn
+                    st.success("Partita inviata con successo! Spostati sulla scheda '📖 Analizza PGN (Stockfish + AI)' in alto per avviare l'analisi.")
+            else:
+                st.warning("Nessuna partita corrisponde ai filtri selezionati.")
+        else:
+            st.info("Impossibile estrarre le intestazioni delle partite scaricate.")
