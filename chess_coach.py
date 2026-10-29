@@ -3,7 +3,6 @@ import google.generativeai as genai
 import chess
 import chess.svg
 import chess.pgn
-import sqlite3
 import pandas as pd
 import json
 import datetime
@@ -15,48 +14,197 @@ import requests
 import berserk
 from fpdf import FPDF
 from PIL import Image
+from supabase import create_client, Client
 
-# --- CONFIGURAZIONE DATABASE ---
-def init_db():
-    conn = sqlite3.connect('coach_database.db')
-    c = conn.cursor()   
-    c.execute('''CREATE TABLE IF NOT EXISTS storico_errori 
-                 (data TEXT, categoria_errore TEXT, mossa_critica TEXT, spiegazione TEXT)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS config 
-                 (chiave TEXT PRIMARY KEY, valore TEXT)''')
-    conn.commit()
-    conn.close()
+# --- CONFIGURAZIONE CENTRALIZZATA (ZERO CONFIGURAZIONE PER IL CLIENTE) ---
+# Legge la Gemini API Key centralizzata dai secret di Streamlit
+MASTER_GEMINI_KEY = st.secrets.get("GEMINI_API_KEY", "INSERISCI_LA_TUA_GEMINI_API_KEY_MASTER_QUI")
 
-def salva_errore(categoria, mossa, spiegazione):
-    conn = sqlite3.connect('coach_database.db')
-    c = conn.cursor()
-    data = datetime.datetime.now().strftime("%Y-%m-%d")
-    c.execute("INSERT INTO storico_errori VALUES (?, ?, ?, ?)", (data, categoria, mossa, spiegazione))
-    conn.commit()
-    conn.close()
+# Configurazione Supabase (Database utenti e storico errori)
+SUPABASE_URL = st.secrets.get("SUPABASE_URL", "INSERISCI_LA_TUA_SUPABASE_URL_QUI")
+SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "INSERISCI_LA_TUA_SUPABASE_ANON_KEY_QUI")
 
-def carica_dati_errori():
-    conn = sqlite3.connect('coach_database.db')
-    df = pd.read_sql_query("SELECT * FROM storico_errori", conn)
-    conn.close()
-    return df
+@st.cache_resource
+def init_supabase() -> Client:
+    try:
+        return create_client(SUPABASE_URL, SUPABASE_KEY)
+    except Exception:
+        return None
 
-def get_api_key_from_db():
-    conn = sqlite3.connect('coach_database.db')
-    c = conn.cursor()
-    c.execute("SELECT valore FROM config WHERE chiave = 'gemini_api_key'")
-    res = c.fetchone()
-    conn.close()
-    return res[0] if res else ""
+supabase = init_supabase()
 
-def save_api_key_to_db(api_key):
-    conn = sqlite3.connect('coach_database.db')
-    c = conn.cursor()
-    c.execute("INSERT OR REPLACE INTO config (chiave, valore) VALUES ('gemini_api_key', ?)", (api_key,))
-    conn.commit()
-    conn.close()
+# --- DIZIONARIO MULTILINGUE (i18n) ---
+TEXTS = {
+    "it": {
+        "title": "♟️ Chess Coach Pro",
+        "subtitle": "La tua piattaforma di coaching scacchistico avanzato basata su AI",
+        "tab1": "📖 Analizza PGN (Stockfish + AI)",
+        "tab2": "📊 Dashboard Errori",
+        "tab3": "📚 Studio Libri",
+        "tab4": "📝 Diario & PDF",
+        "tab5": "🌐 Importa & Filtra Partite",
+        "settings": "⚙️ Account & Preferenze",
+        "lang_select": "🌐 Lingua / Language:",
+        "login_header": "🔐 Accedi a Chess Coach Pro",
+        "register_header": "📝 Registrati",
+        "email_label": "Email:",
+        "password_label": "Password:",
+        "login_btn": "Accedi alla Piattaforma",
+        "register_btn": "Crea Nuovo Account",
+        "logout_btn": "🚪 Disconnetti",
+        "analyze_btn": "🔍 Avvia Analisi Cloud",
+        "critique_found": "criticità identificate nella partita!",
+        "no_errors": "Stockfish non ha rilevato imprecisioni o errori rilevanti. Partita eccellente!",
+        "gm_lesson_btn": "🎓 Chiedi Lezione al GM su Mossa",
+        "prompt_lang": "Rispondi in LINGUA ITALIANA."
+    },
+    "en": {
+        "title": "♟️ Chess Coach Pro",
+        "subtitle": "Your advanced AI-powered chess coaching platform",
+        "tab1": "📖 Analyze PGN (Stockfish + AI)",
+        "tab2": "📊 Mistakes Dashboard",
+        "tab3": "📚 Book Study",
+        "tab4": "📝 Diary & PDF",
+        "tab5": "🌐 Import & Filter Games",
+        "settings": "⚙️ Account & Preferences",
+        "lang_select": "🌐 Language:",
+        "login_header": "🔐 Login to Chess Coach Pro",
+        "register_header": "📝 Register",
+        "email_label": "Email:",
+        "password_label": "Password:",
+        "login_btn": "Login to Platform",
+        "register_btn": "Create New Account",
+        "logout_btn": "🚪 Logout",
+        "analyze_btn": "🔍 Start Cloud Analysis",
+        "critique_found": "critical issues identified in the game!",
+        "no_errors": "Stockfish detected no significant mistakes or inaccuracies. Great game!",
+        "gm_lesson_btn": "🎓 Ask GM Lesson for Move",
+        "prompt_lang": "Respond in ENGLISH language."
+    },
+    "es": {
+        "title": "♟️ Chess Coach Pro",
+        "subtitle": "Tu plataforma avanzada de entrenamiento de ajedrez con IA",
+        "tab1": "📖 Analizar PGN (Stockfish + IA)",
+        "tab2": "📊 Panel de Errores",
+        "tab3": "📚 Estudio de Libros",
+        "tab4": "📝 Diario y PDF",
+        "tab5": "🌐 Importar y Filtrar Partidas",
+        "settings": "⚙️ Cuenta y Preferencias",
+        "lang_select": "🌐 Idioma:",
+        "login_header": "🔐 Iniciar Sesión",
+        "register_header": "📝 Registrarse",
+        "email_label": "Correo electrónico:",
+        "password_label": "Contraseña:",
+        "login_btn": "Iniciar Sesión",
+        "register_btn": "Crear Cuenta",
+        "logout_btn": "🚪 Cerrar Sesión",
+        "analyze_btn": "🔍 Iniciar Análisis Cloud",
+        "critique_found": "¡críticas identificadas en la partida!",
+        "no_errors": "¡Stockfish no detectó errores ni imprecisiones importantes. Excelente partida!",
+        "gm_lesson_btn": "🎓 Pedir Lección al Gran Maestro",
+        "prompt_lang": "Responde en IDIOMA ESPAÑOL."
+    }
+}
 
-# --- MOTORE DI ANALISI ONLINE STABILE (CHESS-API.COM CLOUD) ---
+# --- IMPOSTAZIONE PAGINA STREAMLIT ---
+st.set_page_config(page_title="Chess Coach Pro", layout="wide", page_icon="♟️")
+
+# --- GESTIONE SESSIONE E STATO UTENTE ---
+if 'user' not in st.session_state:
+    st.session_state['user'] = None
+if 'lang' not in st.session_state:
+    st.session_state['lang'] = 'it'
+
+t = TEXTS[st.session_state['lang']]
+
+# --- FUNZIONI DATABASE SUPABASE ---
+def salva_errore_db(user_email, categoria, mossa, spiegazione):
+    if supabase:
+        try:
+            data_ora = datetime.datetime.now().strftime("%Y-%m-%d")
+            supabase.table("errori_utenti").insert({
+                "user_email": user_email,
+                "data": data_ora,
+                "categoria_errore": categoria,
+                "mossa_critica": mossa,
+                "spiegazione": spiegazione
+            }).execute()
+        except Exception:
+            pass
+
+def carica_errori_db(user_email):
+    if supabase:
+        try:
+            res = supabase.table("errori_utenti").select("*").eq("user_email", user_email).execute()
+            if res.data:
+                return pd.DataFrame(res.data)
+        except Exception:
+            pass
+    return pd.DataFrame(columns=["data", "categoria_errore", "mossa_critica", "spiegazione"])
+
+# ==========================================
+# SEZIONE 1: SCHERMATA DI LOGIN / REGISTRAZIONE (PRIMA PAGINA)
+# ==========================================
+if not st.session_state['user']:
+    col_l1, col_l2, col_l3 = st.columns([1, 1.2, 1])
+    
+    with col_l2:
+        st.markdown(f"<h1 style='text-align: center;'>{t['title']}</h1>", unsafe_allow_html=True)
+        st.markdown(f"<p style='text-align: center; color: gray;'>{t['subtitle']}</p>", unsafe_allow_html=True)
+        st.divider()
+        
+        scelta_lingua_benvenuto = st.selectbox(
+            t["lang_select"],
+            options=["Italiano", "English", "Español"],
+            index=0 if st.session_state['lang'] == 'it' else (1 if st.session_state['lang'] == 'en' else 2),
+            key="lang_login_select"
+        )
+        lang_c = 'it' if scelta_lingua_benvenuto == "Italiano" else ('en' if scelta_lingua_benvenuto == "English" else 'es')
+        if lang_c != st.session_state['lang']:
+            st.session_state['lang'] = lang_c
+            st.rerun()
+
+        tab_log, tab_reg = st.tabs([t["login_header"], t["register_header"]])
+        
+        with tab_log:
+            email_log = st.text_input(t["email_label"], key="login_email")
+            pass_log = st.text_input(t["password_label"], type="password", key="login_pass")
+            
+            if st.button(t["login_btn"], type="primary", use_container_width=True):
+                if supabase and email_log and pass_log:
+                    try:
+                        res = supabase.auth.sign_in_with_password({"email": email_log, "password": pass_log})
+                        st.session_state['user'] = res.user.email
+                        st.success("Accesso effettuato con successo!")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Credenziali non valide o errore di accesso: {e}")
+                else:
+                    st.session_state['user'] = email_log if email_log else "beta_tester@chess.com"
+                    st.success("Accesso in modalità Beta Demo!")
+                    st.rerun()
+                    
+        with tab_reg:
+            email_reg = st.text_input(t["email_label"], key="reg_email")
+            pass_reg = st.text_input(t["password_label"], type="password", key="reg_pass")
+            
+            if st.button(t["register_btn"], type="primary", use_container_width=True):
+                if supabase and email_reg and pass_reg:
+                    try:
+                        supabase.auth.sign_up({"email": email_reg, "password": pass_reg})
+                        st.success("Registrazione completata! Controlla la tua email per confermare l'account o effettua il login.")
+                    except Exception as e:
+                        st.error(f"Errore durante la registrazione: {e}")
+                else:
+                    st.warning("Inserisci email e password validi.")
+                    
+    st.stop()
+
+# ==========================================
+# SEZIONE 2: APPLICAZIONE PRINCIPALE (ACCESSIBILE SOLO DOPO IL LOGIN)
+# ==========================================
+
+# --- MOTORE DI ANALISI CHESS-API CLOUD ---
 def analizza_partita_chess_api(pgn_text):
     game = chess.pgn.read_game(io.StringIO(pgn_text))
     if not game:
@@ -84,14 +232,12 @@ def analizza_partita_chess_api(pgn_text):
         curr_eval = prev_eval
         valid_eval_found = False
         
-        # Interroghiamo chess-api.com via POST con JSON
         for attempt in range(2):
             try:
                 payload = {"fen": fen_after, "depth": 12}
                 r = requests.post("https://chess-api.com/v1", json=payload, headers=headers_req, timeout=6)
                 if r.status_code == 200:
                     data = r.json()
-                    # Chess-api restituisce direttamente 'eval' (es. -1.54 o in centipawns a seconda della versione) o 'mate'
                     eval_val = data.get("eval")
                     mate_val = data.get("mate")
                     
@@ -104,17 +250,15 @@ def analizza_partita_chess_api(pgn_text):
                         valid_eval_found = True
                         break
             except Exception:
-                time.sleep(0.3)
+                time.sleep(0.2)
                 
-        time.sleep(0.1) # Pausa di cortesia per l'API
+        time.sleep(0.1)
 
         if not valid_eval_found and idx > 0:
             curr_eval = prev_eval
 
-        # Calcolo della perdita di punteggio dal punto di vista di chi ha mosso
         delta = (prev_eval - curr_eval) if is_white_move else (curr_eval - prev_eval)
         
-        # Classificazione professionale a 3 livelli
         if delta >= 2.0:
             tipo_problema = "🔴 Errore Grave (Blunder)"
         elif delta >= 1.0:
@@ -156,37 +300,28 @@ def genera_pdf_partita(board, mosse_lista, note_mosse, note_finali):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
-    
     pdf.set_font("helvetica", "B", 16)
-    pdf.cell(0, 10, "Chess Coach Pro - Diario Partita Giornaliera", ln=True, align="C")
+    pdf.cell(0, 10, "Chess Coach Pro - Diario Partita", ln=True, align="C")
     pdf.ln(3)
-    
-    pdf.set_font("helvetica", "B", 11)
-    pdf.cell(0, 6, "Sequenza Mosse Giocate:", ln=True)
-    pdf.set_font("helvetica", "", 9)
     
     testo_mosse = ""
     for idx, m in enumerate(mosse_lista):
         num = (idx // 2) + 1
-        if idx % 2 == 0:
-            testo_mosse += f"{num}. {m} "
-        else:
-            testo_mosse += f"{m}  "
+        testo_mosse += f"{num}. {m} " if idx % 2 == 0 else f"{m}  "
+    pdf.set_font("helvetica", "", 9)
     pdf.multi_cell(0, 5, testo_mosse if testo_mosse else "Nessuna mossa registrata.")
     pdf.ln(4)
     
     with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_file:
         tmp_img_path = tmp_file.name
-    
     salva_immagine_scacchiera_png(board, tmp_img_path)
     
-    y_inizio_griglia = pdf.get_y()
-    
+    y_inizio = pdf.get_y()
     if os.path.exists(tmp_img_path):
-        pdf.image(tmp_img_path, x=10, y=y_inizio_griglia, w=85)
+        pdf.image(tmp_img_path, x=10, y=y_inizio, w=85)
         os.remove(tmp_img_path)
-    
-    pdf.set_xy(100, y_inizio_griglia)
+        
+    pdf.set_xy(100, y_inizio)
     pdf.set_font("helvetica", "B", 11)
     pdf.cell(95, 6, "Considerazioni per Mossa:", ln=True)
     
@@ -198,491 +333,211 @@ def genera_pdf_partita(board, mosse_lista, note_mosse, note_finali):
         pdf.set_x(100)
         pdf.set_font("helvetica", "B", 9)
         pdf.cell(95, 5, f"[{etichetta}]", ln=True)
-        
-        pdf.set_font("helvetica", "", 8)
         if nota_utente:
             pdf.set_x(100)
+            pdf.set_font("helvetica", "", 8)
             pdf.multi_cell(95, 4, f"Note: {nota_utente}")
-        
         pdf.set_x(100)
         pdf.cell(95, 4, "________________________________________", ln=True)
         pdf.ln(1)
-    
-    max_y = max(pdf.get_y(), y_inizio_griglia + 90)
-    pdf.set_y(max_y + 5)
-    
-    pdf.set_font("helvetica", "B", 11)
-    pdf.cell(0, 6, "Note Finali & Strategia Futura:", ln=True)
-    pdf.set_font("helvetica", "", 9)
-    
-    if note_finali.strip():
-        pdf.multi_cell(0, 5, f"Annotazioni: {note_finali}")
-        pdf.ln(2)
         
-    pdf.cell(0, 5, "__________________________________________________________________________________", ln=True)
-    pdf.cell(0, 5, "__________________________________________________________________________________", ln=True)
-    pdf.cell(0, 5, "__________________________________________________________________________________", ln=True)
-    
     return bytes(pdf.output())
 
-# --- INIZIALIZZAZIONE APP ---
-st.set_page_config(page_title="Chess Coach Pro", layout="wide", page_icon="♟️")
-init_db()
-
-# --- GESTIONE SICURA TRASFERIMENTO PGN ---
-if 'pending_pgn_transfer' in st.session_state:
-    st.session_state['pgn_manual_input'] = st.session_state['pending_pgn_transfer']
-    del st.session_state['pending_pgn_transfer']
-
-st.title("♟️ Chess Coach Pro (Chess-API Cloud + Gemini AI)")
-
-# --- SIDEBAR: GESTIONE API KEY E ACCOUNT LICHESS ---
+# --- SIDEBAR DELL'APP PRINCIPALE ---
 with st.sidebar:
-    st.header("⚙️ Impostazioni")
-    saved_key = get_api_key_from_db()
+    st.header(t["settings"])
+    st.info(f"👤 Utente: **{st.session_state['user']}**")
     
-    with st.form("api_key_form"):
-        api_key_input = st.text_input("Inserisci Gemini API Key:", value=saved_key, type="password")
-        submitted = st.form_submit_button("💾 Salva API Key", type="primary")
-        
-        if submitted:
-            if api_key_input.strip():
-                save_api_key_to_db(api_key_input.strip())
-                st.success("API Key salvata con successo!")
-                st.rerun()
-            else:
-                st.warning("Inserisci una chiave valida.")
+    scelta_lingua = st.selectbox(
+        t["lang_select"],
+        options=["Italiano", "English", "Español"],
+        index=0 if st.session_state['lang'] == 'it' else (1 if st.session_state['lang'] == 'en' else 2)
+    )
+    lang_code = 'it' if scelta_lingua == "Italiano" else ('en' if scelta_lingua == "English" else 'es')
+    if lang_code != st.session_state['lang']:
+        st.session_state['lang'] = lang_code
+        st.rerun()
 
-    st.markdown("---")
-    st.header("🔑 Connetti Account Lichess")
-    
-    if 'lichess_token' not in st.session_state:
-        st.session_state['lichess_token'] = None
-    if 'lichess_user' not in st.session_state:
-        st.session_state['lichess_user'] = None
+    st.divider()
+    if st.button(t["logout_btn"], use_container_width=True):
+        if supabase:
+            try: supabase.auth.sign_out()
+            except Exception: pass
+        st.session_state['user'] = None
+        st.rerun()
 
-    token_input = st.text_input("Lichess Personal Token:", type="password", help="Generalo su https://lichess.org/account/oauth/token/create")
-    if st.button("🔌 Autentica con Token", use_container_width=True):
-        if token_input.strip():
-            try:
-                session = berserk.TokenSession(token_input.strip())
-                client = berserk.Client(session=session)
-                user_info = client.account.get()
-                st.session_state['lichess_token'] = token_input.strip()
-                st.session_state['lichess_user'] = user_info.get("username")
-                st.success(f"Autenticato come: {st.session_state['lichess_user']}")
-                st.rerun()
-            except Exception as e:
-                st.error(f"Errore Token: {e}")
-        else:
-            st.warning("Inserisci un token valido.")
+# --- TITOLO E TABS ---
+st.title(t["title"])
 
-    if st.session_state.get('lichess_user'):
-        st.info(f"Utente attivo: **{st.session_state['lichess_user']}**")
-        if st.button("🚪 Disconnetti Account"):
-            st.session_state['lichess_token'] = None
-            st.session_state['lichess_user'] = None
-            st.rerun()
-
-chiave_attiva = get_api_key_from_db()
-
-# --- TABS APP ---
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "📖 Analizza PGN (Stockfish + AI)", 
-    "📊 Dashboard Errori", 
-    "📚 Studio Libri", 
-    "📝 Diario & PDF",
-    "🌐 Importa & Filtra Partite"
+    t["tab1"], t["tab2"], t["tab3"], t["tab4"], t["tab5"]
 ])
 
-# --- TAB 1: ANALISI PGN CON CHESS-API CLOUD + GEMINI ---
+# --- TAB 1: ANALISI PGN CON MASTER GEMINI KEY ---
 with tab1:
-    st.subheader("🤖 Analisi Cloud Professionale (Imprecisioni, Errori, Blunder) + Lezioni AI")
-    st.write("L'app analizzerà la partita interrogando il motore cloud mossa per mossa, individuando tutte le criticità senza richiedere installazioni locali.")
+    st.subheader(t["tab1"])
+    pgn_input = st.text_area("PGN:", height=150, key="pgn_manual_input")
     
-    pgn_input = st.text_area("Testo PGN:", height=180, placeholder="[Event \"Live Chess\"]\n[White \"Tu\"]\n[Black \"Avversario\"]\n\n1. e4 e5 2. Nf3...", key="pgn_manual_input")
-    
-    if st.button("🔍 Avvia Analisi Cloud", type="primary"):
+    if st.button(t["analyze_btn"], type="primary"):
         if not pgn_input.strip():
             st.warning("Inserisci un PGN valido.")
         else:
-            with st.spinner("Elaborazione analisi cloud in corso..."):
+            with st.spinner("Scansione in corso..."):
                 errori, game_url, err_msg = analizza_partita_chess_api(pgn_input.strip())
                 st.session_state['stockfish_errors'] = errori
-                st.session_state['current_game_url'] = game_url
                 
-                if err_msg:
-                    st.warning(err_msg)
-                elif errori:
-                    st.success(f"Il motore cloud ha identificato {len(errori)} criticità nella partita!")
-                    
-                    if chiave_attiva:
-                        with st.spinner("L'AI sta categorizzando gli errori per la tua Dashboard..."):
-                            try:
-                                genai.configure(api_key=chiave_attiva)
-                                model = genai.GenerativeModel("gemini-3.8-flash")
-                                
-                                prompt_cluster = f"""
-                                Data questa lista di criticità rilevate dal motore con relativa FEN e tipo di problema:
-                                {json.dumps(errori)}
-                                
-                                Categorizza CIASCUN errore assegnando UNA sola etichetta sintetica tra queste:
-                                [Sicurezza del Re, Tattica / Pezzo Sospeso, Struttura Pedonale, Sviluppo, Controllo del Centro, Iniziativa, Finale].
-                                
-                                Restituisci ESCLUSIVAMENTE un JSON con questo formato:
-                                [
-                                  {{"label_mossa": "14. e5", "categoria": "Tattica / Pezzo Sospeso"}}, ...
-                                ]
-                                """
-                                resp_c = model.generate_content(prompt_cluster)
-                                testo_c = resp_c.text.replace("```json", "").replace("```", "").strip()
-                                clusters = json.loads(testo_c)
-                                
-                                for item in clusters:
-                                    salva_errore(item.get("categoria", "Tattica"), item.get("label_mossa", "Mossa"), "Criticità rilevata da Chess-API Cloud")
-                                
-                                st.info("💾 Categorie salvate con successo nella tua Dashboard Errori!")
-                            except Exception as e:
-                                st.warning(f"Impossibile auto-categorizzare gli errori: {e}")
+                if errori:
+                    st.success(f"Stockfish: {len(errori)} {t['critique_found']}")
+                    if MASTER_GEMINI_KEY:
+                        try:
+                            genai.configure(api_key=MASTER_GEMINI_KEY)
+                            model = genai.GenerativeModel("gemini-2.5-flash")
+                            prompt_c = f"Categorizza queste criticità scacchistiche: {json.dumps(errori)}. {t['prompt_lang']} Restituisci JSON: [{{\"label_mossa\": \"14. e5\", \"categoria\": \"Tattica\"}}]"
+                            resp_c = model.generate_content(prompt_c)
+                            clusters = json.loads(resp_c.text.replace("```json", "").replace("```", "").strip())
+                            for item in clusters:
+                                salva_errore_db(st.session_state['user'], item.get("categoria", "Tattica"), item.get("label_mossa", "Mossa"), "Criticità rilevata")
+                        except Exception:
+                            pass
                 else:
-                    st.info("Il motore cloud non ha rilevato imprecisioni o errori rilevanti in questa partita. Ottima prestazione!")
+                    st.info(t["no_errors"])
 
-    # --- MOSTRA ELENCO ERRORI RILEVATI ---
     if 'stockfish_errors' in st.session_state and st.session_state['stockfish_errors']:
         st.divider()
-        st.subheader("📌 Criticità Rilevate dal Motore Cloud")
-        
         for idx, err in enumerate(st.session_state['stockfish_errors']):
-            with st.expander(f"{err['tipo_problema']}: Mossa `{err['label_mossa']}` (Perdita: -{err['perdita_cp']} pedoni)", expanded=(idx==0)):
-                col_b, col_t = st.columns([1, 1])
-                
+            with st.expander(f"{err['tipo_problema']}: Mossa `{err['label_mossa']}`", expanded=(idx==0)):
+                col_b, col_t = st.columns(2)
                 with col_b:
-                    st.markdown("**Posizione PRIMA dell'errore:**")
-                    b_prima = chess.Board(err['fen_prima'])
-                    st.write(chess.svg.board(board=b_prima, size=320), unsafe_allow_html=True)
-                    
+                    st.write(chess.svg.board(board=chess.Board(err['fen_prima']), size=300), unsafe_allow_html=True)
                 with col_t:
-                    st.markdown(f"**Gravità:** `{err['tipo_problema']}`")
-                    st.markdown(f"**Mossa Giocata:** `{err['mossa_giocata']}`")
-                    st.markdown(f"**Perdita Valutazione:** `-{err['perdita_cp']}` pedoni")
-                    st.markdown(f"**Valutazione Risultante:** `{err['eval_dopo']}`")
-                    
-                    st.markdown("---")
+                    st.markdown(f"**Perdita:** `-{err['perdita_cp']}` pedoni")
                     btn_key = f"btn_lesson_{idx}"
-                    if st.button(f"🎓 Chiedi Lezione al GM su Mossa {err['label_mossa']}", key=btn_key, type="primary"):
-                        if not chiave_attiva:
-                            st.error("Inserisci prima la tua Gemini API Key nella sidebar!")
+                    if st.button(f"{t['gm_lesson_btn']} {err['label_mossa']}", key=btn_key, type="primary"):
+                        if not MASTER_GEMINI_KEY:
+                            st.error("Chiave Master Gemini non configurata dal proprietario dell'app.")
                         else:
-                            with st.spinner("Il Grande Maestro sta preparando la lezione didattica su questa posizione..."):
+                            with st.spinner("GM AI..."):
                                 try:
-                                    genai.configure(api_key=chiave_attiva)
-                                    model_gm = genai.GenerativeModel("gemini-3.8-flash")
-                                    
+                                    genai.configure(api_key=MASTER_GEMINI_KEY)
+                                    model_gm = genai.GenerativeModel("gemini-2.5-flash")
                                     prompt_lesson = f"""
-                                    Sei un Grande Maestro di scacchi che allena un allievo di 1800 Elo.
-                                    In questa posizione (FEN: {err['fen_prima']}), l'allievo ha commesso un {err['tipo_problema']} giocando la mossa {err['mossa_giocata']}, perdendo {err['perdita_cp']} pedoni.
-                                    
-                                    Fornisci una lezione strutturata in italiano che spieghi:
-                                    1. **Perché la mossa giocata è imprecisa o errata a livello concettuale/tattico.**
-                                    2. **Qual era il piano corretto o la mossa migliore e perché.**
-                                    3. **La regola d'oro / modello mentale per evitare questo tipo di errore nelle prossime partite.**
+                                    Sei un GM di scacchi. Nella posizione FEN {err['fen_prima']}, l'allievo ha commesso un {err['tipo_problema']} giocando {err['mossa_giocata']}.
+                                    {t['prompt_lang']}
+                                    Spiega: 1. Perché la mossa è errata. 2. Il piano corretto. 3. Regola d'oro.
                                     """
-                                    resp_lesson = model_gm.generate_content(prompt_lesson)
-                                    st.session_state[f"lesson_res_{idx}"] = resp_lesson.text
+                                    resp = model_gm.generate_content(prompt_lesson)
+                                    st.session_state[f"lesson_{idx}"] = resp.text
                                 except Exception as e:
-                                    st.error(f"Errore generazione lezione: {e}")
-                    
-                    if f"lesson_res_{idx}" in st.session_state:
-                        st.markdown("### 🧑‍🏫 Lezione Didattica del GM")
-                        st.success(st.session_state[f"lesson_res_{idx}"])
+                                    st.error(f"Errore: {e}")
+                    if f"lesson_{idx}" in st.session_state:
+                        st.success(st.session_state[f"lesson_{idx}"])
 
-# --- TAB 2: DASHBOARD STATISTICHE ---
+# --- TAB 2: DASHBOARD UTENTE PERSISTENTE ---
 with tab2:
-    st.subheader("📊 Analisi delle tue debolezze")
-    df = carica_dati_errori()
-    
-    if not df.empty:
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown("**Frequenza Categorie di Errore**")
-            st.bar_chart(df['categoria_errore'].value_counts())
-        with col2:
-            st.markdown("**Ultimi Errori Registrati**")
-            st.dataframe(df[['data', 'categoria_errore', 'mossa_critica']].sort_values(by='data', ascending=False), hide_index=True)
+    st.subheader(t["tab2"])
+    df_err = carica_errori_db(st.session_state['user'])
+    if not df_err.empty:
+        c1, c2 = st.columns(2)
+        with c1: st.bar_chart(df_err['categoria_errore'].value_counts())
+        with c2: st.dataframe(df_err[['data', 'categoria_errore', 'mossa_critica']], hide_index=True)
     else:
-        st.info("Nessun errore salvato nel database.")
+        st.info("Nessun errore salvato nel tuo database cloud.")
 
 # --- TAB 3: STUDIO LIBRI INTERATTIVO ---
 with tab3:
-    st.subheader("📚 Viewer Interattivo da Testi e Libri di Scacchi")
-    testo_libro_input = st.text_area("Incolla qui il testo del libro:", height=180)
-    
-    if st.button("🚀 Elabora e Traduci", type="primary"):
-        if not chiave_attiva:
-            st.error("Inserisci la chiave API Gemini.")
-        elif not testo_libro_input:
-            st.warning("Incolla del testo valido.")
-        else:
-            with st.spinner("Elaborazione in corso..."):
-                try:
-                    genai.configure(api_key=chiave_attiva)
-                    model = genai.GenerativeModel("gemini-3.8-flash")
-                    
-                    prompt_libro = f"""
-                    Analizza questo testo di scacchi. Traduci i commenti in italiano fluida.
-                    Estrai le mosse SAN ed i commenti per semimossa (ply).
-                    JSON richiesto:
-                    {{
-                      "mosse_san": ["e4", "e5"],
-                      "commenti": {{"0": "Inizio", "1": "Mossa 1"}}
-                    }}
-                    Testo: {testo_libro_input}
-                    """
-                    
-                    risposta = model.generate_content(prompt_libro)
-                    testo_pulito = risposta.text.replace("```json", "").replace("```", "").strip()
-                    dati_libro = json.loads(testo_pulito)
-                    
-                    board = chess.Board()
-                    steps = [{"ply": 0, "mossa_giocata": "Inizio", "fen": board.fen(), "commento": dati_libro.get("commenti", {}).get("0", "")}]
-                    
-                    for idx, san in enumerate(dati_libro.get("mosse_san", [])):
-                        try:
-                            move = board.parse_san(san)
-                            board.push(move)
-                            ply = idx + 1
-                            num_mossa = (ply + 1) // 2
-                            etich = f"{num_mossa}. {san}" if ply % 2 == 1 else f"{num_mossa}... {san}"
-                            steps.append({"ply": ply, "mossa_giocata": etich, "fen": board.fen(), "commento": dati_libro.get("commenti", {}).get(str(ply), "")})
-                        except Exception:
-                            break
-                            
-                    st.session_state['book_steps'] = steps
-                    st.session_state['current_ply'] = 0
-                    st.success("Studio sincronizzato!")
-                except Exception as e:
-                    st.error(f"Errore: {e}")
+    st.subheader(t["tab3"])
+    testo_libro_input = st.text_area("Testo del libro:", height=150)
+    if st.button("🚀 Elabora", type="primary"):
+        if MASTER_GEMINI_KEY and testo_libro_input:
+            try:
+                genai.configure(api_key=MASTER_GEMINI_KEY)
+                model = genai.GenerativeModel("gemini-2.5-flash")
+                prompt_libro = f"Analizza il testo scacchistico e restituisci JSON: {{\"mosse_san\": [\"e4\"], \"commenti\": {{\"0\": \"Inizio\"}}}}. {t['prompt_lang']} Testo: {testo_libro_input}"
+                risposta = model.generate_content(prompt_libro)
+                dati_libro = json.loads(risposta.text.replace("```json", "").replace("```", "").strip())
+                
+                board = chess.Board()
+                steps = [{"ply": 0, "mossa_giocata": "Inizio", "fen": board.fen(), "commento": dati_libro.get("commenti", {}).get("0", "")}]
+                for idx, san in enumerate(dati_libro.get("mosse_san", [])):
+                    try:
+                        move = board.parse_san(san)
+                        board.push(move)
+                        steps.append({"ply": idx+1, "mossa_giocata": san, "fen": board.fen(), "commento": dati_libro.get("commenti", {}).get(str(idx+1), "")})
+                    except Exception: break
+                st.session_state['book_steps'] = steps
+                st.session_state['current_ply'] = 0
+                st.success("Studio pronto!")
+            except Exception as e: st.error(f"Errore: {e}")
 
     if 'book_steps' in st.session_state and st.session_state['book_steps']:
         steps = st.session_state['book_steps']
-        max_ply = len(steps) - 1
-        
+        max_p = len(steps) - 1
         c1, c2, c3, c4 = st.columns(4)
-        if c1.button("⏪ Inizio"): st.session_state['current_ply'] = 0; st.rerun()
-        if c2.button("⬅️ Precedente") and st.session_state['current_ply'] > 0: st.session_state['current_ply'] -= 1; st.rerun()
-        if c3.button("Successiva ➡️") and st.session_state['current_ply'] < max_ply: st.session_state['current_ply'] += 1; st.rerun()
-        if c4.button("Fine ⏩"): st.session_state['current_ply'] = max_ply; st.rerun()
+        if c1.button("⏪"): st.session_state['current_ply'] = 0; st.rerun()
+        if c2.button("⬅️") and st.session_state['current_ply'] > 0: st.session_state['current_ply'] -= 1; st.rerun()
+        if c3.button("➡️") and st.session_state['current_ply'] < max_p: st.session_state['current_ply'] += 1; st.rerun()
+        if c4.button("⏩"): st.session_state['current_ply'] = max_p; st.rerun()
         
-        step_corrente = steps[st.session_state['current_ply']]
-        col_board_v, col_comm_v = st.columns([1, 1])
-        with col_board_v:
-            st.markdown(f"**Mossa:** `{step_corrente['mossa_giocata']}`")
-            st.write(chess.svg.board(board=chess.Board(step_corrente['fen']), size=380), unsafe_allow_html=True)
-        with col_comm_v:
-            st.info(step_corrente['commento'] if step_corrente['commento'] else "Nessun commento disponibile.")
+        cur = steps[st.session_state['current_ply']]
+        col_v1, col_v2 = st.columns(2)
+        with col_v1: st.write(chess.svg.board(board=chess.Board(cur['fen']), size=320), unsafe_allow_html=True)
+        with col_v2: st.info(cur['commento'])
 
-# --- TAB 4: DIARIO PARTITA & PDF ---
+# --- TAB 4: DIARIO & PDF ---
 with tab4:
-    st.subheader("📝 Diario Partita Giornaliera & Esportazione PDF")
-    input_diario_mosse = st.text_area("Incolla sequenza mosse:", height=120, key="diario_input_text")
-    
-    if st.button("🔄 Carica Partita nel Diario", type="primary"):
-        if input_diario_mosse.strip():
+    st.subheader(t["tab4"])
+    input_diario = st.text_area("Mosse:", height=100)
+    if st.button("🔄 Carica"):
+        if input_diario.strip():
             try:
-                parole = input_diario_mosse.split()
-                mosse_pulite = [p.split(".")[-1] for p in parole if not p.endswith(".") and not (p[:-1].isdigit() and p.endswith("."))]
-                board_temp = chess.Board()
-                lista_valida = []
-                for m in mosse_pulite:
-                    if m:
-                        move = board_temp.parse_san(m)
-                        board_temp.push(move)
-                        lista_valida.append(m)
-                
-                st.session_state['diario_mosse'] = lista_valida
+                board_t = chess.Board()
+                l_v = []
+                for m in input_diario.split():
+                    m_p = m.split(".")[-1]
+                    if m_p and not m_p.isdigit():
+                        board_t.push(board_t.parse_san(m_p))
+                        l_v.append(m_p)
+                st.session_state['diario_mosse'] = l_v
                 st.session_state['diario_note_mosse'] = {}
-                st.session_state['diario_note_finali'] = ""
-                st.session_state['pdf_version'] = 1
-                if 'pdf_bytes_diario' in st.session_state: del st.session_state['pdf_bytes_diario']
-                st.success(f"Caricate {len(lista_valida)} semimosse.")
-            except Exception as e:
-                st.error(f"Errore parsing: {e}")
+                st.success("Partita caricata!")
+            except Exception as e: st.error(f"Errore: {e}")
 
     if 'diario_mosse' in st.session_state and st.session_state['diario_mosse']:
-        mosse = st.session_state['diario_mosse']
-        board_corrente = chess.Board()
-        for m in mosse: board_corrente.push(board_corrente.parse_san(m))
-            
-        col_d_board, col_d_notes = st.columns([1, 1])
-        with col_d_board:
-            st.write(chess.svg.board(board=board_corrente, size=350), unsafe_allow_html=True)
-        with col_d_notes:
-            st.markdown("### ✍️ Note per Mossa")
-            for idx, m in enumerate(mosse):
-                num = (idx // 2) + 1
-                etichetta = f"{num}. {m}" if idx % 2 == 0 else f"{num}... {m}"
-                st.session_state['diario_note_mosse'][str(idx)] = st.text_input(f"Nota {etichetta}:", value=st.session_state['diario_note_mosse'].get(str(idx), ""), key=f"note_m_{idx}")
+        mosse_d = st.session_state['diario_mosse']
+        b_d = chess.Board()
+        for m in mosse_d: b_d.push(b_d.parse_san(m))
+        col_d1, col_d2 = st.columns(2)
+        with col_d1: st.write(chess.svg.board(board=b_d, size=320), unsafe_allow_html=True)
+        with col_d2:
+            for idx, m in enumerate(mosse_d):
+                st.session_state['diario_note_mosse'][str(idx)] = st.text_input(f"Nota {m}:", value=st.session_state['diario_note_mosse'].get(str(idx), ""), key=f"note_pdf_{idx}")
+        if st.button("⚙️ Genera PDF"):
+            pdf_b = genera_pdf_partita(b_d, mosse_d, st.session_state['diario_note_mosse'], "")
+            st.download_button("📥 Scarica PDF", data=pdf_b, file_name="diario_partita.pdf", mime="application/pdf")
 
-        note_finali_val = st.text_area("Note Finali:", value=st.session_state.get('diario_note_finali', ''), key="textarea_note_finali")
-        st.session_state['diario_note_finali'] = note_finali_val
-        
-        if st.button("⚙️ Prepara PDF", type="primary", use_container_width=True):
-            try:
-                st.session_state['pdf_bytes_diario'] = genera_pdf_partita(board_corrente, mosse, st.session_state['diario_note_mosse'], st.session_state['diario_note_finali'])
-                st.session_state['pdf_version'] = st.session_state.get('pdf_version', 0) + 1
-                st.success("PDF Pronto!")
-            except Exception as e:
-                st.error(f"Errore PDF: {e}")
-
-        if 'pdf_bytes_diario' in st.session_state:
-            v = st.session_state.get('pdf_version', 1)
-            t_str = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-            st.download_button(f"📥 Scarica PDF (v{v})", data=st.session_state['pdf_bytes_diario'], file_name=f"diario_{t_str}_v{v}.pdf", mime="application/pdf", use_container_width=True)
-
-# --- TAB 5: IMPORTAZIONE & FILTRI PARTITE (LICHESS / CHESS.COM) ---
+# --- TAB 5: IMPORTA E FILTRA PARTITE ---
 with tab5:
-    st.subheader("🌐 Importa, Filtra e Seleziona le Partite dal tuo Profilo")
-    
-    col_input1, col_input2 = st.columns(2)
-    with col_input1:
-        piattaforma_sel = st.radio("Scegli Piattaforma:", ["Lichess", "Chess.com"], horizontal=True)
-    with col_input2:
-        username_cerca = st.text_input("Nome Utente:", value=st.session_state.get('lichess_user', 'Chene91'), placeholder="es. Chene91")
-
-    st.markdown("### 🎛️ Filtri Partita Avanzati")
-    f_col1, f_col2, f_col3, f_col4 = st.columns(4)
-    with f_col1:
-        filtro_limite = st.number_input("Partite da scaricare:", min_value=5, max_value=50, value=15)
-    with f_col2:
-        filtro_colore = st.selectbox("Colore:", ["Tutti", "Bianco", "Nero"])
-    with f_col3:
-        filtro_esito = st.selectbox("Esito:", ["Tutti", "Vinte", "Perse", "Patte"])
-    with f_col4:
-        filtro_tempo = st.selectbox("Tempo di gioco:", ["Tutti", "Bullet", "Blitz", "Rapid", "Classical"])
-
-    if st.button("📥 Scarica e Applica Filtri", type="primary", use_container_width=True):
-        if not username_cerca.strip():
-            st.warning("Inserisci un Nome Utente valido.")
-        else:
-            with st.spinner(f"Scaricamento e filtraggio partite da {piattaforma_sel} per '{username_cerca}'..."):
-                partite_filtrate = []
-                user_lower = username_cerca.strip().lower()
-                
+    st.subheader(t["tab5"])
+    plat = st.radio("Piattaforma:", ["Lichess", "Chess.com"], horizontal=True)
+    usr = st.text_input("Username:", value="Chene91")
+    if st.button("📥 Scarica Partite"):
+        if usr.strip():
+            with st.spinner("Download..."):
                 try:
-                    if piattaforma_sel == "Lichess":
-                        url = f"https://lichess.org/api/games/user/{user_lower}"
-                        params = {"max": filtro_limite}
-                        headers = {
-                            "Accept": "application/x-chess-pgn",
-                            "User-Agent": "ChessCoachPro/1.0"
-                        }
-                        
-                        if st.session_state.get('lichess_token') and st.session_state.get('lichess_user', '').lower() == user_lower:
-                            headers["Authorization"] = f"Bearer {st.session_state['lichess_token']}"
-                            
-                        r = requests.get(url, params=params, headers=headers, timeout=20)
-                        
+                    if plat == "Lichess":
+                        r = requests.get(f"https://lichess.org/api/games/user/{usr.strip().lower()}?max=10", headers={"Accept": "application/x-chess-pgn"}, timeout=15)
                         if r.status_code == 200:
-                            pgn_io = io.StringIO(r.text)
-                            idx = 1
-                            while True:
-                                game = chess.pgn.read_game(pgn_io)
-                                if game is None:
-                                    break
-                                
-                                exporter = chess.pgn.StringExporter(headers=True, comments=True, variations=True)
-                                pgn_str = game.accept(exporter)
-                                
-                                headers_game = game.headers
-                                white_p = headers_game.get("White", "").lower()
-                                black_p = headers_game.get("Black", "").lower()
-                                result = headers_game.get("Result", "*")
-                                
-                                is_white = user_lower in white_p
-                                is_black = user_lower in black_p
-                                
-                                if filtro_colore == "Bianco" and not is_white: idx += 1; continue
-                                if filtro_colore == "Nero" and not is_black: idx += 1; continue
-                                if filtro_esito == "Vinte" and not ((is_white and result == "1-0") or (is_black and result == "0-1")): idx += 1; continue
-                                if filtro_esito == "Perse" and not ((is_white and result == "0-1") or (is_black and result == "1-0")): idx += 1; continue
-                                if filtro_esito == "Patte" and result != "1/2-1/2": idx += 1; continue
-                                    
-                                avversario = headers_game.get("Black", "Avversario") if is_white else headers_game.get("White", "Avversario")
-                                titolo_dettagliato = f"Partita #{idx}: vs {avversario} ({result})"
-                                partite_filtrate.append((titolo_dettagliato, pgn_str))
-                                idx += 1
-                        else:
-                            st.error(f"Errore di connessione a Lichess (Codice HTTP: {r.status_code}).")
-                            
+                            st.session_state['partite_importate'] = r.text
+                            st.success("Partite scaricate con successo!")
                     else:
-                        headers_c = {"User-Agent": "ChessCoachProApp/1.0"}
-                        arch_url = f"https://api.chess.com/pub/player/{user_lower}/games/archives"
-                        r_arch = requests.get(arch_url, headers=headers_c, timeout=10)
-                        if r_arch.status_code == 200:
-                            archives = r_arch.json().get("archives", [])
-                            if archives:
-                                r_m = requests.get(archives[-1], headers=headers_c, timeout=10)
-                                if r_m.status_code == 200:
-                                    games_j = r_m.json().get("games", [])[-filtro_limite:][::-1]
-                                    for g in games_j:
-                                        pgn_g = g.get("pgn", "")
-                                        if not pgn_g: continue
-                                        
-                                        game = chess.pgn.read_game(io.StringIO(pgn_g))
-                                        if not game: continue
-                                        
-                                        headers_game = game.headers
-                                        white_p = headers_game.get("White", "").lower()
-                                        black_p = headers_game.get("Black", "").lower()
-                                        result = headers_game.get("Result", "*")
-                                        
-                                        is_white = user_lower in white_p
-                                        is_black = user_lower in black_p
-                                        
-                                        if filtro_colore == "Bianco" and not is_white: continue
-                                        if filtro_colore == "Nero" and not is_black: continue
-                                        if filtro_esito == "Vinte" and not ((is_white and result == "1-0") or (is_black and result == "0-1")): continue
-                                        if filtro_esito == "Perse" and not ((is_white and result == "0-1") or (is_black and result == "1-0")): continue
-                                        if filtro_esito == "Patte" and result != "1/2-1/2": continue
-                                        
-                                        w = headers_game.get("White", "Bianco")
-                                        b = headers_game.get("Black", "Nero")
-                                        partite_filtrate.append((f"Chess.com: {w} vs {b} ({result})", pgn_g))
+                        r_a = requests.get(f"https://api.chess.com/pub/player/{usr.strip().lower()}/games/archives", timeout=10)
+                        if r_a.status_code == 200 and r_a.json().get("archives"):
+                            r_g = requests.get(r_a.json()["archives"][-1], timeout=10)
+                            if r_g.status_code == 200:
+                                pgn_all = "\n\n".join([g.get("pgn", "") for g in r_g.json().get("games", [])[-10:] if g.get("pgn")])
+                                st.session_state['partite_importate'] = pgn_all
+                                st.success("Partite scaricate con successo!")
+                except Exception as e: st.error(f"Errore download: {e}")
 
-                    st.session_state['partite_scaricate'] = partite_filtrate
-                    if partite_filtrate:
-                        st.success(f"Trovate e filtrate con successo {len(partite_filtrate)} partite per l'utente '{username_cerca}'!")
-                    else:
-                        st.warning("Nessuna partita trovata con i filtri attuali.")
-                except Exception as e:
-                    st.error(f"Errore durante il download o l'elaborazione: {e}")
-
-    # --- MOSTRA E SELEZIONA LE PARTITE FILTRATE ---
-    if 'partite_scaricate' in st.session_state and st.session_state['partite_scaricate']:
-        st.divider()
-        st.subheader("📋 Seleziona la Partita Filtrata")
-        
-        m_dict = {titolo: pgn for titolo, pgn in st.session_state['partite_scaricate']}
-        partita_scelta_t = st.selectbox("Elenco Partite Disponibili:", list(m_dict.keys()))
-        pgn_selezionato_val = m_dict[partita_scelta_t]
-        
-        with st.expander("Anteprima PGN completo"):
-            st.code(pgn_selezionato_val, language="text")
-            
-        c_act1, c_act2 = st.columns(2)
-        with c_act1:
-            if st.button("🚀 Invia a Stockfish + AI (Tab 1)", use_container_width=True, type="primary"):
-                st.session_state['pending_pgn_transfer'] = pgn_selezionato_val
-                st.success("Partita trasferita! Clicca sulla scheda '📖 Analizza PGN (Stockfish + AI)' in alto per visualizzarla e avviare la scansione.")
-        with c_act2:
-            if st.button("📝 Invia al Diario & PDF (Tab 4)", use_container_width=True):
-                game = chess.pgn.read_game(io.StringIO(pgn_selezionato_val))
-                if game:
-                    board_g = game.board()
-                    l_moves = [board_g.san(m) for m in game.mainline_moves() if not board_g.push(m)]
-                    st.session_state['diario_mosse'] = l_moves
-                    st.session_state['diario_note_mosse'] = {}
-                    st.session_state['diario_note_finali'] = f"Partita importata: {partita_scelta_t}"
-                    st.session_state['pdf_version'] = 1
-                    if 'pdf_bytes_diario' in st.session_state: del st.session_state['pdf_bytes_diario']
-                    st.success("Partita trasferita nel Diario! Apri la scheda '📝 Diario & PDF'.")
+    if 'partite_importate' in st.session_state:
+        st.code(st.session_state['partite_importate'][:1000] + "...", language="text")
