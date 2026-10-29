@@ -11,7 +11,6 @@ import os
 import tempfile
 import time
 import requests
-import berserk
 from fpdf import FPDF
 from PIL import Image
 from supabase import create_client, Client
@@ -21,7 +20,6 @@ MASTER_GEMINI_KEY = st.secrets.get("GEMINI_API_KEY", "")
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", "")
 SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "")
 
-# Usiamo il modello Flash ottimizzato ed economico
 GEMINI_MODEL_NAME = "gemini-3.8-flash"
 
 @st.cache_resource
@@ -92,10 +90,18 @@ CUSTOM_CSS = """
         transform: translateY(-2px);
         box-shadow: 0 6px 20px rgba(255, 215, 0, 0.35);
     }
+    .category-tag {
+        background: rgba(255, 215, 0, 0.1);
+        color: #FFD700;
+        padding: 2px 8px;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 0.8rem;
+        margin-left: 8px;
+    }
 </style>
 """
 
-# --- DIZIONARIO MULTILINGUE (i18n) ---
 TEXTS = {
     "it": {
         "title": "⚡ Chess Coach Pro",
@@ -114,7 +120,7 @@ TEXTS = {
         "login_btn": "Accedi alla Piattaforma",
         "register_btn": "Crea Account",
         "logout_btn": "🚪 Disconnetti",
-        "analyze_btn": "🔍 Avvia Analisi Cloud",
+        "analyze_btn": "🔍 Avvia Analisi Lampo",
         "critique_found": "criticità identificate!",
         "no_errors": "Partita eccellente! Nessun errore grave rilevato.",
         "gm_lesson_btn": "🎓 Analisi Rapida GM",
@@ -140,7 +146,7 @@ TEXTS = {
         "login_btn": "Login to Platform",
         "register_btn": "Create Account",
         "logout_btn": "🚪 Logout",
-        "analyze_btn": "🔍 Start Cloud Analysis",
+        "analyze_btn": "🔍 Start Lightning Analysis",
         "critique_found": "critical issues identified!",
         "no_errors": "Great game! Stockfish found no major blunders.",
         "gm_lesson_btn": "🎓 Quick GM Insight",
@@ -166,7 +172,7 @@ TEXTS = {
         "login_btn": "Iniciar Sesión",
         "register_btn": "Crear Cuenta",
         "logout_btn": "🚪 Cerrar Sesión",
-        "analyze_btn": "🔍 Iniciar Análisis Cloud",
+        "analyze_btn": "🔍 Iniciar Análisis Relámpago",
         "critique_found": "¡críticas identificadas!",
         "no_errors": "¡Excelente partida! Sin errores graves.",
         "gm_lesson_btn": "🎓 Análisis Rápido GM",
@@ -191,7 +197,6 @@ if 'active_nav_tab' not in st.session_state:
 
 t = TEXTS[st.session_state['lang']]
 
-# --- SUPABASE FUNCTIONS ---
 def get_user_tier(email):
     if supabase:
         try:
@@ -270,7 +275,6 @@ def carica_errori_db(user_email):
 # ==========================================
 if not st.session_state['user']:
     col_l1, col_l2, col_l3 = st.columns([1, 2, 1])
-    
     with col_l2:
         st.markdown(f"<div class='brand-title'>{t['title']}</div>", unsafe_allow_html=True)
         st.markdown(f"<div class='brand-sub'>{t['subtitle']}</div>", unsafe_allow_html=True)
@@ -325,7 +329,6 @@ if not st.session_state['user']:
                         st.session_state['user'] = email_reg
                         st.session_state['profile_setup_done'] = False
                         st.rerun()
-                        
     st.stop()
 
 # ==========================================
@@ -381,8 +384,19 @@ if not st.session_state.get('profile_setup_done', False):
     st.stop()
 
 # ==========================================
-# 3. APPLICAZIONE PRINCIPALE (ENGINE SCACCHISTICO RIPRISTINATO E ACCURATO)
+# 3. ENGINE STOCKFISH LAMPO CON CATEGORIZZAZIONE AUTOMATICA ISTANTANEA
 # ==========================================
+def determina_categoria_mossa(num_mossa, delta_cp, total_moves):
+    # Calcolo euristico istantaneo senza attendere l'AI
+    if num_mossa <= 12:
+        return "Apertura"
+    elif num_mossa >= total_moves - 10 or total_moves > 40 and num_mossa > 30:
+        return "Finale"
+    elif delta_cp >= 2.0:
+        return "Tattica (Svista Grave)"
+    else:
+        return "Posizionale / Strategia"
+
 def analizza_partita_chess_api(pgn_text):
     game = chess.pgn.read_game(io.StringIO(pgn_text))
     if not game:
@@ -394,7 +408,11 @@ def analizza_partita_chess_api(pgn_text):
     prev_eval = 0.0
     
     main_moves = list(game.mainline_moves())
-    progress_bar = st.progress(0, text="Analisi cloud in corso...")
+    total_moves_count = len(main_moves)
+    progress_bar = st.progress(0, text="Scansione Stockfish lampo in corso...")
+    
+    session = requests.Session()
+    session.headers.update(headers_req)
     
     for idx, move in enumerate(main_moves):
         fen_before = board.fen()
@@ -405,36 +423,31 @@ def analizza_partita_chess_api(pgn_text):
         is_white_move = (idx % 2 == 0)
         label_mossa = f"{num_mossa}. {move.uci()}" if is_white_move else f"{num_mossa}... {move.uci()}"
         
-        progress_bar.progress((idx + 1) / len(main_moves), text=f"Analisi mossa {num_mossa} di {len(main_moves)}...")
+        progress_bar.progress((idx + 1) / total_moves_count, text=f"Scansione mossa {num_mossa}/{total_moves_count}...")
         
         curr_eval = prev_eval
         valid_eval_found = False
         
-        # LOGICA ENGINE RIPRISTINATA: Tentativi e depth=12 per accuratezza tattica
-        for attempt in range(2):
-            try:
-                payload = {"fen": fen_after, "depth": 12}
-                r = requests.post("https://chess-api.com/v1", json=payload, headers=headers_req, timeout=6)
-                if r.status_code == 200:
-                    data = r.json()
-                    eval_val = data.get("eval")
-                    mate_val = data.get("mate")
-                    
-                    if eval_val is not None:
-                        curr_eval = float(eval_val)
-                        valid_eval_found = True
-                        break
-                    elif mate_val is not None:
-                        curr_eval = 100.0 if mate_val > 0 else -100.0
-                        valid_eval_found = True
-                        break
-            except Exception:
-                time.sleep(0.1)
+        try:
+            payload = {"fen": fen_after, "depth": 12}
+            r = session.post("https://chess-api.com/v1", json=payload, timeout=3)
+            if r.status_code == 200:
+                data = r.json()
+                eval_val = data.get("eval")
+                mate_val = data.get("mate")
+                
+                if eval_val is not None:
+                    curr_eval = float(eval_val)
+                    valid_eval_found = True
+                elif mate_val is not None:
+                    curr_eval = 100.0 if mate_val > 0 else -100.0
+                    valid_eval_found = True
+        except Exception:
+            pass
 
         if not valid_eval_found and idx > 0:
             curr_eval = prev_eval
 
-        # Calcolo del calo di valutazione specifico per il giocatore di turno
         delta = (prev_eval - curr_eval) if is_white_move else (curr_eval - prev_eval)
         
         if delta >= 2.0:
@@ -447,6 +460,7 @@ def analizza_partita_chess_api(pgn_text):
             tipo_problema = None
 
         if tipo_problema:
+            cat_mossa = determina_categoria_mossa(num_mossa, round(delta, 2), total_moves_count)
             evaluations.append({
                 "mossa_num": idx + 1,
                 "label_mossa": label_mossa,
@@ -455,7 +469,8 @@ def analizza_partita_chess_api(pgn_text):
                 "mossa_giocata": move.uci(),
                 "perdita_cp": round(delta, 2),
                 "eval_dopo": curr_eval,
-                "tipo_problema": tipo_problema
+                "tipo_problema": tipo_problema,
+                "categoria": cat_mossa
             })
             
         prev_eval = curr_eval
@@ -568,7 +583,7 @@ st.divider()
 current_tab = st.session_state['active_nav_tab']
 
 # ==========================================
-# TAB 0: ANALIZZA PGN (STOCKFISH + GEMINI 3.8 FLASH)
+# TAB 0: ANALIZZA PGN (VISIONE IMMEDIATA E CATEGORIZZAZIONE TAG)
 # ==========================================
 if current_tab == 0:
     st.subheader(t["tab1"])
@@ -581,52 +596,51 @@ if current_tab == 0:
             st.warning("Inserisci un PGN valido.")
         else:
             st.session_state['pgn_manual_input'] = pgn_input
-            with st.spinner("Scansione cloud in corso..."):
+            with st.spinner("Scansione lampo Stockfish in corso..."):
                 errori, game_url, err_msg = analizza_partita_chess_api(pgn_input.strip())
                 st.session_state['stockfish_errors'] = errori
                 
                 if errori:
                     st.success(f"Stockfish: {len(errori)} {t['critique_found']}")
-                    if MASTER_GEMINI_KEY:
-                        try:
-                            genai.configure(api_key=MASTER_GEMINI_KEY)
-                            model = genai.GenerativeModel(GEMINI_MODEL_NAME)
-                            prompt_c = f"Classifica in tag brevi (Tattica, Strategia, Apertura, Finale) questi errori scacchistici: {json.dumps(errori)}. {t['prompt_lang']} Restituisci SOLO JSON puro: [{{\"label_mossa\": \"14. e5\", \"categoria\": \"Tattica\"}}]"
-                            resp_c = model.generate_content(prompt_c)
-                            clusters = json.loads(resp_c.text.replace("```json", "").replace("```", "").strip())
-                            for item in clusters:
-                                salva_errore_db(user_email, item.get("categoria", "Tattica"), item.get("label_mossa", "Mossa"), "Errore")
-                        except Exception:
-                            pass
+                    # Salva le criticità direttamente nel DB per la Dashboard
+                    for item in errori:
+                        salva_errore_db(user_email, item.get("categoria", "Tattica"), item.get("label_mossa", "Mossa"), f"Perdita {item.get('perdita_cp')} CP")
                 else:
                     st.info(t["no_errors"])
 
     if 'stockfish_errors' in st.session_state and st.session_state['stockfish_errors']:
         st.divider()
+        st.write("### 🎯 Criticità Rilevate (Classificate per Categoria):")
         for idx, err in enumerate(st.session_state['stockfish_errors']):
-            with st.expander(f"{err['tipo_problema']}: Mossa `{err['label_mossa']}`", expanded=(idx==0)):
+            cat_label = err.get('categoria', 'Tattica')
+            with st.expander(f"{err['tipo_problema']} su `{err['label_mossa']}` — Tag: [{cat_label}]", expanded=(idx==0)):
                 col_b, col_t = st.columns([1, 1])
                 with col_b:
                     st.write(chess.svg.board(board=chess.Board(err['fen_prima']), size=280), unsafe_allow_html=True)
                 with col_t:
-                    st.markdown(f"**Perdita:** `-{err['perdita_cp']}` pedoni")
+                    st.markdown(f"**Categoria Errore:** `<span class='category-tag'>{cat_label}</span>`", unsafe_allow_html=True)
+                    st.markdown(f"**Perdita Valutazione:** `-{err['perdita_cp']}` pedoni")
+                    st.divider()
                     btn_key = f"btn_lesson_{idx}"
+                    
+                    # PROMPT ULTRA-COMPATTO E PARAMETRI DI GENERAZIONE LIMITATI PER RISPOSTA ULTRA-RAPIDA (< 2 SECONDI)
                     if st.button(f"{t['gm_lesson_btn']} {err['label_mossa']}", key=btn_key, type="primary"):
                         if not MASTER_GEMINI_KEY:
                             st.error("Chiave Master Gemini non configurata.")
                         else:
-                            with st.spinner("Analisi GM..."):
+                            with st.spinner("Pillola GM in elaborazione..."):
                                 try:
                                     genai.configure(api_key=MASTER_GEMINI_KEY)
-                                    model_gm = genai.GenerativeModel(GEMINI_MODEL_NAME)
+                                    # Usa configurazione con max_output_tokens per velocizzare l'output ed evitare stalli
+                                    generation_config = {"max_output_tokens": 150, "temperature": 0.3}
+                                    model_gm = genai.GenerativeModel(GEMINI_MODEL_NAME, generation_config=generation_config)
                                     prompt_lesson = f"""
-                                    Sei un GM di scacchi. FEN: {err['fen_prima']} | Errore: {err['tipo_problema']} ({err['mossa_giocata']}).
+                                    Sei un GM. FEN: {err['fen_prima']} | Mossa errata: {err['mossa_giocata']}.
                                     {t['prompt_lang']}
-                                    Scrivi un'analisi concisa in 3 righe esatte:
-                                    1. Perché è un errore.
-                                    2. La mossa corretta.
-                                    3. Regola chiave.
-                                    Sii brevissimo ed efficiente.
+                                    In max 30 parole spieghi:
+                                    1. L'errore
+                                    2. La mossa migliore
+                                    3. Regola d'oro
                                     """
                                     resp = model_gm.generate_content(prompt_lesson)
                                     st.session_state[f"lesson_{idx}"] = resp.text
@@ -848,7 +862,7 @@ elif current_tab == 4:
                 selected_idx = game_options.index(scelta_partita)
                 chosen_pgn = filtered_games[selected_idx]['pgn']
 
-                if st.button("🚀 Invia ad Analisi Stockfish + AI", type="primary", use_container_width=True):
+                if st.button("🚀 Invia ad Analisi Stockfish", type="primary", use_container_width=True):
                     st.session_state['pgn_manual_input'] = chosen_pgn
                     st.session_state['active_nav_tab'] = 0
                     st.rerun()
