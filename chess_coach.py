@@ -16,19 +16,21 @@ from fpdf import FPDF
 from PIL import Image
 from supabase import create_client, Client
 
-# --- CONFIGURAZIONE CENTRALIZZATA (ZERO CONFIGURAZIONE PER IL CLIENTE) ---
-# Legge la Gemini API Key centralizzata dai secret di Streamlit
-MASTER_GEMINI_KEY = st.secrets.get("GEMINI_API_KEY", "INSERISCI_LA_TUA_GEMINI_API_KEY_MASTER_QUI")
+# --- IMPOSTAZIONE PAGINA STREAMLIT ---
+st.set_page_config(page_title="Chess Coach Pro", layout="wide", page_icon="♟️")
 
-# Configurazione Supabase (Database utenti e storico errori)
-SUPABASE_URL = st.secrets.get("SUPABASE_URL", "INSERISCI_LA_TUA_SUPABASE_URL_QUI")
-SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "INSERISCI_LA_TUA_SUPABASE_ANON_KEY_QUI")
+# --- RECURACIO SICURA DEI SECRETS ---
+MASTER_GEMINI_KEY = st.secrets.get("GEMINI_API_KEY", "")
+SUPABASE_URL = st.secrets.get("SUPABASE_URL", "")
+SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "")
 
 @st.cache_resource
 def init_supabase() -> Client:
+    if not SUPABASE_URL or not SUPABASE_KEY or "INSERISCI" in SUPABASE_URL:
+        return None
     try:
-        return create_client(SUPABASE_URL, SUPABASE_KEY)
-    except Exception:
+        return create_client(SUPABASE_URL.strip(), SUPABASE_KEY.strip())
+    except Exception as e:
         return None
 
 supabase = init_supabase()
@@ -106,10 +108,6 @@ TEXTS = {
     }
 }
 
-# --- IMPOSTAZIONE PAGINA STREAMLIT ---
-st.set_page_config(page_title="Chess Coach Pro", layout="wide", page_icon="♟️")
-
-# --- GESTIONE SESSIONE E STATO UTENTE ---
 if 'user' not in st.session_state:
     st.session_state['user'] = None
 if 'lang' not in st.session_state:
@@ -117,7 +115,6 @@ if 'lang' not in st.session_state:
 
 t = TEXTS[st.session_state['lang']]
 
-# --- FUNZIONI DATABASE SUPABASE ---
 def salva_errore_db(user_email, categoria, mossa, spiegazione):
     if supabase:
         try:
@@ -143,15 +140,32 @@ def carica_errori_db(user_email):
     return pd.DataFrame(columns=["data", "categoria_errore", "mossa_critica", "spiegazione"])
 
 # ==========================================
-# SEZIONE 1: SCHERMATA DI LOGIN / REGISTRAZIONE (PRIMA PAGINA)
+# SEZIONE 1: SCHERMATA DI LOGIN / REGISTRAZIONE CON DIAGNOSTICA
 # ==========================================
 if not st.session_state['user']:
-    col_l1, col_l2, col_l3 = st.columns([1, 1.2, 1])
+    col_l1, col_l2, col_l3 = st.columns([1, 1.3, 1])
     
     with col_l2:
         st.markdown(f"<h1 style='text-align: center;'>{t['title']}</h1>", unsafe_allow_html=True)
         st.markdown(f"<p style='text-align: center; color: gray;'>{t['subtitle']}</p>", unsafe_allow_html=True)
         st.divider()
+        
+        # --- PANNELLO DI DIAGNOSTICA INTEGRATA ---
+        with st.expander("🛠️ Diagnostica di Connessione Supabase", expanded=False):
+            st.write(f"**URL configurato:** `{SUPABASE_URL if SUPABASE_URL else 'Mancante o Vuoto'}`")
+            st.write(f"**KEY configurata:** `{SUPABASE_KEY[:10]}...` (lunghezza: {len(SUPABASE_KEY)} caratteri)" if SUPABASE_KEY else "**KEY:** ❌ Mancante")
+            
+            if st.button("🧪 Esegui Test di Connessione"):
+                if not SUPABASE_URL or not SUPABASE_KEY:
+                    st.error("❌ URL o KEY di Supabase assenti nei Secrets.")
+                else:
+                    try:
+                        test_client = create_client(SUPABASE_URL.strip(), SUPABASE_KEY.strip())
+                        # Test rapido di lettura sulla tabella
+                        res = test_client.table("errori_utenti").select("*").limit(1).execute()
+                        st.success("✅ Connessione a Supabase riuscita con successo! Le tabelle rispondono correttamente.")
+                    except Exception as e:
+                        st.error(f"❌ Errore di connessione a Supabase: {e}")
         
         scelta_lingua_benvenuto = st.selectbox(
             t["lang_select"],
@@ -166,22 +180,24 @@ if not st.session_state['user']:
 
         tab_log, tab_reg = st.tabs([t["login_header"], t["register_header"]])
         
+        supabase_configurato = supabase is not None
+        
         with tab_log:
             email_log = st.text_input(t["email_label"], key="login_email")
             pass_log = st.text_input(t["password_label"], type="password", key="login_pass")
             
             if st.button(t["login_btn"], type="primary", use_container_width=True):
-                if supabase and email_log and pass_log:
+                if supabase_configurato and email_log and pass_log:
                     try:
                         res = supabase.auth.sign_in_with_password({"email": email_log, "password": pass_log})
                         st.session_state['user'] = res.user.email
                         st.success("Accesso effettuato con successo!")
                         st.rerun()
                     except Exception as e:
-                        st.error(f"Credenziali non valide o errore di accesso: {e}")
+                        st.error(f"Errore di accesso: {e}")
                 else:
                     st.session_state['user'] = email_log if email_log else "beta_tester@chess.com"
-                    st.success("Accesso in modalità Beta Demo!")
+                    st.success("Accesso eseguito in modalità Beta Demo!")
                     st.rerun()
                     
         with tab_reg:
@@ -189,22 +205,23 @@ if not st.session_state['user']:
             pass_reg = st.text_input(t["password_label"], type="password", key="reg_pass")
             
             if st.button(t["register_btn"], type="primary", use_container_width=True):
-                if supabase and email_reg and pass_reg:
+                if supabase_configurato and email_reg and pass_reg:
                     try:
                         supabase.auth.sign_up({"email": email_reg, "password": pass_reg})
                         st.success("Registrazione completata! Controlla la tua email per confermare l'account o effettua il login.")
                     except Exception as e:
                         st.error(f"Errore durante la registrazione: {e}")
                 else:
-                    st.warning("Inserisci email e password validi.")
-                    
+                    st.warning("⚠️ Supabase non configurato o campi vuoti. Cliccando di nuovo verrai fatto entrare in modalità Demo.")
+                    if email_reg:
+                        st.session_state['user'] = email_reg
+                        st.rerun()
+                        
     st.stop()
 
 # ==========================================
-# SEZIONE 2: APPLICAZIONE PRINCIPALE (ACCESSIBILE SOLO DOPO IL LOGIN)
+# SEZIONE 2: APPLICAZIONE PRINCIPALE
 # ==========================================
-
-# --- MOTORE DI ANALISI CHESS-API CLOUD ---
 def analizza_partita_chess_api(pgn_text):
     game = chess.pgn.read_game(io.StringIO(pgn_text))
     if not game:
@@ -285,7 +302,6 @@ def analizza_partita_chess_api(pgn_text):
     progress_bar.empty()
     return evaluations, None, None
 
-# --- GENERAZIONE IMMAGINE SCACCHIERA PER PDF ---
 def salva_immagine_scacchiera_png(board, path_temp):
     svg_data = chess.svg.board(board=board, size=400)
     try:
@@ -295,7 +311,6 @@ def salva_immagine_scacchiera_png(board, path_temp):
         img = Image.new('RGB', (400, 400), color=(240, 217, 181))
         img.save(path_temp)
 
-# --- GENERAZIONE PDF A DUE COLONNE ---
 def genera_pdf_partita(board, mosse_lista, note_mosse, note_finali):
     pdf = FPDF()
     pdf.add_page()
@@ -343,7 +358,6 @@ def genera_pdf_partita(board, mosse_lista, note_mosse, note_finali):
         
     return bytes(pdf.output())
 
-# --- SIDEBAR DELL'APP PRINCIPALE ---
 with st.sidebar:
     st.header(t["settings"])
     st.info(f"👤 Utente: **{st.session_state['user']}**")
@@ -366,14 +380,12 @@ with st.sidebar:
         st.session_state['user'] = None
         st.rerun()
 
-# --- TITOLO E TABS ---
 st.title(t["title"])
 
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     t["tab1"], t["tab2"], t["tab3"], t["tab4"], t["tab5"]
 ])
 
-# --- TAB 1: ANALISI PGN CON MASTER GEMINI KEY ---
 with tab1:
     st.subheader(t["tab1"])
     pgn_input = st.text_area("PGN:", height=150, key="pgn_manual_input")
@@ -432,7 +444,6 @@ with tab1:
                     if f"lesson_{idx}" in st.session_state:
                         st.success(st.session_state[f"lesson_{idx}"])
 
-# --- TAB 2: DASHBOARD UTENTE PERSISTENTE ---
 with tab2:
     st.subheader(t["tab2"])
     df_err = carica_errori_db(st.session_state['user'])
@@ -443,7 +454,6 @@ with tab2:
     else:
         st.info("Nessun errore salvato nel tuo database cloud.")
 
-# --- TAB 3: STUDIO LIBRI INTERATTIVO ---
 with tab3:
     st.subheader(t["tab3"])
     testo_libro_input = st.text_area("Testo del libro:", height=150)
@@ -483,7 +493,6 @@ with tab3:
         with col_v1: st.write(chess.svg.board(board=chess.Board(cur['fen']), size=320), unsafe_allow_html=True)
         with col_v2: st.info(cur['commento'])
 
-# --- TAB 4: DIARIO & PDF ---
 with tab4:
     st.subheader(t["tab4"])
     input_diario = st.text_area("Mosse:", height=100)
@@ -515,7 +524,6 @@ with tab4:
             pdf_b = genera_pdf_partita(b_d, mosse_d, st.session_state['diario_note_mosse'], "")
             st.download_button("📥 Scarica PDF", data=pdf_b, file_name="diario_partita.pdf", mime="application/pdf")
 
-# --- TAB 5: IMPORTA E FILTRA PARTITE ---
 with tab5:
     st.subheader(t["tab5"])
     plat = st.radio("Piattaforma:", ["Lichess", "Chess.com"], horizontal=True)
