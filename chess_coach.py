@@ -380,9 +380,7 @@ if not st.session_state.get('profile_setup_done', False):
             st.rerun()
     st.stop()
 
-# ==========================================
-# 3. APPLICAZIONE PRINCIPALE
-# ==========================================
+
 def analizza_partita_chess_api(pgn_text):
     game = chess.pgn.read_game(io.StringIO(pgn_text))
     if not game:
@@ -394,7 +392,11 @@ def analizza_partita_chess_api(pgn_text):
     prev_eval = 0.0
     
     main_moves = list(game.mainline_moves())
-    progress_bar = st.progress(0, text="Analisi cloud in corso...")
+    progress_bar = st.progress(0, text="Analisi cloud rapida in corso...")
+    
+    # Sessione HTTP riutilizzabile per velocizzare le chiamate
+    session = requests.Session()
+    session.headers.update(headers_req)
     
     for idx, move in enumerate(main_moves):
         fen_before = board.fen()
@@ -405,30 +407,30 @@ def analizza_partita_chess_api(pgn_text):
         is_white_move = (idx % 2 == 0)
         label_mossa = f"{num_mossa}. {move.uci()}" if is_white_move else f"{num_mossa}... {move.uci()}"
         
-        progress_bar.progress((idx + 1) / len(main_moves), text=f"Analisi mossa {num_mossa}/{len(main_moves)}...")
+        # Aggiorna la barra ogni 2 mosse per ridurre il carico grafico
+        if idx % 2 == 0 or idx == len(main_moves) - 1:
+            progress_bar.progress((idx + 1) / len(main_moves), text=f"Analisi rapida: mossa {num_mossa}/{len(main_moves)//2 + 1}...")
         
         curr_eval = prev_eval
         valid_eval_found = False
         
-        for attempt in range(2):
-            try:
-                payload = {"fen": fen_after, "depth": 12}
-                r = requests.post("https://chess-api.com/v1", json=payload, headers=headers_req, timeout=6)
-                if r.status_code == 200:
-                    data = r.json()
-                    eval_val = data.get("eval")
-                    mate_val = data.get("mate")
-                    
-                    if eval_val is not None:
-                        curr_eval = float(eval_val)
-                        valid_eval_found = True
-                        break
-                    elif mate_val is not None:
-                        curr_eval = 100.0 if mate_val > 0 else -100.0
-                        valid_eval_found = True
-                        break
-            except Exception:
-                time.sleep(0.1)
+        try:
+            # depth: 10 per risposta ultra-rapida
+            payload = {"fen": fen_after, "depth": 10}
+            r = session.post("https://chess-api.com/v1", json=payload, timeout=3)
+            if r.status_code == 200:
+                data = r.json()
+                eval_val = data.get("eval")
+                mate_val = data.get("mate")
+                
+                if eval_val is not None:
+                    curr_eval = float(eval_val)
+                    valid_eval_found = True
+                elif mate_val is not None:
+                    curr_eval = 100.0 if mate_val > 0 else -100.0
+                    valid_eval_found = True
+        except Exception:
+            pass
 
         if not valid_eval_found and idx > 0:
             curr_eval = prev_eval
