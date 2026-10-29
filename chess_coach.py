@@ -21,6 +21,9 @@ MASTER_GEMINI_KEY = st.secrets.get("GEMINI_API_KEY", "")
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", "")
 SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "")
 
+# Nome modello centralizzato per facile gestione
+GEMINI_MODEL_NAME = "gemini-3.8-flash"
+
 @st.cache_resource
 def init_supabase() -> Client:
     if not SUPABASE_URL or not SUPABASE_KEY or "INSERISCI" in SUPABASE_URL:
@@ -563,7 +566,7 @@ st.divider()
 current_tab = st.session_state['active_nav_tab']
 
 # ==========================================
-# TAB 0: ANALIZZA PGN (STOCKFISH + GEMINI 1.5 FLASH OPTIMIZED)
+# TAB 0: ANALIZZA PGN (STOCKFISH + GEMINI 3.8 FLASH)
 # ==========================================
 if current_tab == 0:
     st.subheader(t["tab1"])
@@ -585,8 +588,7 @@ if current_tab == 0:
                     if MASTER_GEMINI_KEY:
                         try:
                             genai.configure(api_key=MASTER_GEMINI_KEY)
-                            # UTILIZZO GEMINI 1.5 FLASH (GRATUITO / COSTI MINIMI) CON PROMPT COMPATTO MINIMIZZATORE DI TOKEN
-                            model = genai.GenerativeModel("gemini-1.5-flash")
+                            model = genai.GenerativeModel(GEMINI_MODEL_NAME)
                             prompt_c = f"Classifica in tag brevi (Tattica, Strategia, Apertura, Finale) questi errori scacchistici: {json.dumps(errori)}. {t['prompt_lang']} Restituisci SOLO JSON puro: [{{\"label_mossa\": \"14. e5\", \"categoria\": \"Tattica\"}}]"
                             resp_c = model.generate_content(prompt_c)
                             clusters = json.loads(resp_c.text.replace("```json", "").replace("```", "").strip())
@@ -614,8 +616,7 @@ if current_tab == 0:
                             with st.spinner("Analisi GM..."):
                                 try:
                                     genai.configure(api_key=MASTER_GEMINI_KEY)
-                                    # MODELLO FLASH E PROMPT ULTRA-COMPATTO PER MINIMIZZARE I TOKEN DI INPUT/OUTPUT
-                                    model_gm = genai.GenerativeModel("gemini-1.5-flash")
+                                    model_gm = genai.GenerativeModel(GEMINI_MODEL_NAME)
                                     prompt_lesson = f"""
                                     Sei un GM di scacchi. FEN: {err['fen_prima']} | Errore: {err['tipo_problema']} ({err['mossa_giocata']}).
                                     {t['prompt_lang']}
@@ -655,7 +656,7 @@ elif current_tab == 2:
         if MASTER_GEMINI_KEY and testo_libro_input:
             try:
                 genai.configure(api_key=MASTER_GEMINI_KEY)
-                model = genai.GenerativeModel("gemini-1.5-flash")
+                model = genai.GenerativeModel(GEMINI_MODEL_NAME)
                 prompt_libro = f"Estrai mosse e commenti in JSON: {{\"mosse_san\": [\"e4\"], \"commenti\": {{\"0\": \"Inizio\"}}}}. {t['prompt_lang']} Testo: {testo_libro_input}"
                 risposta = model.generate_content(prompt_libro)
                 dati_libro = json.loads(risposta.text.replace("```json", "").replace("```", "").strip())
