@@ -44,7 +44,7 @@ st.set_page_config(page_title="Chess Coach Pro", layout="wide", page_icon="⚡",
 # --- GESTIONE STATO ---
 for key, default in {
     'user': None, 'lang': 'it', 'profile_setup_done': False,
-    'active_nav_tab': 0, 'theme_mode': 'Dark',
+    'nav_selection': "📖 Analizza", 'theme_mode': 'Dark',
     'last_analyzed_pgn': None, 'current_board_ply': 0,
     'eval_history': None
 }.items():
@@ -58,7 +58,6 @@ st.components.v1.html("""
 
 # --- CSS DINAMICO PREMIUM ---
 def get_dynamic_css(theme):
-    # FIX: header visibile + hamburger menu ben evidente e cliccabile.
     common_fix = """
         #MainMenu { visibility: hidden !important; }
         footer { visibility: hidden !important; }
@@ -66,7 +65,6 @@ def get_dynamic_css(theme):
         [data-testid="stDecoration"] { visibility: hidden !important; }
         [data-testid="stStatusWidget"] { visibility: hidden !important; }
 
-        /* Header trasparente ma sopra tutto per garantire il click */
         header[data-testid="stHeader"] {
             background: transparent !important;
             backdrop-filter: none !important;
@@ -74,7 +72,6 @@ def get_dynamic_css(theme):
             pointer-events: auto !important;
         }
 
-        /* ===== HAMBURGER MENU FORZATO VISIBILE ===== */
         [data-testid="collapsedControl"],
         [data-testid="stSidebarCollapsedControl"],
         button[kind="header"] {
@@ -109,8 +106,6 @@ def get_dynamic_css(theme):
             width: 22px !important;
             height: 22px !important;
         }
-
-        /* Quando la sidebar è APERTA, il bottone di chiusura nella sidebar */
         [data-testid="stSidebar"] [data-testid="baseButton-header"] {
             color: #FFD700 !important;
         }
@@ -119,7 +114,6 @@ def get_dynamic_css(theme):
     if theme == 'Dark':
         return "<style>" + common_fix + """
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap');
-
         html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
         h1, h2, h3, h4, h5, h6, .brand-title { font-family: 'Outfit', sans-serif; }
 
@@ -130,7 +124,6 @@ def get_dynamic_css(theme):
                 linear-gradient(135deg, #070b14 0%, #0d1220 50%, #0a0e1a 100%);
             color: #e8eaf0;
         }
-
         .main .block-container { padding-top: 1.2rem; padding-bottom: 3rem; max-width: 1200px; }
         h1, h2, h3, h4, h5, h6, p, span, label, div { color: #e8eaf0; }
 
@@ -235,6 +228,22 @@ def get_dynamic_css(theme):
                        padding: 3px 10px; border-radius: 8px; font-size: 0.9rem; }
         .error-loss  { color: #f87171; font-weight: 700; font-size: 0.85rem; }
 
+        .pricing-card {
+            background: linear-gradient(135deg, rgba(20,26,42,0.9), rgba(15,20,32,0.9));
+            border: 1px solid rgba(255,215,0,0.2); border-radius: 20px;
+            padding: 2rem 1.5rem; text-align: center; position: relative;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4); height: 100%;
+        }
+        .pricing-card.featured {
+            border: 2px solid #FFD700;
+            background: linear-gradient(135deg, rgba(30,38,60,0.95), rgba(20,26,42,0.95));
+            box-shadow: 0 15px 40px rgba(255,215,0,0.2);
+        }
+        .pricing-title { font-size: 1.5rem; font-weight: 800; color: #FFD700; margin-bottom: 0.5rem; }
+        .pricing-price { font-size: 2.5rem; font-weight: 900; color: #fff; margin-bottom: 1rem; }
+        .pricing-features { text-align: left; margin: 1.5rem 0; font-size: 0.9rem; color: #cbd5e1; list-style: none; padding: 0; }
+        .pricing-features li { margin-bottom: 0.6rem; display: flex; align-items: center; gap: 0.5rem; }
+
         .info-box, .success-box, .warning-box, .error-box {
             border-radius: 12px; padding: 0.9rem 1.1rem; margin: 0.5rem 0;
             border-left: 3px solid; font-size: 0.92rem;
@@ -279,29 +288,17 @@ def get_dynamic_css(theme):
         }
         input:focus, textarea:focus { border-color: rgba(255,215,0,0.5) !important; }
 
-        .stTabs [data-baseweb="tab-list"] { gap: 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
-        .stTabs [data-baseweb="tab"] {
-            border-radius: 10px 10px 0 0; padding: 0.6rem 1.2rem;
-            background: transparent; color: #8892a6;
-        }
-        .stTabs [aria-selected="true"] {
-            background: rgba(255,215,0,0.08) !important;
-            color: #FFD700 !important; font-weight: 700;
-        }
-
         .stProgress > div > div > div > div {
             background: linear-gradient(90deg, #FFD700, #FFA500) !important;
         }
         div[data-testid="stMetricValue"] { color: #FFD700 !important; font-family: 'Outfit', sans-serif; }
         div[data-testid="stMetricLabel"] { color: #8892a6 !important; }
         hr { border-color: rgba(255,255,255,0.06) !important; }
-
         @keyframes fadeIn { from {opacity: 0; transform: translateY(6px);} to {opacity: 1; transform: translateY(0);} }
         </style>"""
     else:
         return "<style>" + common_fix + """
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap');
-
         html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
         h1, h2, h3, h4, h5, h6, .brand-title { font-family: 'Outfit', sans-serif; }
 
@@ -400,6 +397,21 @@ def get_dynamic_css(theme):
         }
         .board-wrapper svg { border-radius: 12px; }
 
+        .pricing-card {
+            background: #ffffff; border: 1px solid #cbd5e1; border-radius: 20px;
+            padding: 2rem 1.5rem; text-align: center; position: relative;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05); height: 100%;
+        }
+        .pricing-card.featured {
+            border: 2px solid #d4af37;
+            background: #ffffff;
+            box-shadow: 0 10px 30px rgba(212,175,55,0.15);
+        }
+        .pricing-title { font-size: 1.5rem; font-weight: 800; color: #b8860b; margin-bottom: 0.5rem; }
+        .pricing-price { font-size: 2.5rem; font-weight: 900; color: #1a202c; margin-bottom: 1rem; }
+        .pricing-features { text-align: left; margin: 1.5rem 0; font-size: 0.9rem; color: #475569; list-style: none; padding: 0; }
+        .pricing-features li { margin-bottom: 0.6rem; display: flex; align-items: center; gap: 0.5rem; }
+
         .error-card {
             background: #ffffff; border-left: 3px solid #ef4444;
             padding: 1rem 1.1rem; border-radius: 12px; margin-bottom: 0.7rem;
@@ -469,7 +481,6 @@ def get_dynamic_css(theme):
 
 st.markdown(get_dynamic_css(st.session_state['theme_mode']), unsafe_allow_html=True)
 
-# --- Plotly theme helper ---
 def plotly_template():
     return 'plotly_dark' if st.session_state['theme_mode'] == 'Dark' else 'plotly_white'
 
@@ -477,6 +488,7 @@ TEXTS = {
     "it": {
         "title": "Chess Coach Pro", "subtitle": "Coaching Scacchistico AI ad Altissima Efficienza",
         "tab1": "📖 Analizza", "tab2": "📊 Dashboard", "tab3": "📚 Libri", "tab4": "📝 Diario", "tab5": "🌐 Importa",
+        "tab6": "💎 Piani Abbonamento", "tab7": "📞 Contatti & Donazioni",
         "settings": "Account & Tema", "lang_select": "Lingua:", "theme_select": "Tema:",
         "login_header": "🔐 Accedi", "register_header": "📝 Registrati",
         "email_label": "Email:", "password_label": "Password:",
@@ -494,6 +506,7 @@ TEXTS = {
     "en": {
         "title": "Chess Coach Pro", "subtitle": "High-Efficiency AI Chess Coaching",
         "tab1": "📖 Analyze", "tab2": "📊 Dashboard", "tab3": "📚 Books", "tab4": "📝 Diary", "tab5": "🌐 Import",
+        "tab6": "💎 Subscription Plans", "tab7": "📞 Contacts & Donations",
         "settings": "Account & Theme", "lang_select": "Language:", "theme_select": "Theme:",
         "login_header": "🔐 Login", "register_header": "📝 Register",
         "email_label": "Email:", "password_label": "Password:",
@@ -511,6 +524,7 @@ TEXTS = {
     "es": {
         "title": "Chess Coach Pro", "subtitle": "Entrenamiento de Ajedrez con IA de Alta Eficiencia",
         "tab1": "📖 Analizar", "tab2": "📊 Dashboard", "tab3": "📚 Libros", "tab4": "📝 Diario", "tab5": "🌐 Importar",
+        "tab6": "💎 Planes de Suscripción", "tab7": "📞 Contacto y Donaciones",
         "settings": "Cuenta y Tema", "lang_select": "Idioma:", "theme_select": "Tema:",
         "login_header": "🔐 Iniciar Sesión", "register_header": "📝 Registrarse",
         "email_label": "Correo:", "password_label": "Contraseña:",
@@ -718,13 +732,35 @@ if not st.session_state.get('profile_setup_done', False):
     st.stop()
 
 # ==========================================
-# ENGINE
+# ROBUST ENGINE
 # ==========================================
 def determina_categoria_mossa(num_mossa, delta_cp, total_moves):
     if num_mossa <= 12: return "Apertura"
     elif num_mossa >= total_moves - 10 or (total_moves > 40 and num_mossa > 30): return "Finale"
     elif delta_cp >= 2.0: return "Tattica"
     else: return "Posizionale"
+
+def fetch_stockfish_eval(session, fen, depth=10):
+    """Chiama chess-api.com con retry e gestione robusta di molteplici chiavi di risposta."""
+    for attempt in range(2):
+        try:
+            r = session.post("https://chess-api.com/v1", json={"fen": fen, "depth": depth}, timeout=8)
+            if r.status_code == 200:
+                data = r.json()
+                if data.get("eval") is not None:
+                    return float(data.get("eval"))
+                elif data.get("centipawns") is not None:
+                    return float(data.get("centipawns")) / 100.0
+                elif data.get("cp") is not None:
+                    return float(data.get("cp")) / 100.0
+                elif data.get("value") is not None:
+                    return float(data.get("value")) / 100.0
+                elif data.get("mate") is not None:
+                    m = int(data.get("mate"))
+                    return 100.0 if m > 0 else -100.0
+        except Exception:
+            time.sleep(0.3)
+    return None
 
 def analizza_partita_chess_api(pgn_text, target_usernames):
     game = chess.pgn.read_game(io.StringIO(pgn_text))
@@ -769,17 +805,9 @@ def analizza_partita_chess_api(pgn_text, target_usernames):
         except Exception:
             move_san = move.uci()
 
-        eval_before = prev_eval
-        try:
-            r = session.post("https://chess-api.com/v1", json={"fen": fen_before, "depth": 10}, timeout=4)
-            if r.status_code == 200:
-                data = r.json()
-                if data.get("eval") is not None:
-                    eval_before = float(data.get("eval"))
-                elif data.get("mate") is not None:
-                    eval_before = 100.0 if data.get("mate") > 0 else -100.0
-        except Exception:
-            pass
+        eval_before = fetch_stockfish_eval(session, fen_before, depth=10)
+        if eval_before is None:
+            eval_before = prev_eval
 
         board.push(move)
         fen_after = board.fen()
@@ -788,17 +816,9 @@ def analizza_partita_chess_api(pgn_text, target_usernames):
         progress_bar.progress((idx + 1) / max(total_ply_count, 1),
                               text=f"♟️ Analisi mossa {num_mossa} di {total_full_moves}...")
 
-        eval_after = eval_before
-        try:
-            r = session.post("https://chess-api.com/v1", json={"fen": fen_after, "depth": 10}, timeout=4)
-            if r.status_code == 200:
-                data = r.json()
-                if data.get("eval") is not None:
-                    eval_after = float(data.get("eval"))
-                elif data.get("mate") is not None:
-                    eval_after = 100.0 if data.get("mate") > 0 else -100.0
-        except Exception:
-            pass
+        eval_after = fetch_stockfish_eval(session, fen_after, depth=10)
+        if eval_after is None:
+            eval_after = eval_before
 
         clamped = max(min(eval_after, 10.0), -10.0)
         eval_history.append({
@@ -823,7 +843,7 @@ def analizza_partita_chess_api(pgn_text, target_usernames):
                     "eval_dopo": eval_after, "tipo_problema": tipo_problema, "categoria": cat_mossa
                 })
         prev_eval = eval_after
-        time.sleep(0.03)
+        time.sleep(0.02)
 
     progress_bar.empty()
     return evaluations, partita_id, None, eval_history
@@ -878,7 +898,6 @@ def genera_pdf_partita(board, mosse_lista, note_mosse, note_finali):
     return bytes(pdf.output())
 
 def render_eval_graph(eval_history, errors):
-    """Grafico di valutazione stile chess.com con marker sugli errori."""
     if not HAS_PLOTLY or not eval_history:
         return
     x_vals = [e["ply"] for e in eval_history]
@@ -895,8 +914,7 @@ def render_eval_graph(eval_history, errors):
 
     def get_y(ply):
         for e in eval_history:
-            if e["ply"] == ply:
-                return e["eval_clamped"]
+            if e["ply"] == ply: return e["eval_clamped"]
         return 0
 
     blunders = [e["mossa_num"] for e in errors if "Blunder" in e["tipo_problema"]]
@@ -906,32 +924,29 @@ def render_eval_graph(eval_history, errors):
     if inaccuracies:
         fig.add_trace(go.Scatter(
             x=inaccuracies, y=[get_y(n) for n in inaccuracies], mode="markers",
-            marker=dict(color="#eab308", size=9, line=dict(width=1, color="#fff")),
-            name="Inaccuracy"))
+            marker=dict(color="#eab308", size=9, line=dict(width=1, color="#fff")), name="Inaccuracy"))
     if mistakes:
         fig.add_trace(go.Scatter(
             x=mistakes, y=[get_y(n) for n in mistakes], mode="markers",
-            marker=dict(color="#f97316", size=10, line=dict(width=1, color="#fff")),
-            name="Mistake"))
+            marker=dict(color="#f97316", size=10, line=dict(width=1, color="#fff")), name="Mistake"))
     if blunders:
         fig.add_trace(go.Scatter(
             x=blunders, y=[get_y(n) for n in blunders], mode="markers",
-            marker=dict(color="#ef4444", size=12, symbol="x", line=dict(width=2, color="#fff")),
-            name="Blunder"))
+            marker=dict(color="#ef4444", size=12, symbol="x", line=dict(width=2, color="#fff")), name="Blunder"))
 
     fig.update_layout(
-        template=plotly_template(),
-        margin=dict(l=10, r=10, t=30, b=10),
+        template=plotly_template(), margin=dict(l=10, r=10, t=30, b=10),
         height=320, showlegend=True,
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         xaxis=dict(title="Mossa", showgrid=False),
-        yaxis=dict(title="Valutazione (pedoni)", range=[-10, 10],
-                   showgrid=True, gridcolor="rgba(128,128,128,0.15)"),
+        yaxis=dict(title="Valutazione (pedoni)", range=[-10, 10], showgrid=True, gridcolor="rgba(128,128,128,0.15)"),
         hovermode="x unified",
     )
     st.plotly_chart(fig, use_container_width=True)
 
-# --- SIDEBAR ---
+# ==========================================
+# SIDEBAR / HAMBURGER MENU & NAVIGAZIONE
+# ==========================================
 with st.sidebar:
     initials = (user_email[:2] if user_email else "U").upper()
     st.markdown(f"""
@@ -944,7 +959,17 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown("<div class='section-title' style='font-size:1.05rem;margin-top:0.5rem;'>⚙️ Preferenze</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section-title' style='font-size:1.05rem;margin-top:0.5rem;'>🧭 Menu Principale</div>", unsafe_allow_html=True)
+
+    menu_options = [
+        t["tab1"], t["tab2"], t["tab3"], t["tab4"], t["tab5"],
+        t["tab6"], t["tab7"]
+    ]
+    
+    selected_nav = st.radio("Navigazione", menu_options, label_visibility="collapsed")
+    st.session_state['nav_selection'] = selected_nav
+
+    st.markdown("<div class='section-title' style='font-size:1.05rem;margin-top:1rem;'>⚙️ Preferenze</div>", unsafe_allow_html=True)
 
     scelta_tema = st.selectbox(t["theme_select"], ["Dark", "Light"],
                                index=0 if st.session_state['theme_mode'] == 'Dark' else 1)
@@ -968,15 +993,13 @@ with st.sidebar:
 
     if st.button(t["logout_btn"], use_container_width=True):
         if supabase:
-            try:
-                supabase.auth.sign_out()
-            except Exception:
-                pass
+            try: supabase.auth.sign_out()
+            except Exception: pass
         st.session_state['user'] = None
         st.session_state['profile_setup_done'] = False
         st.rerun()
 
-# --- HEADER ---
+# --- HEADER PRINCIPALE ---
 st.markdown(f"""
 <div class="hero">
     <span class="hero-logo">♟️</span>
@@ -984,24 +1007,14 @@ st.markdown(f"""
     <p class="brand-sub">{t['subtitle']}</p>
 </div>
 """, unsafe_allow_html=True)
+st.divider()
 
-# --- NAVIGAZIONE ---
-nav_labels = [t["tab1"], t["tab2"], t["tab3"], t["tab4"], t["tab5"]]
-cols_nav = st.columns(len(nav_labels))
-for idx, label in enumerate(nav_labels):
-    is_active = (st.session_state['active_nav_tab'] == idx)
-    btn_type = "primary" if is_active else "secondary"
-    if cols_nav[idx].button(label, key=f"nav_btn_{idx}", type=btn_type, use_container_width=True):
-        st.session_state['active_nav_tab'] = idx
-        st.rerun()
-
-st.write("")
-current_tab = st.session_state['active_nav_tab']
+current_selection = st.session_state['nav_selection']
 
 # ==========================================
-# TAB 0: ANALIZZA
+# SEZIONE 0: ANALIZZA
 # ==========================================
-if current_tab == 0:
+if current_selection == t["tab1"]:
     st.markdown("<div class='section-title'>📖 Analizza una Partita</div>", unsafe_allow_html=True)
 
     pgn_val = st.session_state.get('pgn_manual_input', '')
@@ -1038,7 +1051,6 @@ if current_tab == 0:
                     else:
                         st.markdown(f"<div class='success-box'>✅ {t['no_errors']}</div>", unsafe_allow_html=True)
 
-    # Grafico di valutazione (chess.com style)
     if st.session_state.get('eval_history'):
         st.markdown("<div class='section-title'>📈 Grafico di Valutazione</div>", unsafe_allow_html=True)
         render_eval_graph(st.session_state['eval_history'], st.session_state.get('stockfish_errors', []))
@@ -1130,9 +1142,9 @@ if current_tab == 0:
             st.markdown("<div class='info-box'>Nessun errore grave registrato sulle tue mosse in questa partita.</div>", unsafe_allow_html=True)
 
 # ==========================================
-# TAB 1: DASHBOARD (senza tabella dettagliata)
+# SEZIONE 1: DASHBOARD
 # ==========================================
-elif current_tab == 1:
+elif current_selection == t["tab2"]:
     st.markdown("<div class='section-title'>📊 La Tua Dashboard</div>", unsafe_allow_html=True)
     df_err = carica_errori_db(user_email)
 
@@ -1193,20 +1205,12 @@ elif current_tab == 1:
                     counts_cat = df_filtered['categoria_errore'].value_counts()
                     palette = ['#FFD700', '#FFA500', '#7c3aed', '#3b82f6', '#10b981', '#ef4444']
                     fig_pie = go.Figure(go.Pie(
-                        labels=counts_cat.index.tolist(),
-                        values=counts_cat.values.tolist(),
-                        hole=0.58,
-                        marker=dict(colors=palette[:len(counts_cat)],
-                                    line=dict(color='rgba(255,255,255,0.1)', width=1)),
-                        textinfo='label+percent',
-                        textfont=dict(size=12, color='#e8eaf0' if st.session_state['theme_mode'] == 'Dark' else '#1a202c')
+                        labels=counts_cat.index.tolist(), values=counts_cat.values.tolist(),
+                        hole=0.58, marker=dict(colors=palette[:len(counts_cat)], line=dict(color='rgba(255,255,255,0.1)', width=1)),
+                        textinfo='label+percent', textfont=dict(size=12, color='#e8eaf0' if st.session_state['theme_mode'] == 'Dark' else '#1a202c')
                     ))
-                    fig_pie.update_layout(
-                        template=plotly_template(), height=340,
-                        margin=dict(l=10, r=10, t=20, b=20),
-                        showlegend=True,
-                        legend=dict(orientation='v', yanchor='middle', y=0.5, x=1.0)
-                    )
+                    fig_pie.update_layout(template=plotly_template(), height=340, margin=dict(l=10, r=10, t=20, b=20), showlegend=True,
+                                          legend=dict(orientation='v', yanchor='middle', y=0.5, x=1.0))
                     st.plotly_chart(fig_pie, use_container_width=True)
                 else:
                     st.bar_chart(df_filtered['categoria_errore'].value_counts(), use_container_width=True)
@@ -1217,8 +1221,7 @@ elif current_tab == 1:
             st.markdown("<div class='section-title'>🎚️ Indice di Precisione</div>", unsafe_allow_html=True)
             if HAS_PLOTLY:
                 fig_gauge = go.Figure(go.Indicator(
-                    mode="gauge+number",
-                    value=precision,
+                    mode="gauge+number", value=precision,
                     number={'suffix': '%', 'font': {'color': '#FFD700' if st.session_state['theme_mode'] == 'Dark' else '#b8860b', 'size': 42}},
                     gauge={
                         'axis': {'range': [0, 100], 'tickcolor': '#8892a6'},
@@ -1229,16 +1232,10 @@ elif current_tab == 1:
                             {'range': [40, 70], 'color': 'rgba(234,179,8,0.18)'},
                             {'range': [70, 100],'color': 'rgba(16,185,129,0.18)'}
                         ],
-                        'threshold': {
-                            'line': {'color': '#10b981', 'width': 4},
-                            'thickness': 0.75, 'value': 80
-                        }
+                        'threshold': {'line': {'color': '#10b981', 'width': 4}, 'thickness': 0.75, 'value': 80}
                     }
                 ))
-                fig_gauge.update_layout(
-                    template=plotly_template(), height=340,
-                    margin=dict(l=10, r=10, t=30, b=10)
-                )
+                fig_gauge.update_layout(template=plotly_template(), height=340, margin=dict(l=10, r=10, t=30, b=10))
                 st.plotly_chart(fig_gauge, use_container_width=True)
             else:
                 st.metric("Precisione", f"{precision}%")
@@ -1250,23 +1247,15 @@ elif current_tab == 1:
                 counts_date = counts_date.sort_values('data')
                 fig_line = go.Figure()
                 fig_line.add_trace(go.Scatter(
-                    x=counts_date['data'].tolist(),
-                    y=counts_date['count'].tolist(),
-                    mode='lines+markers',
-                    line=dict(color='#FFD700' if st.session_state['theme_mode'] == 'Dark' else '#d4af37', width=2.5),
-                    fill='tozeroy',
-                    fillcolor='rgba(255,215,0,0.15)' if st.session_state['theme_mode'] == 'Dark' else 'rgba(212,175,55,0.15)',
+                    x=counts_date['data'].tolist(), y=counts_date['count'].tolist(),
+                    mode='lines+markers', line=dict(color='#FFD700' if st.session_state['theme_mode'] == 'Dark' else '#d4af37', width=2.5),
+                    fill='tozeroy', fillcolor='rgba(255,215,0,0.15)' if st.session_state['theme_mode'] == 'Dark' else 'rgba(212,175,55,0.15)',
                     marker=dict(size=9, color='#FFD700' if st.session_state['theme_mode'] == 'Dark' else '#d4af37',
                                 line=dict(width=2, color='#0a0e1a' if st.session_state['theme_mode'] == 'Dark' else '#ffffff')),
                     hovertemplate='Data: %{x}<br>Errori: %{y}<extra></extra>'
                 ))
-                fig_line.update_layout(
-                    template=plotly_template(), height=320,
-                    margin=dict(l=10, r=10, t=20, b=10),
-                    xaxis=dict(showgrid=False, title=""),
-                    yaxis=dict(showgrid=True, gridcolor='rgba(128,128,128,0.15)', title="Numero Errori"),
-                    hovermode='x unified'
-                )
+                fig_line.update_layout(template=plotly_template(), height=320, margin=dict(l=10, r=10, t=20, b=10),
+                                       xaxis=dict(showgrid=False, title=""), yaxis=dict(showgrid=True, gridcolor='rgba(128,128,128,0.15)', title="Numero Errori"), hovermode='x unified')
                 st.plotly_chart(fig_line, use_container_width=True)
             else:
                 st.line_chart(df_filtered.groupby('data').size(), use_container_width=True)
@@ -1276,9 +1265,9 @@ elif current_tab == 1:
         st.markdown("<div class='info-box'>Nessun errore salvato nel cloud. Analizza qualche partita per popolare la tua Dashboard di crescita!</div>", unsafe_allow_html=True)
 
 # ==========================================
-# TAB 2: LIBRI
+# SEZIONE 2: LIBRI
 # ==========================================
-elif current_tab == 2:
+elif current_selection == t["tab3"]:
     st.markdown("<div class='section-title'>📚 Studio da Libri</div>", unsafe_allow_html=True)
     testo_libro_input = st.text_area("Incolla il testo del libro:", height=140)
     if st.button("🚀 Elabora Testo con AI", type="primary"):
@@ -1318,16 +1307,15 @@ elif current_tab == 2:
         cur = steps[st.session_state['current_ply']]
         col_v1, col_v2 = st.columns([1, 1])
         with col_v1:
-            svg = chess.svg.board(board=chess.Board(cur['fen']), size=340,
-                                  colors={'square light': '#ebecd0', 'square dark': '#739552'})
+            svg = chess.svg.board(board=chess.Board(cur['fen']), size=340, colors={'square light': '#ebecd0', 'square dark': '#739552'})
             st.markdown(f'<div class="board-wrapper">{svg}</div>', unsafe_allow_html=True)
         with col_v2:
             st.markdown(f"<div class='info-box'>💬 {cur['commento']}</div>", unsafe_allow_html=True)
 
 # ==========================================
-# TAB 3: DIARIO
+# SEZIONE 3: DIARIO
 # ==========================================
-elif current_tab == 3:
+elif current_selection == t["tab4"]:
     st.markdown("<div class='section-title'>📝 Diario & PDF</div>", unsafe_allow_html=True)
     input_diario = st.text_area("Inserisci la sequenza di mosse:", height=100)
     if st.button("🔄 Carica Scacchiera", type="primary"):
@@ -1349,29 +1337,24 @@ elif current_tab == 3:
     if 'diario_mosse' in st.session_state and st.session_state['diario_mosse']:
         mosse_d = st.session_state['diario_mosse']
         b_d = chess.Board()
-        for m in mosse_d:
-            b_d.push(b_d.parse_san(m))
+        for m in mosse_d: b_d.push(b_d.parse_san(m))
         col_d1, col_d2 = st.columns([1, 1])
         with col_d1:
-            svg = chess.svg.board(board=b_d, size=340,
-                                  colors={'square light': '#ebecd0', 'square dark': '#739552'})
+            svg = chess.svg.board(board=b_d, size=340, colors={'square light': '#ebecd0', 'square dark': '#739552'})
             st.markdown(f'<div class="board-wrapper">{svg}</div>', unsafe_allow_html=True)
         with col_d2:
             for idx, m in enumerate(mosse_d):
                 st.session_state['diario_note_mosse'][str(idx)] = st.text_input(
-                    f"Nota {m}:",
-                    value=st.session_state['diario_note_mosse'].get(str(idx), ""),
-                    key=f"note_pdf_{idx}"
+                    f"Nota {m}:", value=st.session_state['diario_note_mosse'].get(str(idx), ""), key=f"note_pdf_{idx}"
                 )
         if st.button("⚙️ Genera ed Esporta PDF", type="primary"):
             pdf_b = genera_pdf_partita(b_d, mosse_d, st.session_state['diario_note_mosse'], "")
-            st.download_button("📥 Scarica Report PDF", data=pdf_b,
-                              file_name="diario_partita.pdf", mime="application/pdf")
+            st.download_button("📥 Scarica Report PDF", data=pdf_b, file_name="diario_partita.pdf", mime="application/pdf")
 
 # ==========================================
-# TAB 4: IMPORTA
+# SEZIONE 4: IMPORTA
 # ==========================================
-elif current_tab == 4:
+elif current_selection == t["tab5"]:
     st.markdown("<div class='section-title'>🌐 Importa Partite</div>", unsafe_allow_html=True)
     saved_profiles = get_user_profiles(user_email)
 
@@ -1483,7 +1466,114 @@ elif current_tab == 4:
 
                 if st.button("🚀 Invia ad Analisi Stockfish", type="primary", use_container_width=True):
                     st.session_state['pgn_manual_input'] = chosen_pgn
-                    st.session_state['active_nav_tab'] = 0
+                    st.session_state['nav_selection'] = t["tab1"]
                     st.rerun()
             else:
                 st.markdown("<div class='warning-box'>Nessuna partita corrisponde ai filtri.</div>", unsafe_allow_html=True)
+
+# ==========================================
+# SEZIONE 5: PIANI ABBONAMENTO (PRO & DIAMOND)
+# ==========================================
+elif current_selection == t["tab6"]:
+    st.markdown("<div class='section-title'>💎 Scegli il tuo Piano</div>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:center;color:#8892a6;margin-bottom:2rem;'>Sblocca tutta la potenza di Chess Coach Pro con i nostri abbonamenti dedicati.</p>", unsafe_allow_html=True)
+
+    col_pr1, col_pr2, col_pr3 = st.columns(3)
+
+    with col_pr1:
+        st.markdown("""
+        <div class="pricing-card">
+            <div class="pricing-title">Free</div>
+            <div class="pricing-price">€0<span style="font-size:1rem;color:#8892a6">/mese</span></div>
+            <ul class="pricing-features">
+                <li>✅ 1 Profilo scacchistico</li>
+                <li>✅ Analisi base Stockfish</li>
+                <li>✅ Dashboard standard</li>
+                <li>❌ Spiegazioni GM illimitate</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+        st.write("")
+        if user_tier == "Free":
+            st.button("Piano Attuale", disabled=True, use_container_width=True)
+        else:
+            st.button("Passa a Free", use_container_width=True)
+
+    with col_pr2:
+        st.markdown("""
+        <div class="pricing-card featured">
+            <div class="tier-badge badge-pro" style="margin-bottom:0.5rem;">Più Popolare</div>
+            <div class="pricing-title">Pro</div>
+            <div class="pricing-price">€4.99<span style="font-size:1rem;color:#8892a6">/mese</span></div>
+            <ul class="pricing-features">
+                <li>✅ Fino a 3 Profili collegati</li>
+                <li>✅ Analisi Stockfish prioritaria</li>
+                <li>✅ Esportazione PDF illimitata</li>
+                <li>✅ Insights GM AI avanzati</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+        st.write("")
+        if user_tier == "Pro":
+            st.button("Piano Attuale", disabled=True, use_container_width=True)
+        else:
+            if st.button("Sottoscrivi Pro 🚀", type="primary", use_container_width=True):
+                st.markdown("<div class='success-box'>🎉 Grazie per l'interesse! Contatta il supporto per attivare il piano Pro in questa fase Beta.</div>", unsafe_allow_html=True)
+
+    with col_pr3:
+        st.markdown("""
+        <div class="pricing-card">
+            <div class="tier-badge badge-diamond" style="margin-bottom:0.5rem;">Elite</div>
+            <div class="pricing-title">Diamond</div>
+            <div class="pricing-price">€9.99<span style="font-size:1rem;color:#8892a6">/mese</span></div>
+            <ul class="pricing-features">
+                <li>✅ Fino a 5 Profili collegati</li>
+                <li>✅ Analisi Stockfish Profondità Massima</li>
+                <li>✅ Cloud Storage illimitato</li>
+                <li>✅ Supporto prioritario 24/7</li>
+            </ul>
+        </div>
+        """, unsafe_allow_html=True)
+        st.write("")
+        if user_tier == "Diamond":
+            st.button("Piano Attuale", disabled=True, use_container_width=True)
+        else:
+            if st.button("Sottoscrivi Diamond 💎", type="primary", use_container_width=True):
+                st.markdown("<div class='success-box'>🎉 Grazie per l'interesse! Contatta il supporto per attivare il piano Diamond in questa fase Beta.</div>", unsafe_allow_html=True)
+
+# ==========================================
+# SEZIONE 6: CONTATTI & DONAZIONI
+# ==========================================
+elif current_selection == t["tab7"]:
+    st.markdown("<div class='section-title'>📞 Contatti & Donazioni</div>", unsafe_allow_html=True)
+    
+    col_c1, col_c2 = st.columns(2)
+    with col_c1:
+        st.markdown("### 📬 Mettiti in Contatto")
+        st.markdown("""
+        <div class="info-box">
+            Hai riscontrato un bug, hai suggerimenti per nuovi grafici o vuoi semplicemente fare due chiacchiere sugli scacchi? Scrivici direttamente!
+            <br><br>
+            📧 <b>Email Supporto:</b> <a href="mailto:support@chesscoachpro.com" style="color:inherit;">support@chesscoachpro.com</a>
+            <br>
+            💬 <b>Community Discord:</b> discord.gg/chesscoachpro (presto online)
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("### ☕ Sostieni il Progetto (Beta)")
+        st.markdown("""
+        Chess Coach Pro è un progetto indipendente in costante evoluzione. Se l'app ti sta aiutando a migliorare il tuo punteggio Elo e vuoi contribuire ai costi di server e API, puoi offrirci un caffè!
+        """)
+        st.link_button("☕ Offrici un Caffè su Buy Me a Coffee", "https://buymeacoffee.com", use_container_width=True)
+
+    with col_c2:
+        st.markdown("### 💬 Invia un Messaggio Rapido")
+        with st.form("contact_form"):
+            c_name = st.text_input("Il tuo nome o username:")
+            c_msg = st.text_area("Messaggio / Segnalazione bug:")
+            submitted = st.form_submit_button("Invia Messaggio", type="primary", use_container_width=True)
+            if submitted:
+                if c_name.strip() and c_msg.strip():
+                    st.markdown("<div class='success-box'>✅ Messaggio inviato con successo! Grazie per il feedback.</div>", unsafe_allow_html=True)
+                else:
+                    st.markdown("<div class='warning-box'>Compila tutti i campi prima di inviare.</div>", unsafe_allow_html=True)
