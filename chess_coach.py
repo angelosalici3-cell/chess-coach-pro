@@ -58,6 +58,7 @@ st.components.v1.html("""
 
 # --- CSS DINAMICO PREMIUM ---
 def get_dynamic_css(theme):
+    # FIX: Icona Hamburger forzata visibile in alto a sinistra, sempre cliccabile!
     common_fix = """
         #MainMenu { visibility: hidden !important; }
         footer { visibility: hidden !important; }
@@ -65,13 +66,14 @@ def get_dynamic_css(theme):
         [data-testid="stDecoration"] { visibility: hidden !important; }
         [data-testid="stStatusWidget"] { visibility: hidden !important; }
 
+        /* Permette i click sull'header */
         header[data-testid="stHeader"] {
             background: transparent !important;
-            backdrop-filter: none !important;
             z-index: 999990 !important;
             pointer-events: auto !important;
         }
 
+        /* ===== HAMBURGER MENU / SIDEBAR TOGGLE BOTTONE ===== */
         [data-testid="collapsedControl"],
         [data-testid="stSidebarCollapsedControl"],
         button[kind="header"] {
@@ -81,31 +83,33 @@ def get_dynamic_css(theme):
             align-items: center !important;
             justify-content: center !important;
             background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%) !important;
-            border-radius: 10px !important;
-            padding: 8px !important;
-            margin: 8px !important;
-            width: 42px !important;
-            height: 42px !important;
-            box-shadow: 0 4px 14px rgba(255, 165, 0, 0.45) !important;
+            border-radius: 12px !important;
+            padding: 8px 12px !important;
+            margin: 10px !important;
+            box-shadow: 0 4px 16px rgba(255, 165, 0, 0.5) !important;
             transition: transform 0.2s ease, box-shadow 0.2s ease !important;
             z-index: 999999 !important;
-            border: none !important;
+            border: 1px solid rgba(255, 255, 255, 0.3) !important;
+            cursor: pointer !important;
         }
+
         [data-testid="collapsedControl"]:hover,
         [data-testid="stSidebarCollapsedControl"]:hover,
         button[kind="header"]:hover {
             transform: scale(1.08) !important;
-            box-shadow: 0 6px 20px rgba(255, 165, 0, 0.7) !important;
+            box-shadow: 0 6px 22px rgba(255, 165, 0, 0.75) !important;
         }
+
         [data-testid="collapsedControl"] svg,
         [data-testid="stSidebarCollapsedControl"] svg,
         button[kind="header"] svg {
             fill: #0a0e1a !important;
             color: #0a0e1a !important;
             stroke: #0a0e1a !important;
-            width: 22px !important;
-            height: 22px !important;
+            width: 24px !important;
+            height: 24px !important;
         }
+
         [data-testid="stSidebar"] [data-testid="baseButton-header"] {
             color: #FFD700 !important;
         }
@@ -466,12 +470,6 @@ def get_dynamic_css(theme):
             border: 1px solid #e2e8f0 !important; border-radius: 10px !important; }
         input:focus, textarea:focus { border-color: #d4af37 !important; }
 
-        .stTabs [data-baseweb="tab-list"] { gap: 0.5rem; border-bottom: 1px solid #e2e8f0; }
-        .stTabs [data-baseweb="tab"] { border-radius: 10px 10px 0 0; padding: 0.6rem 1.2rem;
-            background: transparent; color: #64748b; }
-        .stTabs [aria-selected="true"] {
-            background: rgba(212,175,55,0.1) !important; color: #b8860b !important; font-weight: 700;
-        }
         .stProgress > div > div > div > div {
             background: linear-gradient(90deg, #d4af37, #b8860b) !important;
         }
@@ -741,7 +739,6 @@ def determina_categoria_mossa(num_mossa, delta_cp, total_moves):
     else: return "Posizionale"
 
 def fetch_stockfish_eval(session, fen, depth=10):
-    """Chiama chess-api.com con retry e gestione robusta di molteplici chiavi di risposta."""
     for attempt in range(2):
         try:
             r = session.post("https://chess-api.com/v1", json={"fen": fen, "depth": depth}, timeout=8)
@@ -999,7 +996,7 @@ with st.sidebar:
         st.session_state['profile_setup_done'] = False
         st.rerun()
 
-# --- HEADER PRINCIPALE ---
+# --- HEADER PRINCIPALE CON ICONA HAMBURGER GUIDA ---
 st.markdown(f"""
 <div class="hero">
     <span class="hero-logo">♟️</span>
