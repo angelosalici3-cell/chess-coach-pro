@@ -15,6 +15,12 @@ from fpdf import FPDF
 from PIL import Image
 from supabase import create_client, Client
 
+try:
+    import plotly.graph_objects as go
+    HAS_PLOTLY = True
+except ImportError:
+    HAS_PLOTLY = False
+
 # --- CONFIGURAZIONE CENTRALIZZATA ---
 MASTER_GEMINI_KEY = st.secrets.get("GEMINI_API_KEY", "")
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", "")
@@ -39,7 +45,8 @@ st.set_page_config(page_title="Chess Coach Pro", layout="wide", page_icon="⚡",
 for key, default in {
     'user': None, 'lang': 'it', 'profile_setup_done': False,
     'active_nav_tab': 0, 'theme_mode': 'Dark',
-    'last_analyzed_pgn': None, 'current_board_ply': 0
+    'last_analyzed_pgn': None, 'current_board_ply': 0,
+    'eval_history': None
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default
@@ -51,15 +58,28 @@ st.components.v1.html("""
 
 # --- CSS DINAMICO PREMIUM ---
 def get_dynamic_css(theme):
+    # FIX CRUCIALE: NON nascondere header (contiene il toggle sidebar).
+    # Nascondiamo solo toolbar/decoration/menu/footer.
+    common_fix = """
+        #MainMenu { visibility: hidden !important; }
+        footer { visibility: hidden !important; }
+        [data-testid="stToolbar"] { visibility: hidden !important; }
+        [data-testid="stDecoration"] { visibility: hidden !important; }
+        [data-testid="stStatusWidget"] { visibility: hidden !important; }
+        header[data-testid="stHeader"] {
+            background: transparent !important;
+            backdrop-filter: none !important;
+        }
+        /* Rende ben visibile e cliccabile il toggle della sidebar */
+        [data-testid="collapsedControl"] { color: #FFD700 !important; }
+    """
+
     if theme == 'Dark':
-        return """
-        <style>
+        return "<style>" + common_fix + """
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap');
 
         html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
         h1, h2, h3, h4, h5, h6, .brand-title { font-family: 'Outfit', sans-serif; }
-
-        #MainMenu, footer, header { visibility: hidden; }
 
         .stApp {
             background:
@@ -70,32 +90,20 @@ def get_dynamic_css(theme):
         }
 
         .main .block-container { padding-top: 1.2rem; padding-bottom: 3rem; max-width: 1200px; }
-
         h1, h2, h3, h4, h5, h6, p, span, label, div { color: #e8eaf0; }
 
-        /* --- HERO --- */
-        .hero {
-            text-align: center;
-            padding: 1rem 0 0.5rem 0;
-            animation: fadeIn 0.6s ease-in;
-        }
+        .hero { text-align: center; padding: 1rem 0 0.5rem 0; animation: fadeIn 0.6s ease-in; }
         .brand-title {
             background: linear-gradient(90deg, #FFD700 0%, #FFA500 50%, #FFB347 100%);
             -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-            font-size: 2.6rem; font-weight: 900; text-align: center; letter-spacing: -0.5px;
-            margin-bottom: 0;
+            font-size: 2.6rem; font-weight: 900; text-align: center; letter-spacing: -0.5px; margin-bottom: 0;
         }
         .brand-sub {
             text-align: center; color: #8892a6 !important;
-            font-size: 0.95rem; margin: 0.2rem 0 1rem 0; letter-spacing: 1.5px; text-transform: uppercase;
-            font-weight: 500;
+            font-size: 0.95rem; margin: 0.2rem 0 1rem 0; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 500;
         }
         .hero-logo { font-size: 3.5rem; display: block; text-align: center; margin-bottom: -0.4rem; }
 
-        /* --- NAV PILLS --- */
-        div[data-testid="column"] button { transition: all 0.25s ease !important; }
-
-        /* --- SIDEBAR --- */
         section[data-testid="stSidebar"] {
             background: linear-gradient(180deg, #0b101c 0%, #080c15 100%) !important;
             border-right: 1px solid rgba(255, 215, 0, 0.08);
@@ -106,22 +114,19 @@ def get_dynamic_css(theme):
             display: flex; align-items: center; gap: 0.9rem;
             padding: 0.9rem; border-radius: 14px;
             background: linear-gradient(135deg, rgba(255,215,0,0.10), rgba(255,165,0,0.03));
-            border: 1px solid rgba(255, 215, 0, 0.18);
-            margin-bottom: 1rem;
+            border: 1px solid rgba(255, 215, 0, 0.18); margin-bottom: 1rem;
         }
         .avatar {
             width: 46px; height: 46px; border-radius: 50%;
             background: linear-gradient(135deg, #FFD700, #FFA500);
             display: flex; align-items: center; justify-content: center;
             color: #0a0e1a; font-weight: 800; font-size: 1.05rem;
-            box-shadow: 0 4px 14px rgba(255, 215, 0, 0.35);
-            flex-shrink: 0;
+            box-shadow: 0 4px 14px rgba(255, 215, 0, 0.35); flex-shrink: 0;
         }
         .user-info { flex: 1; min-width: 0; }
         .user-name { font-size: 0.82rem; font-weight: 600; color: #e8eaf0;
                      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-        /* --- BADGES --- */
         .tier-badge {
             display: inline-block; padding: 3px 10px; border-radius: 20px;
             font-weight: 700; font-size: 0.68rem; text-transform: uppercase;
@@ -137,24 +142,20 @@ def get_dynamic_css(theme):
             border: 1px solid rgba(255,215,0,0.2);
         }
 
-        /* --- CARDS / EXPANDERS --- */
         div[data-testid="stExpander"] {
             background: linear-gradient(135deg, rgba(20,26,42,0.75) 0%, rgba(15,20,32,0.75) 100%) !important;
             border: 1px solid rgba(255, 215, 0, 0.12) !important;
             border-radius: 14px !important; color: #e8eaf0 !important;
-            margin-bottom: 0.6rem; overflow: hidden;
-            backdrop-filter: blur(6px);
+            margin-bottom: 0.6rem; overflow: hidden; backdrop-filter: blur(6px);
         }
         div[data-testid="stExpander"]:hover { border-color: rgba(255, 215, 0, 0.3) !important; }
         div[data-testid="stExpander"] summary p { color: #e8eaf0 !important; font-weight: 600; }
 
-        /* --- METRIC CARDS --- */
         .metric-card {
             background: linear-gradient(135deg, rgba(20,26,42,0.9), rgba(15,20,32,0.9));
             border-radius: 16px; padding: 1.2rem 1.1rem;
             border: 1px solid rgba(255,255,255,0.06);
-            position: relative; overflow: hidden;
-            transition: transform 0.25s ease, border-color 0.25s ease;
+            position: relative; overflow: hidden; transition: transform 0.25s ease, border-color 0.25s ease;
         }
         .metric-card:hover { transform: translateY(-3px); border-color: rgba(255,215,0,0.35); }
         .metric-card::before {
@@ -164,25 +165,21 @@ def get_dynamic_css(theme):
         .metric-card.blue::before   { background: linear-gradient(90deg, #3b82f6, #6366f1); }
         .metric-card.purple::before { background: linear-gradient(90deg, #a855f7, #ec4899); }
         .metric-card.green::before  { background: linear-gradient(90deg, #10b981, #34d399); }
-
         .metric-icon { font-size: 1.6rem; margin-bottom: 0.3rem; }
         .metric-value { font-size: 2rem; font-weight: 800; font-family: 'Outfit', sans-serif;
                         color: #fff; line-height: 1.1; margin-bottom: 0.2rem; }
         .metric-label { font-size: 0.8rem; color: #8892a6; text-transform: uppercase;
                         letter-spacing: 0.8px; font-weight: 500; }
 
-        /* --- BOARD --- */
         .board-wrapper {
             display: flex; justify-content: center; align-items: center;
             padding: 1.2rem; border-radius: 20px;
             background: linear-gradient(135deg, rgba(255,215,0,0.05), rgba(255,165,0,0.02));
-            border: 1px solid rgba(255,215,0,0.12);
-            box-shadow: 0 20px 50px rgba(0,0,0,0.35);
+            border: 1px solid rgba(255,215,0,0.12); box-shadow: 0 20px 50px rgba(0,0,0,0.35);
             max-width: fit-content; margin: 0 auto;
         }
         .board-wrapper svg { border-radius: 12px; }
 
-        /* --- ERROR CARD --- */
         .error-card {
             background: linear-gradient(135deg, rgba(20,26,42,0.85), rgba(15,20,32,0.85));
             border-left: 3px solid #ef4444;
@@ -196,7 +193,6 @@ def get_dynamic_css(theme):
                        padding: 3px 10px; border-radius: 8px; font-size: 0.9rem; }
         .error-loss  { color: #f87171; font-weight: 700; font-size: 0.85rem; }
 
-        /* --- INFO BOXES --- */
         .info-box, .success-box, .warning-box, .error-box {
             border-radius: 12px; padding: 0.9rem 1.1rem; margin: 0.5rem 0;
             border-left: 3px solid; font-size: 0.92rem;
@@ -206,11 +202,9 @@ def get_dynamic_css(theme):
         .warning-box { background: rgba(234,179,8,0.08);  border-color: #eab308; color: #fde047; }
         .error-box   { background: rgba(239,68,68,0.08);  border-color: #ef4444; color: #fca5a5; }
 
-        /* --- SECTION TITLE --- */
         .section-title {
             font-family: 'Outfit', sans-serif; font-size: 1.4rem; font-weight: 700;
-            margin: 1.4rem 0 0.8rem 0; display: flex; align-items: center; gap: 0.5rem;
-            color: #fff;
+            margin: 1.4rem 0 0.8rem 0; display: flex; align-items: center; gap: 0.5rem; color: #fff;
         }
         .section-title::after {
             content: ''; flex: 1; height: 1px;
@@ -218,7 +212,6 @@ def get_dynamic_css(theme):
             margin-left: 0.6rem;
         }
 
-        /* --- BUTTONS --- */
         .stButton > button {
             border-radius: 10px !important; transition: all 0.22s ease !important;
             font-weight: 600 !important; border: 1px solid rgba(255,215,0,0.25) !important;
@@ -231,24 +224,19 @@ def get_dynamic_css(theme):
         }
         .stButton > button[kind="primary"] {
             background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%) !important;
-            color: #0a0e1a !important; font-weight: 800 !important;
-            border: none !important;
+            color: #0a0e1a !important; font-weight: 800 !important; border: none !important;
             box-shadow: 0 6px 18px rgba(255, 165, 0, 0.25) !important;
         }
         .stButton > button[kind="primary"]:hover {
-            box-shadow: 0 8px 24px rgba(255, 165, 0, 0.4) !important;
-            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(255, 165, 0, 0.4) !important; transform: translateY(-2px);
         }
 
-        /* --- FORM INPUTS --- */
         input, textarea, .stTextInput input, .stTextArea textarea {
             color: #e8eaf0 !important; background-color: rgba(10,14,26,0.7) !important;
-            border: 1px solid rgba(255,255,255,0.08) !important;
-            border-radius: 10px !important;
+            border: 1px solid rgba(255,255,255,0.08) !important; border-radius: 10px !important;
         }
         input:focus, textarea:focus { border-color: rgba(255,215,0,0.5) !important; }
 
-        /* --- TABS --- */
         .stTabs [data-baseweb="tab-list"] { gap: 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.06); }
         .stTabs [data-baseweb="tab"] {
             border-radius: 10px 10px 0 0; padding: 0.6rem 1.2rem;
@@ -259,30 +247,21 @@ def get_dynamic_css(theme):
             color: #FFD700 !important; font-weight: 700;
         }
 
-        /* --- PROGRESS BAR --- */
         .stProgress > div > div > div > div {
             background: linear-gradient(90deg, #FFD700, #FFA500) !important;
         }
-
-        /* --- METRICS DEFAULT (fallback) --- */
         div[data-testid="stMetricValue"] { color: #FFD700 !important; font-family: 'Outfit', sans-serif; }
         div[data-testid="stMetricLabel"] { color: #8892a6 !important; }
-
-        /* --- DIVIDER --- */
         hr { border-color: rgba(255,255,255,0.06) !important; }
 
         @keyframes fadeIn { from {opacity: 0; transform: translateY(6px);} to {opacity: 1; transform: translateY(0);} }
-        </style>
-        """
+        </style>"""
     else:
-        return """
-        <style>
+        return "<style>" + common_fix + """
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap');
 
         html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
         h1, h2, h3, h4, h5, h6, .brand-title { font-family: 'Outfit', sans-serif; }
-
-        #MainMenu, footer, header { visibility: hidden; }
 
         .stApp {
             background:
@@ -291,22 +270,18 @@ def get_dynamic_css(theme):
                 linear-gradient(135deg, #f8fafc 0%, #eef2f7 50%, #e2e8f0 100%);
             color: #1a202c;
         }
-
         .main .block-container { padding-top: 1.2rem; padding-bottom: 3rem; max-width: 1200px; }
-
         h1, h2, h3, h4, h5, h6, p, span, label, div { color: #1a202c; }
 
         .hero { text-align: center; padding: 1rem 0 0.5rem 0; }
         .brand-title {
             background: linear-gradient(90deg, #b8860b 0%, #d4af37 50%, #c9a227 100%);
             -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-            font-size: 2.6rem; font-weight: 900; text-align: center; letter-spacing: -0.5px;
-            margin-bottom: 0;
+            font-size: 2.6rem; font-weight: 900; text-align: center; letter-spacing: -0.5px; margin-bottom: 0;
         }
         .brand-sub {
             text-align: center; color: #64748b !important;
-            font-size: 0.95rem; margin: 0.2rem 0 1rem 0; letter-spacing: 1.5px; text-transform: uppercase;
-            font-weight: 500;
+            font-size: 0.95rem; margin: 0.2rem 0 1rem 0; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 500;
         }
         .hero-logo { font-size: 3.5rem; display: block; text-align: center; margin-bottom: -0.4rem; }
 
@@ -319,8 +294,7 @@ def get_dynamic_css(theme):
             display: flex; align-items: center; gap: 0.9rem;
             padding: 0.9rem; border-radius: 14px;
             background: linear-gradient(135deg, rgba(212,175,55,0.10), rgba(212,175,55,0.02));
-            border: 1px solid rgba(212,175,55,0.25);
-            margin-bottom: 1rem;
+            border: 1px solid rgba(212,175,55,0.25); margin-bottom: 1rem;
         }
         .avatar {
             width: 46px; height: 46px; border-radius: 50%;
@@ -349,18 +323,15 @@ def get_dynamic_css(theme):
         }
 
         div[data-testid="stExpander"] {
-            background: #ffffff !important;
-            border: 1px solid #e2e8f0 !important;
+            background: #ffffff !important; border: 1px solid #e2e8f0 !important;
             border-radius: 14px !important; color: #1a202c !important;
-            margin-bottom: 0.6rem; overflow: hidden;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+            margin-bottom: 0.6rem; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.04);
         }
         div[data-testid="stExpander"]:hover { border-color: #d4af37 !important; }
         div[data-testid="stExpander"] summary p { color: #1a202c !important; font-weight: 600; }
 
         .metric-card {
-            background: #ffffff;
-            border-radius: 16px; padding: 1.2rem 1.1rem;
+            background: #ffffff; border-radius: 16px; padding: 1.2rem 1.1rem;
             border: 1px solid #e2e8f0; position: relative; overflow: hidden;
             box-shadow: 0 2px 12px rgba(0,0,0,0.05);
             transition: transform 0.25s ease, border-color 0.25s ease;
@@ -373,7 +344,6 @@ def get_dynamic_css(theme):
         .metric-card.blue::before   { background: linear-gradient(90deg, #3b82f6, #6366f1); }
         .metric-card.purple::before { background: linear-gradient(90deg, #a855f7, #ec4899); }
         .metric-card.green::before  { background: linear-gradient(90deg, #10b981, #34d399); }
-
         .metric-icon { font-size: 1.6rem; margin-bottom: 0.3rem; }
         .metric-value { font-size: 2rem; font-weight: 800; font-family: 'Outfit', sans-serif;
                         color: #1a202c; line-height: 1.1; margin-bottom: 0.2rem; }
@@ -382,10 +352,8 @@ def get_dynamic_css(theme):
 
         .board-wrapper {
             display: flex; justify-content: center; align-items: center;
-            padding: 1.2rem; border-radius: 20px;
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
-            box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+            padding: 1.2rem; border-radius: 20px; background: #ffffff;
+            border: 1px solid #e2e8f0; box-shadow: 0 8px 30px rgba(0,0,0,0.08);
             max-width: fit-content; margin: 0 auto;
         }
         .board-wrapper svg { border-radius: 12px; }
@@ -414,8 +382,7 @@ def get_dynamic_css(theme):
 
         .section-title {
             font-family: 'Outfit', sans-serif; font-size: 1.4rem; font-weight: 700;
-            margin: 1.4rem 0 0.8rem 0; display: flex; align-items: center; gap: 0.5rem;
-            color: #1a202c;
+            margin: 1.4rem 0 0.8rem 0; display: flex; align-items: center; gap: 0.5rem; color: #1a202c;
         }
         .section-title::after {
             content: ''; flex: 1; height: 1px;
@@ -430,18 +397,15 @@ def get_dynamic_css(theme):
         }
         .stButton > button:hover {
             border-color: rgba(212,175,55,0.7) !important;
-            background: rgba(212,175,55,0.05) !important;
-            transform: translateY(-1px);
+            background: rgba(212,175,55,0.05) !important; transform: translateY(-1px);
         }
         .stButton > button[kind="primary"] {
             background: linear-gradient(135deg, #d4af37 0%, #b8860b 100%) !important;
-            color: #ffffff !important; font-weight: 800 !important;
-            border: none !important;
+            color: #ffffff !important; font-weight: 800 !important; border: none !important;
             box-shadow: 0 6px 18px rgba(212,175,55,0.3) !important;
         }
         .stButton > button[kind="primary"]:hover {
-            box-shadow: 0 8px 24px rgba(212,175,55,0.45) !important;
-            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(212,175,55,0.45) !important; transform: translateY(-2px);
         }
 
         input, textarea { color: #1a202c !important; background-color: #ffffff !important;
@@ -454,17 +418,18 @@ def get_dynamic_css(theme):
         .stTabs [aria-selected="true"] {
             background: rgba(212,175,55,0.1) !important; color: #b8860b !important; font-weight: 700;
         }
-
         .stProgress > div > div > div > div {
             background: linear-gradient(90deg, #d4af37, #b8860b) !important;
         }
-
         div[data-testid="stMetricValue"] { color: #b8860b !important; font-family: 'Outfit', sans-serif; }
         hr { border-color: #e2e8f0 !important; }
-        </style>
-        """
+        </style>"""
 
 st.markdown(get_dynamic_css(st.session_state['theme_mode']), unsafe_allow_html=True)
+
+# --- Plotly theme helper ---
+def plotly_template():
+    return 'plotly_dark' if st.session_state['theme_mode'] == 'Dark' else 'plotly_white'
 
 TEXTS = {
     "it": {
@@ -721,7 +686,8 @@ def determina_categoria_mossa(num_mossa, delta_cp, total_moves):
 
 def analizza_partita_chess_api(pgn_text, target_usernames):
     game = chess.pgn.read_game(io.StringIO(pgn_text))
-    if not game: return [], None, "Impossibile leggere il PGN fornito."
+    if not game:
+        return [], None, "Impossibile leggere il PGN fornito.", []
 
     headers = game.headers
     white_player = headers.get('White', 'Unknown').strip().lower()
@@ -737,11 +703,13 @@ def analizza_partita_chess_api(pgn_text, target_usernames):
         for u in user_list:
             if u in white_player: user_is_white = True; found_match = True
             if u in black_player: user_is_black = True; found_match = True
-        if not found_match: user_is_white = True; user_is_black = True
+        if not found_match:
+            user_is_white = True; user_is_black = True
 
     partita_id = f"{headers.get('White', 'Unknown')}_vs_{headers.get('Black', 'Unknown')}_{headers.get('Date', 'Live')}"
     board = game.board()
     evaluations = []
+    eval_history = []
     headers_req = {"User-Agent": "ChessCoachPro/1.0", "Content-Type": "application/json"}
     main_moves = list(game.mainline_moves())
     total_ply_count = len(main_moves)
@@ -754,29 +722,47 @@ def analizza_partita_chess_api(pgn_text, target_usernames):
 
     for idx, move in enumerate(main_moves):
         fen_before = board.fen()
+        try:
+            move_san = board.san(move)
+        except Exception:
+            move_san = move.uci()
+
         eval_before = prev_eval
         try:
             r = session.post("https://chess-api.com/v1", json={"fen": fen_before, "depth": 10}, timeout=4)
             if r.status_code == 200:
                 data = r.json()
-                if data.get("eval") is not None: eval_before = float(data.get("eval"))
-                elif data.get("mate") is not None: eval_before = 100.0 if data.get("mate") > 0 else -100.0
-        except Exception: pass
+                if data.get("eval") is not None:
+                    eval_before = float(data.get("eval"))
+                elif data.get("mate") is not None:
+                    eval_before = 100.0 if data.get("mate") > 0 else -100.0
+        except Exception:
+            pass
 
         board.push(move)
         fen_after = board.fen()
         num_mossa = (idx // 2) + 1
         is_white_move = (idx % 2 == 0)
-        progress_bar.progress((idx + 1) / total_ply_count, text=f"♟️ Analisi mossa {num_mossa} di {total_full_moves}...")
+        progress_bar.progress((idx + 1) / max(total_ply_count, 1),
+                              text=f"♟️ Analisi mossa {num_mossa} di {total_full_moves}...")
 
         eval_after = eval_before
         try:
             r = session.post("https://chess-api.com/v1", json={"fen": fen_after, "depth": 10}, timeout=4)
             if r.status_code == 200:
                 data = r.json()
-                if data.get("eval") is not None: eval_after = float(data.get("eval"))
-                elif data.get("mate") is not None: eval_after = 100.0 if data.get("mate") > 0 else -100.0
-        except Exception: pass
+                if data.get("eval") is not None:
+                    eval_after = float(data.get("eval"))
+                elif data.get("mate") is not None:
+                    eval_after = 100.0 if data.get("mate") > 0 else -100.0
+        except Exception:
+            pass
+
+        clamped = max(min(eval_after, 10.0), -10.0)
+        eval_history.append({
+            "ply": idx + 1, "num_move": num_mossa, "san": move_san,
+            "eval_cp": eval_after, "eval_clamped": clamped, "is_white": is_white_move
+        })
 
         is_user_move = (is_white_move and user_is_white) or (not is_white_move and user_is_black)
         if is_user_move:
@@ -786,7 +772,7 @@ def analizza_partita_chess_api(pgn_text, target_usernames):
             elif delta >= 0.5: tipo_problema = "🟡 Inaccuracy"
             else: tipo_problema = None
             if tipo_problema:
-                label_mossa = f"{num_mossa}. {move.uci()}" if is_white_move else f"{num_mossa}... {move.uci()}"
+                label_mossa = f"{num_mossa}. {move_san}" if is_white_move else f"{num_mossa}... {move_san}"
                 cat_mossa = determina_categoria_mossa(num_mossa, round(delta, 2), total_full_moves)
                 evaluations.append({
                     "mossa_num": idx + 1, "label_mossa": label_mossa,
@@ -798,7 +784,7 @@ def analizza_partita_chess_api(pgn_text, target_usernames):
         time.sleep(0.03)
 
     progress_bar.empty()
-    return evaluations, partita_id, None
+    return evaluations, partita_id, None, eval_history
 
 def salva_immagine_scacchiera_png(board, path_temp):
     svg_data = chess.svg.board(board=board, size=400)
@@ -833,7 +819,7 @@ def genera_pdf_partita(board, mosse_lista, note_mosse, note_finali):
     pdf.set_xy(100, y_inizio)
     pdf.set_font("helvetica", "B", 11)
     pdf.cell(95, 6, "Considerazioni per Mossa:", ln=True)
-    for idx, m in enumerate(mosse_losse if False else mosse_lista):
+    for idx, m in enumerate(mosse_lista):
         num = (idx // 2) + 1
         etichetta = f"{num}. {m}" if idx % 2 == 0 else f"{num}... {m}"
         nota_utente = note_mosse.get(str(idx), "").strip()
@@ -848,6 +834,60 @@ def genera_pdf_partita(board, mosse_lista, note_mosse, note_finali):
         pdf.cell(95, 4, "________________________________________", ln=True)
         pdf.ln(1)
     return bytes(pdf.output())
+
+def render_eval_graph(eval_history, errors):
+    """Grafico di valutazione stile chess.com con marker sugli errori."""
+    if not HAS_PLOTLY or not eval_history:
+        return
+    x_vals = [e["ply"] for e in eval_history]
+    y_vals = [e["eval_clamped"] for e in eval_history]
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=x_vals, y=y_vals, mode="lines", fill="tozeroy",
+        line=dict(color="#FFD700", width=2),
+        fillcolor="rgba(255,215,0,0.15)",
+        name="Valutazione",
+        hovertemplate="Mossa %{x}<br>Eval: %{y:.2f}<extra></extra>",
+    ))
+
+    def get_y(ply):
+        for e in eval_history:
+            if e["ply"] == ply:
+                return e["eval_clamped"]
+        return 0
+
+    blunders = [e["mossa_num"] for e in errors if "Blunder" in e["tipo_problema"]]
+    mistakes = [e["mossa_num"] for e in errors if "Mistake" in e["tipo_problema"]]
+    inaccuracies = [e["mossa_num"] for e in errors if "Inaccuracy" in e["tipo_problema"]]
+
+    if inaccuracies:
+        fig.add_trace(go.Scatter(
+            x=inaccuracies, y=[get_y(n) for n in inaccuracies], mode="markers",
+            marker=dict(color="#eab308", size=9, line=dict(width=1, color="#fff")),
+            name="Inaccuracy"))
+    if mistakes:
+        fig.add_trace(go.Scatter(
+            x=mistakes, y=[get_y(n) for n in mistakes], mode="markers",
+            marker=dict(color="#f97316", size=10, line=dict(width=1, color="#fff")),
+            name="Mistake"))
+    if blunders:
+        fig.add_trace(go.Scatter(
+            x=blunders, y=[get_y(n) for n in blunders], mode="markers",
+            marker=dict(color="#ef4444", size=12, symbol="x", line=dict(width=2, color="#fff")),
+            name="Blunder"))
+
+    fig.update_layout(
+        template=plotly_template(),
+        margin=dict(l=10, r=10, t=30, b=10),
+        height=320, showlegend=True,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        xaxis=dict(title="Mossa", showgrid=False),
+        yaxis=dict(title="Valutazione (pedoni)", range=[-10, 10],
+                   showgrid=True, gridcolor="rgba(128,128,128,0.15)"),
+        hovermode="x unified",
+    )
+    st.plotly_chart(fig, use_container_width=True)
 
 # --- SIDEBAR ---
 with st.sidebar:
@@ -864,7 +904,8 @@ with st.sidebar:
 
     st.markdown("<div class='section-title' style='font-size:1.05rem;margin-top:0.5rem;'>⚙️ Preferenze</div>", unsafe_allow_html=True)
 
-    scelta_tema = st.selectbox(t["theme_select"], ["Dark", "Light"], index=0 if st.session_state['theme_mode']=='Dark' else 1)
+    scelta_tema = st.selectbox(t["theme_select"], ["Dark", "Light"],
+                               index=0 if st.session_state['theme_mode'] == 'Dark' else 1)
     if scelta_tema != st.session_state['theme_mode']:
         st.session_state['theme_mode'] = scelta_tema
         st.rerun()
@@ -885,8 +926,10 @@ with st.sidebar:
 
     if st.button(t["logout_btn"], use_container_width=True):
         if supabase:
-            try: supabase.auth.sign_out()
-            except Exception: pass
+            try:
+                supabase.auth.sign_out()
+            except Exception:
+                pass
         st.session_state['user'] = None
         st.session_state['profile_setup_done'] = False
         st.rerun()
@@ -934,9 +977,10 @@ if current_tab == 0:
                 with st.spinner("🔍 Scansione affidabile Stockfish in corso..."):
                     user_profs = get_user_profiles(user_email)
                     user_usernames = [p['username'] for p in user_profs]
-                    errori, p_id, err_msg = analizza_partita_chess_api(pgn_input.strip(), user_usernames)
+                    errori, p_id, err_msg, eval_hist = analizza_partita_chess_api(pgn_input.strip(), user_usernames)
                     st.session_state['stockfish_errors'] = errori
                     st.session_state['current_game_id'] = p_id
+                    st.session_state['eval_history'] = eval_hist
 
                     game_obj = chess.pgn.read_game(io.StringIO(pgn_input.strip()))
                     if game_obj:
@@ -951,6 +995,11 @@ if current_tab == 0:
                                            item.get("label_mossa", "Mossa"), f"Perdita {item.get('perdita_cp')} CP")
                     else:
                         st.markdown(f"<div class='success-box'>✅ {t['no_errors']}</div>", unsafe_allow_html=True)
+
+    # Grafico di valutazione (chess.com style)
+    if st.session_state.get('eval_history'):
+        st.markdown("<div class='section-title'>📈 Grafico di Valutazione</div>", unsafe_allow_html=True)
+        render_eval_graph(st.session_state['eval_history'], st.session_state.get('stockfish_errors', []))
 
     if 'active_game_board' in st.session_state and st.session_state['active_game_board']:
         st.divider()
@@ -983,11 +1032,11 @@ if current_tab == 0:
         st.markdown(f'<div class="board-wrapper">{svg_board}</div>', unsafe_allow_html=True)
 
         st.markdown("<div class='section-title'>📋 Errori Rilevati sulle Tue Mosse</div>", unsafe_allow_html=True)
-        if 'stockfish_errors' in st.session_state and st.session_state['stockfish_errors']:
+        if st.session_state.get('stockfish_errors'):
             for idx, err in enumerate(st.session_state['stockfish_errors']):
                 cat_label = err.get('categoria', 'Tattica')
                 severity = "Blunder" if "Blunder" in err['tipo_problema'] else ("Mistake" if "Mistake" in err['tipo_problema'] else "Inaccuracy")
-                sev_class = "blunder" if severity=="Blunder" else ("mistake" if severity=="Mistake" else "inaccuracy")
+                sev_class = "blunder" if severity == "Blunder" else ("mistake" if severity == "Mistake" else "inaccuracy")
 
                 with st.expander(f"{err['tipo_problema']} · {err['label_mossa']} · Categoria: {cat_label} · -{err['perdita_cp']} CP", expanded=False):
                     st.markdown(f"""
@@ -1016,11 +1065,11 @@ if current_tab == 0:
                                     Spiega in massimo 35 parole:
                                     1. Perché la mossa è un errore.
                                     2. Qual era l'idea migliore.
-                                    3. Una regola/principles pratico.
+                                    3. Una regola/principio pratico.
                                     """
                                     try:
-                                        from google import genai
-                                        client = genai.Client(api_key=MASTER_GEMINI_KEY)
+                                        from google import genai as new_genai
+                                        client = new_genai.Client(api_key=MASTER_GEMINI_KEY)
                                         response = client.models.generate_content(
                                             model=GEMINI_MODEL_NAME, contents=prompt_lesson
                                         )
@@ -1061,26 +1110,30 @@ elif current_tab == 1:
             df_filtered = df_filtered[df_filtered['categoria_errore'] == filtro_tipo]
 
         st.write("")
+        n_errors = len(df_filtered)
+        n_games = df_filtered['partita_id'].nunique() if 'partita_id' in df_filtered else 0
+        # Precision proxy: errori per partita pesati
+        avg_err_per_game = n_errors / max(n_games, 1)
+        precision = max(0, min(100, int(100 - avg_err_per_game * 6)))
+
         kpi1, kpi2, kpi3 = st.columns(3)
         with kpi1:
             st.markdown(f"""
             <div class="metric-card blue">
                 <div class="metric-icon">🎯</div>
-                <div class="metric-value">{len(df_filtered)}</div>
+                <div class="metric-value">{n_errors}</div>
                 <div class="metric-label">Totale Errori</div>
             </div>
             """, unsafe_allow_html=True)
         with kpi2:
-            n_partite = df_filtered['partita_id'].nunique() if 'partita_id' in df_filtered else 0
             st.markdown(f"""
             <div class="metric-card purple">
                 <div class="metric-icon">♟️</div>
-                <div class="metric-value">{n_partite}</div>
+                <div class="metric-value">{n_games}</div>
                 <div class="metric-label">Partite Analizzate</div>
             </div>
             """, unsafe_allow_html=True)
         with kpi3:
-            precision = max(0, 100 - len(df_filtered)*3)
             st.markdown(f"""
             <div class="metric-card green">
                 <div class="metric-icon">✨</div>
@@ -1090,21 +1143,94 @@ elif current_tab == 1:
             """, unsafe_allow_html=True)
 
         st.write("")
-        col_g1, col_g2 = st.columns(2)
+        col_g1, col_g2 = st.columns([1, 1])
+
         with col_g1:
-            st.markdown("<div class='section-title'>📊 Errori per Categoria</div>", unsafe_allow_html=True)
+            st.markdown("<div class='section-title'>🎯 Distribuzione Errori</div>", unsafe_allow_html=True)
             if not df_filtered.empty:
-                counts_cat = df_filtered['categoria_errore'].value_counts()
-                st.bar_chart(counts_cat, use_container_width=True)
+                if HAS_PLOTLY:
+                    counts_cat = df_filtered['categoria_errore'].value_counts()
+                    palette = ['#FFD700', '#FFA500', '#7c3aed', '#3b82f6', '#10b981', '#ef4444']
+                    fig_pie = go.Figure(go.Pie(
+                        labels=counts_cat.index.tolist(),
+                        values=counts_cat.values.tolist(),
+                        hole=0.58,
+                        marker=dict(colors=palette[:len(counts_cat)],
+                                    line=dict(color='rgba(255,255,255,0.1)', width=1)),
+                        textinfo='label+percent',
+                        textfont=dict(size=12, color='#e8eaf0' if st.session_state['theme_mode'] == 'Dark' else '#1a202c')
+                    ))
+                    fig_pie.update_layout(
+                        template=plotly_template(), height=340,
+                        margin=dict(l=10, r=10, t=20, b=20),
+                        showlegend=True,
+                        legend=dict(orientation='v', yanchor='middle', y=0.5, x=1.0)
+                    )
+                    st.plotly_chart(fig_pie, use_container_width=True)
+                else:
+                    st.bar_chart(df_filtered['categoria_errore'].value_counts(), use_container_width=True)
             else:
                 st.markdown("<div class='info-box'>Nessun dato per i filtri selezionati.</div>", unsafe_allow_html=True)
+
         with col_g2:
-            st.markdown("<div class='section-title'>📈 Trend nel Tempo</div>", unsafe_allow_html=True)
-            if not df_filtered.empty and 'data' in df_filtered.columns:
-                counts_date = df_filtered.groupby('data').size()
-                st.line_chart(counts_date, use_container_width=True)
+            st.markdown("<div class='section-title'>🎚️ Indice di Precisione</div>", unsafe_allow_html=True)
+            if HAS_PLOTLY:
+                fig_gauge = go.Figure(go.Indicator(
+                    mode="gauge+number",
+                    value=precision,
+                    number={'suffix': '%', 'font': {'color': '#FFD700' if st.session_state['theme_mode'] == 'Dark' else '#b8860b', 'size': 42}},
+                    gauge={
+                        'axis': {'range': [0, 100], 'tickcolor': '#8892a6'},
+                        'bar': {'color': '#FFD700' if st.session_state['theme_mode'] == 'Dark' else '#d4af37', 'thickness': 0.3},
+                        'bgcolor': 'rgba(0,0,0,0)',
+                        'steps': [
+                            {'range': [0, 40],  'color': 'rgba(239,68,68,0.18)'},
+                            {'range': [40, 70], 'color': 'rgba(234,179,8,0.18)'},
+                            {'range': [70, 100],'color': 'rgba(16,185,129,0.18)'}
+                        ],
+                        'threshold': {
+                            'line': {'color': '#10b981', 'width': 4},
+                            'thickness': 0.75, 'value': 80
+                        }
+                    }
+                ))
+                fig_gauge.update_layout(
+                    template=plotly_template(), height=340,
+                    margin=dict(l=10, r=10, t=30, b=10)
+                )
+                st.plotly_chart(fig_gauge, use_container_width=True)
             else:
-                st.markdown("<div class='info-box'>Dati temporali non sufficienti.</div>", unsafe_allow_html=True)
+                st.metric("Precisione", f"{precision}%")
+
+        st.markdown("<div class='section-title'>📈 Trend Errori nel Tempo</div>", unsafe_allow_html=True)
+        if not df_filtered.empty and 'data' in df_filtered.columns:
+            if HAS_PLOTLY:
+                counts_date = df_filtered.groupby('data').size().reset_index(name='count')
+                counts_date = counts_date.sort_values('data')
+                fig_line = go.Figure()
+                fig_line.add_trace(go.Scatter(
+                    x=counts_date['data'].tolist(),
+                    y=counts_date['count'].tolist(),
+                    mode='lines+markers',
+                    line=dict(color='#FFD700' if st.session_state['theme_mode'] == 'Dark' else '#d4af37', width=2.5),
+                    fill='tozeroy',
+                    fillcolor='rgba(255,215,0,0.15)' if st.session_state['theme_mode'] == 'Dark' else 'rgba(212,175,55,0.15)',
+                    marker=dict(size=9, color='#FFD700' if st.session_state['theme_mode'] == 'Dark' else '#d4af37',
+                                line=dict(width=2, color='#0a0e1a' if st.session_state['theme_mode'] == 'Dark' else '#ffffff')),
+                    hovertemplate='Data: %{x}<br>Errori: %{y}<extra></extra>'
+                ))
+                fig_line.update_layout(
+                    template=plotly_template(), height=320,
+                    margin=dict(l=10, r=10, t=20, b=10),
+                    xaxis=dict(showgrid=False, title=""),
+                    yaxis=dict(showgrid=True, gridcolor='rgba(128,128,128,0.15)', title="Numero Errori"),
+                    hovermode='x unified'
+                )
+                st.plotly_chart(fig_line, use_container_width=True)
+            else:
+                st.line_chart(df_filtered.groupby('data').size(), use_container_width=True)
+        else:
+            st.markdown("<div class='info-box'>Dati temporali non sufficienti.</div>", unsafe_allow_html=True)
 
         st.markdown("<div class='section-title'>🗂️ Registro Dettagliato</div>", unsafe_allow_html=True)
         st.dataframe(df_filtered[['data', 'partita_id', 'categoria_errore', 'mossa_critica', 'spiegazione']],
@@ -1135,7 +1261,8 @@ elif current_tab == 2:
                         board.push(move)
                         steps.append({"ply": idx+1, "mossa_giocata": san, "fen": board.fen(),
                                       "commento": dati_libro.get("commenti", {}).get(str(idx+1), "")})
-                    except Exception: break
+                    except Exception:
+                        break
                 st.session_state['book_steps'] = steps
                 st.session_state['current_ply'] = 0
                 st.markdown("<div class='success-box'>Studio pronto!</div>", unsafe_allow_html=True)
@@ -1185,7 +1312,8 @@ elif current_tab == 3:
     if 'diario_mosse' in st.session_state and st.session_state['diario_mosse']:
         mosse_d = st.session_state['diario_mosse']
         b_d = chess.Board()
-        for m in mosse_d: b_d.push(b_d.parse_san(m))
+        for m in mosse_d:
+            b_d.push(b_d.parse_san(m))
         col_d1, col_d2 = st.columns([1, 1])
         with col_d1:
             svg = chess.svg.board(board=b_d, size=340,
