@@ -51,7 +51,7 @@ if 'last_analyzed_pgn' not in st.session_state:
 if 'current_board_ply' not in st.session_state:
     st.session_state['current_board_ply'] = 0
 
-# --- KEEP-ALIVE JAVASCRIPT PER MOBILE (PUNTO 4: Evita disconnessioni in standby) ---
+# --- KEEP-ALIVE JAVASCRIPT PER MOBILE ---
 st.components.v1.html("""
     <script>
     setInterval(function() {
@@ -374,7 +374,7 @@ if not st.session_state.get('profile_setup_done', False):
     st.stop()
 
 # ==========================================
-# 3. ENGINE CON ANALISI ESCLUSIVA GIOCATORE (PUNTO 2) & FIX CONTEGGIO MOSSE (PUNTO 1)
+# 3. ENGINE STOCKFISH ROBUSTO E FLESSIBILE
 # ==========================================
 def determina_categoria_mossa(num_mossa, delta_cp, total_moves):
     if num_mossa <= 12:
@@ -395,17 +395,28 @@ def analizza_partita_chess_api(pgn_text, target_usernames):
     white_player = headers.get('White', 'Unknown').strip().lower()
     black_player = headers.get('Black', 'Unknown').strip().lower()
     
-    # PUNTO 2: Determina se l'utente gioca col Bianco o col Nero
+    # MATCHING FLESSIBILE: Se ci sono profili salvati, verifica se l'utente gioca Bianco o Nero
     user_is_white = True
     user_is_black = True
     
     if target_usernames:
         user_list = [u.strip().lower() for u in target_usernames]
-        user_is_white = white_player in user_list
-        user_is_black = black_player in user_list
-        # Se non trova corrispondenze dirette, analizza il bianco come fallback
-        if not user_is_white and not user_is_black:
+        found_match = False
+        user_is_white = False
+        user_is_black = False
+        
+        for u in user_list:
+            if u in white_player:
+                user_is_white = True
+                found_match = True
+            if u in black_player:
+                user_is_black = True
+                found_match = True
+        
+        # Se non c'è match esatto nei nomi, per sicurezza analizziamo entrambe le parti anziché bloccare
+        if not found_match:
             user_is_white = True
+            user_is_black = True
 
     partita_id = f"{headers.get('White', 'Unknown')}_vs_{headers.get('Black', 'Unknown')}_{headers.get('Date', 'Live')}"
 
@@ -416,9 +427,9 @@ def analizza_partita_chess_api(pgn_text, target_usernames):
     
     main_moves = list(game.mainline_moves())
     total_ply_count = len(main_moves)
-    total_full_moves = (total_ply_count + 1) // 2  # PUNTO 1: Conteggio esatto mosse complete
+    total_full_moves = (total_ply_count + 1) // 2
     
-    progress_bar = st.progress(0, text="Scansione Stockfish lampo in corso...")
+    progress_bar = st.progress(0, text="Scansione Stockfish in corso...")
     session = requests.Session()
     session.headers.update(headers_req)
     
@@ -430,7 +441,7 @@ def analizza_partita_chess_api(pgn_text, target_usernames):
         num_mossa = (idx // 2) + 1
         is_white_move = (idx % 2 == 0)
         
-        # PUNTO 2: FILTRO ESCLUSIVO - Salta le mosse dell'avversario
+        # Salta le mosse dell'avversario
         if is_white_move and not user_is_white:
             continue
         if not is_white_move and not user_is_black:
@@ -438,28 +449,31 @@ def analizza_partita_chess_api(pgn_text, target_usernames):
 
         label_mossa = f"{num_mossa}. {move.uci()}" if is_white_move else f"{num_mossa}... {move.uci()}"
         
-        # PUNTO 1: Avanzamento visivo coerente
-        progress_bar.progress((idx + 1) / total_ply_count, text=f"Scansione mossa {num_mossa} di {total_full_moves} (Ply {idx+1}/{total_ply_count})...")
+        progress_bar.progress((idx + 1) / total_ply_count, text=f"Analisi mossa {num_mossa} di {total_full_moves}...")
         
         curr_eval = prev_eval
         valid_eval_found = False
         
-        try:
-            payload = {"fen": fen_after, "depth": 12}
-            r = session.post("https://chess-api.com/v1", json=payload, timeout=3)
-            if r.status_code == 200:
-                data = r.json()
-                eval_val = data.get("eval")
-                mate_val = data.get("mate")
-                
-                if eval_val is not None:
-                    curr_eval = float(eval_val)
-                    valid_eval_found = True
-                elif mate_val is not None:
-                    curr_eval = 100.0 if mate_val > 0 else -100.0
-                    valid_eval_found = True
-        except Exception:
-            pass
+        # Sistema robusto con tentativi multipli per evitare falsi negativi dovuti a timeout di rete
+        for attempt in range(2):
+            try:
+                payload = {"fen": fen_after, "depth": 12}
+                r = session.post("https://chess-api.com/v1", json=payload, timeout=5)
+                if r.status_code == 200:
+                    data = r.json()
+                    eval_val = data.get("eval")
+                    mate_val = data.get("mate")
+                    
+                    if eval_val is not None:
+                        curr_eval = float(eval_val)
+                        valid_eval_found = True
+                        break
+                    elif mate_val is not None:
+                        curr_eval = 100.0 if mate_val > 0 else -100.0
+                        valid_eval_found = True
+                        break
+            except Exception:
+                time.sleep(0.1)
 
         if not valid_eval_found and idx > 0:
             curr_eval = prev_eval
@@ -604,7 +618,7 @@ st.divider()
 current_tab = st.session_state['active_nav_tab']
 
 # ==========================================
-# TAB 0: ANALIZZA PGN (PUNTO 3: UNICA SCACCHIERA E LISTA ERRORI SOTTO)
+# TAB 0: ANALIZZA PGN
 # ==========================================
 if current_tab == 0:
     st.subheader(t["tab1"])
@@ -642,7 +656,6 @@ if current_tab == 0:
                     else:
                         st.info(t["no_errors"])
 
-    # PUNTO 3: REPLAYER INTERATTIVO AD UNICA SCACCHIERA E LISTA ERRORI SOTTO
     if 'active_game_board' in st.session_state and st.session_state['active_game_board']:
         st.divider()
         game_moves = st.session_state['active_game_moves']
@@ -654,7 +667,6 @@ if current_tab == 0:
         
         st.markdown(f"### ♟️ Scacchiera Interattiva — Mossa {current_full_move} di {total_full_moves} (Ply {current_ply}/{max_ply})")
         
-        # Pulsanti di navigazione orizzontali
         c_b1, c_b2, c_b3, c_b4 = st.columns(4)
         if c_b1.button("⏪ Inizio"):
             st.session_state['current_board_ply'] = 0
@@ -669,14 +681,12 @@ if current_tab == 0:
             st.session_state['current_board_ply'] = max_ply
             st.rerun()
 
-        # Generazione UNICA della scacchiera principale
         temp_board = st.session_state['active_game_board'].board()
         for i in range(st.session_state['current_board_ply']):
             temp_board.push(game_moves[i])
 
         st.write(chess.svg.board(board=temp_board, size=360), unsafe_allow_html=True)
         
-        # ELENCO TESTUALE DEGLI ERRORI SOTTO LA SCACCHIERA (NO GRAFICI/NO SCACCHIERI RIPETUTI)
         st.divider()
         st.markdown("### 📋 Lista Errori Rilevati sulle Tue Mosse")
         if 'stockfish_errors' in st.session_state and st.session_state['stockfish_errors']:
@@ -708,7 +718,7 @@ if current_tab == 0:
             st.info("Nessun errore grave registrato sulle tue mosse in questa partita.")
 
 # ==========================================
-# TAB 1: DASHBOARD AVANZATA & FILTRATA
+# TAB 1: DASHBOARD
 # ==========================================
 elif current_tab == 1:
     st.subheader(t["tab2"])
