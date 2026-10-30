@@ -7,3 +7,4 @@ pillow
 cairosvg
 berserk
 supabase
+plotly
