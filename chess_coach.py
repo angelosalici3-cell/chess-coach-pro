@@ -56,27 +56,26 @@ st.components.v1.html("""
     <script>setInterval(function(){fetch(window.location.href);},25000);</script>
 """, height=0)
 
-# --- CSS DINAMICO PREMIUM ---
+# --- CSS DINAMICO PREMIUM CON MENU HAMBURGER VISIBILE ---
 def get_dynamic_css(theme):
     common_fix = """
-        /* Nasconde elementi inutili della barra superiore di Streamlit */
         #MainMenu { visibility: hidden !important; }
         footer { visibility: hidden !important; }
-        [data-testid="stToolbar"] { visibility: visible !important; }
+        [data-testid="stToolbar"] { visibility: hidden !important; }
         [data-testid="stDecoration"] { visibility: hidden !important; }
         [data-testid="stStatusWidget"] { visibility: hidden !important; }
 
-        /* Ripristina l'Header in alto a sinistra per mostrare il pulsante hamburger */
         header[data-testid="stHeader"] {
             background: transparent !important;
-            z-index: 999999 !important;
+            z-index: 999990 !important;
+            pointer-events: auto !important;
             height: 3.5rem !important;
         }
 
-        /* Forzatura icona hamburger / apre sidebar */
-        button[data-testid="baseButton-header"],
+        /* ===== PULSANTE MENU HAMBURGER FISSO (ALTO A SINISTRA) ===== */
         [data-testid="collapsedControl"],
-        [data-testid="stSidebarCollapsedControl"] {
+        [data-testid="stSidebarCollapsedControl"],
+        button[kind="header"] {
             display: flex !important;
             visibility: visible !important;
             opacity: 1 !important;
@@ -84,21 +83,43 @@ def get_dynamic_css(theme):
             top: 12px !important;
             left: 12px !important;
             z-index: 1000000 !important;
-            background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%) !important;
+            background: linear-gradient(135deg, #FFD700 0%, #FF8C00 100%) !important;
+            color: #070b14 !important;
             border-radius: 10px !important;
-            padding: 6px !important;
-            border: none !important;
-            box-shadow: 0 4px 12px rgba(255, 165, 0, 0.4) !important;
+            padding: 6px 12px !important;
+            box-shadow: 0 4px 16px rgba(255, 140, 0, 0.6) !important;
+            border: 2px solid #ffffff !important;
             cursor: pointer !important;
+            align-items: center !important;
+            justify-content: center !important;
         }
 
-        button[data-testid="baseButton-header"] svg,
+        [data-testid="collapsedControl"]:hover,
+        [data-testid="stSidebarCollapsedControl"]:hover,
+        button[kind="header"]:hover {
+            transform: scale(1.06) !important;
+            box-shadow: 0 6px 20px rgba(255, 140, 0, 0.8) !important;
+        }
+
         [data-testid="collapsedControl"] svg,
-        [data-testid="stSidebarCollapsedControl"] svg {
-            fill: #0a0e1a !important;
+        [data-testid="stSidebarCollapsedControl"] svg,
+        button[kind="header"] svg {
+            display: none !important;
+        }
+
+        [data-testid="collapsedControl"]::after,
+        [data-testid="stSidebarCollapsedControl"]::after,
+        button[kind="header"]::after {
+            content: "☰ Menu" !important;
+            font-weight: 900 !important;
+            font-size: 13px !important;
             color: #0a0e1a !important;
-            width: 24px !important;
-            height: 24px !important;
+            letter-spacing: 0.5px;
+            font-family: 'Outfit', sans-serif !important;
+        }
+
+        [data-testid="stSidebar"] [data-testid="baseButton-header"] {
+            color: #FFD700 !important;
         }
     """
 
@@ -983,7 +1004,7 @@ with st.sidebar:
         st.session_state['profile_setup_done'] = False
         st.rerun()
 
-# --- HEADER PRINCIPALE CON ICONA HAMBURGER GUIDA ---
+# --- HEADER PRINCIPALE ---
 st.markdown(f"""
 <div class="hero">
     <span class="hero-logo">♟️</span>
