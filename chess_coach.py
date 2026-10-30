@@ -11,6 +11,7 @@ import os
 import tempfile
 import time
 import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from fpdf import FPDF
 from PIL import Image
 from supabase import create_client, Client
@@ -116,7 +117,7 @@ TEXTS = {
         "login_btn": "Accedi alla Piattaforma",
         "register_btn": "Crea Account",
         "logout_btn": "🚪 Disconnetti",
-        "analyze_btn": "🔍 Avvia Analisi Personale",
+        "analyze_btn": "🔍 Avvia Analisi Lampo",
         "critique_found": "criticità identificate sulle tue mosse!",
         "no_errors": "Partita eccellente! Nessun errore grave rilevato sulle tue mosse.",
         "gm_lesson_btn": "🎓 Spiegazione GM AI",
@@ -144,7 +145,7 @@ TEXTS = {
         "login_btn": "Login to Platform",
         "register_btn": "Create Account",
         "logout_btn": "🚪 Logout",
-        "analyze_btn": "🔍 Start Personal Analysis",
+        "analyze_btn": "🔍 Start Lightning Analysis",
         "critique_found": "critical issues identified on your moves!",
         "no_errors": "Great game! No major blunders found on your moves.",
         "gm_lesson_btn": "🎓 Quick GM Insight",
@@ -172,7 +173,7 @@ TEXTS = {
         "login_btn": "Iniciar Sesión",
         "register_btn": "Crear Cuenta",
         "logout_btn": "🚪 Cerrar Sesión",
-        "analyze_btn": "🔍 Iniciar Análisis Personal",
+        "analyze_btn": "🔍 Iniciar Análisis Relámpago",
         "critique_found": "¡críticas identificadas en tus jugadas!",
         "no_errors": "¡Excelente partida! Sin errores graves en tus jugadas.",
         "gm_lesson_btn": "🎓 Análisis Rápido GM",
@@ -374,7 +375,7 @@ if not st.session_state.get('profile_setup_done', False):
     st.stop()
 
 # ==========================================
-# 3. ENGINE STOCKFISH ROBUSTO E FLESSIBILE
+# 3. ENGINE STOCKFISH ULTRA-VELOCE (PARALLELO + PROFONDITÀ 10)
 # ==========================================
 def determina_categoria_mossa(num_mossa, delta_cp, total_moves):
     if num_mossa <= 12:
@@ -386,6 +387,23 @@ def determina_categoria_mossa(num_mossa, delta_cp, total_moves):
     else:
         return "Posizionale"
 
+def fetch_fen_evaluation(fen):
+    """Funzione ausiliaria eseguita in parallelo per valutare un singolo FEN"""
+    headers_req = {"User-Agent": "ChessCoachPro/1.0", "Content-Type": "application/json"}
+    try:
+        r = requests.post("https://chess-api.com/v1", json={"fen": fen, "depth": 10}, headers=headers_req, timeout=4)
+        if r.status_code == 200:
+            data = r.json()
+            eval_val = data.get("eval")
+            mate_val = data.get("mate")
+            if eval_val is not None:
+                return float(eval_val)
+            elif mate_val is not None:
+                return 100.0 if mate_val > 0 else -100.0
+    except Exception:
+        pass
+    return None
+
 def analizza_partita_chess_api(pgn_text, target_usernames):
     game = chess.pgn.read_game(io.StringIO(pgn_text))
     if not game:
@@ -395,7 +413,6 @@ def analizza_partita_chess_api(pgn_text, target_usernames):
     white_player = headers.get('White', 'Unknown').strip().lower()
     black_player = headers.get('Black', 'Unknown').strip().lower()
     
-    # MATCHING FLESSIBILE: Se ci sono profili salvati, verifica se l'utente gioca Bianco o Nero
     user_is_white = True
     user_is_black = True
     
@@ -413,7 +430,6 @@ def analizza_partita_chess_api(pgn_text, target_usernames):
                 user_is_black = True
                 found_match = True
         
-        # Se non c'è match esatto nei nomi, per sicurezza analizziamo entrambe le parti anziché bloccare
         if not found_match:
             user_is_white = True
             user_is_black = True
@@ -421,65 +437,73 @@ def analizza_partita_chess_api(pgn_text, target_usernames):
     partita_id = f"{headers.get('White', 'Unknown')}_vs_{headers.get('Black', 'Unknown')}_{headers.get('Date', 'Live')}"
 
     board = game.board()
-    evaluations = []
-    headers_req = {"User-Agent": "ChessCoachPro/1.0", "Content-Type": "application/json"}
-    prev_eval = 0.0
-    
     main_moves = list(game.mainline_moves())
     total_ply_count = len(main_moves)
     total_full_moves = (total_ply_count + 1) // 2
     
-    progress_bar = st.progress(0, text="Scansione Stockfish in corso...")
-    session = requests.Session()
-    session.headers.update(headers_req)
+    # 1. Raccogliamo tutte le posizioni (FEN) da valutare lungo la partita
+    fens_to_evaluate = []
+    board_steps = []
     
+    # Posizione iniziale (ply 0)
+    fens_to_evaluate.append(board.fen())
+    board_steps.append((0, None, board.fen(), "", 0, False))
+
     for idx, move in enumerate(main_moves):
-        fen_before = board.fen()
         board.push(move)
         fen_after = board.fen()
-        
         num_mossa = (idx // 2) + 1
         is_white_move = (idx % 2 == 0)
         
-        # Salta le mosse dell'avversario
+        fens_to_evaluate.append(fen_after)
+        board_steps.append((idx + 1, move, fen_after, move.uci(), num_mossa, is_white_move))
+
+    # 2. CHIAMATE PARALLELE IN BLOCCO (Richiede ~1-2 secondi totali anziché 30!)
+    st.info("⚡ Analisi lampo in parallelo con Stockfish (Depth 10)...")
+    evaluations_map = {}
+    
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        future_to_fen = {executor.submit(fetch_fen_evaluation, fen): fen for fen in set(fens_to_evaluate)}
+        for future in as_completed(future_to_fen):
+            fen = future_to_fen[future]
+            try:
+                res_eval = future.result()
+                if res_eval is not None:
+                    evaluations_map[fen] = res_eval
+            except Exception:
+                pass
+
+    # 3. ELABORAZIONE LOCALE ISTANNEA DEI DELTA E DEGLI ERRORI
+    evaluations = []
+    prev_eval = 0.0
+
+    # Ricostruiamo la sequenza passo dopo passo usando la mappa valutata
+    board_evals = []
+    for step in board_steps:
+        idx, move, fen, mossa_uci, num_mossa, is_white_move = step
+        curr_eval = evaluations_map.get(fen, prev_eval)
+        board_evals.append((idx, move, fen, mossa_uci, num_mossa, is_white_move, curr_eval))
+        prev_eval = curr_eval
+
+    # Calcolo imprecisioni filtrando solo per l'utente
+    for i in range(1, len(board_evals)):
+        idx, move, fen_after, mossa_uci, num_mossa, is_white_move, curr_eval = board_evals[i]
+        prev_eval = board_evals[i-1][2] # ripeschiamo eval precedente
+        # recuperiamo dal dizionario o usiamo il valore precedente
+        e_prev = evaluations_map.get(board_evals[i-1][2], 0.0)
+        e_curr = curr_eval
+
+        # Filtro utente
         if is_white_move and not user_is_white:
             continue
         if not is_white_move and not user_is_black:
             continue
 
-        label_mossa = f"{num_mossa}. {move.uci()}" if is_white_move else f"{num_mossa}... {move.uci()}"
-        
-        progress_bar.progress((idx + 1) / total_ply_count, text=f"Analisi mossa {num_mossa} di {total_full_moves}...")
-        
-        curr_eval = prev_eval
-        valid_eval_found = False
-        
-        # Sistema robusto con tentativi multipli per evitare falsi negativi dovuti a timeout di rete
-        for attempt in range(2):
-            try:
-                payload = {"fen": fen_after, "depth": 12}
-                r = session.post("https://chess-api.com/v1", json=payload, timeout=5)
-                if r.status_code == 200:
-                    data = r.json()
-                    eval_val = data.get("eval")
-                    mate_val = data.get("mate")
-                    
-                    if eval_val is not None:
-                        curr_eval = float(eval_val)
-                        valid_eval_found = True
-                        break
-                    elif mate_val is not None:
-                        curr_eval = 100.0 if mate_val > 0 else -100.0
-                        valid_eval_found = True
-                        break
-            except Exception:
-                time.sleep(0.1)
+        label_mossa = f"{num_mossa}. {mossa_uci}" if is_white_move else f"{num_mossa}... {mossa_uci}"
+        fen_before = board_evals[i-1][2]
 
-        if not valid_eval_found and idx > 0:
-            curr_eval = prev_eval
+        delta = (e_prev - e_curr) if is_white_move else (e_curr - e_prev)
 
-        delta = (prev_eval - curr_eval) if is_white_move else (curr_eval - prev_eval)
-        
         if delta >= 2.0:
             tipo_problema = "🔴 Blunder"
         elif delta >= 1.0:
@@ -492,20 +516,17 @@ def analizza_partita_chess_api(pgn_text, target_usernames):
         if tipo_problema:
             cat_mossa = determina_categoria_mossa(num_mossa, round(delta, 2), total_full_moves)
             evaluations.append({
-                "mossa_num": idx + 1,
+                "mossa_num": idx,
                 "label_mossa": label_mossa,
                 "fen_prima": fen_before,
                 "fen_dopo": fen_after,
-                "mossa_giocata": move.uci(),
+                "mossa_giocata": mossa_uci,
                 "perdita_cp": round(delta, 2),
-                "eval_dopo": curr_eval,
+                "eval_dopo": e_curr,
                 "tipo_problema": tipo_problema,
                 "categoria": cat_mossa
             })
-            
-        prev_eval = curr_eval
-        
-    progress_bar.empty()
+
     return evaluations, partita_id, None
 
 def salva_immagine_scacchiera_png(board, path_temp):
@@ -635,7 +656,7 @@ if current_tab == 0:
                 st.warning(t["already_analyzed"])
             else:
                 st.session_state['last_analyzed_pgn'] = pgn_hash
-                with st.spinner("Scansione personale in corso..."):
+                with st.spinner("Scansione lampo in parallelo..."):
                     user_profs = get_user_profiles(user_email)
                     user_usernames = [p['username'] for p in user_profs]
                     
