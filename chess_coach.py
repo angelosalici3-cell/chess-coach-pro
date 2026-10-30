@@ -61,38 +61,42 @@ st.components.v1.html("""
     </script>
 """, height=0)
 
-# --- STILE CSS DINAMICO (DARK / LIGHT MODE) ---
+# --- STILE CSS DINAMICO OTTIMIZZATO PER MOBILE E PC (DARK & LIGHT) ---
 def get_dynamic_css(theme):
     if theme == 'Dark':
         return """
         <style>
             .stApp { background: linear-gradient(135deg, #0e1117 0%, #161b22 100%); color: #f0f6fc; }
-            h1, h2, h3, p, span, label { color: #f0f6fc !important; }
+            h1, h2, h3, p, span, label, div { color: #f0f6fc; }
             .brand-title { background: linear-gradient(90deg, #FFD700, #FFA500); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 2.2rem; font-weight: 900; text-align: center; }
             .brand-sub { text-align: center; color: #8b949e !important; font-size: 0.95rem; margin-bottom: 1.5rem; }
-            div[data-testid="stExpander"] { background: #161b22; border: 1px solid #30363d; border-radius: 12px; }
+            div[data-testid="stExpander"] { background: #161b22 !important; border: 1px solid #30363d !important; border-radius: 12px !important; color: #f0f6fc !important; }
+            div[data-testid="stExpander"] summary p { color: #f0f6fc !important; font-weight: bold; }
             .tier-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-weight: 700; font-size: 0.85rem; text-transform: uppercase; }
             .badge-free { background: #21262d; color: #8b949e; border: 1px solid #30363d; }
             .badge-pro { background: rgba(255, 215, 0, 0.15); color: #FFD700; border: 1px solid #FFD700; }
             .badge-diamond { background: rgba(0, 210, 255, 0.15); color: #00d2ff; border: 1px solid #00d2ff; }
             .category-tag { background: rgba(255, 215, 0, 0.1); color: #FFD700; padding: 2px 8px; border-radius: 6px; font-weight: 600; font-size: 0.8rem; }
             button[kind="primary"] { border-radius: 10px !important; background: linear-gradient(90deg, #FFD700 0%, #FFA500 100%) !important; color: #0e1117 !important; font-weight: 800 !important; border: none !important; }
+            input, textarea { color: #f0f6fc !important; background-color: #0d1117 !important; border: 1px solid #30363d !important; }
         </style>
         """
     else:
         return """
         <style>
             .stApp { background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); color: #1f2428; }
-            h1, h2, h3, p, span, label { color: #1f2428 !important; }
+            h1, h2, h3, p, span, label, div { color: #1f2428; }
             .brand-title { background: linear-gradient(90deg, #d4af37, #b8860b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 2.2rem; font-weight: 900; text-align: center; }
             .brand-sub { text-align: center; color: #57606a !important; font-size: 0.95rem; margin-bottom: 1.5rem; }
-            div[data-testid="stExpander"] { background: #ffffff; border: 1px solid #d0d7de; border-radius: 12px; color: #1f2428; }
+            div[data-testid="stExpander"] { background: #ffffff !important; border: 1px solid #d0d7de !important; border-radius: 12px !important; color: #1f2428 !important; }
+            div[data-testid="stExpander"] summary p { color: #1f2428 !important; font-weight: bold; }
             .tier-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-weight: 700; font-size: 0.85rem; text-transform: uppercase; }
             .badge-free { background: #eaeef2; color: #57606a; border: 1px solid #d0d7de; }
             .badge-pro { background: rgba(212, 175, 55, 0.15); color: #b8860b; border: 1px solid #d4af37; }
             .badge-diamond { background: rgba(0, 120, 215, 0.15); color: #005fb8; border: 1px solid #0078d7; }
             .category-tag { background: rgba(212, 175, 55, 0.15); color: #b8860b; padding: 2px 8px; border-radius: 6px; font-weight: 600; font-size: 0.8rem; }
             button[kind="primary"] { border-radius: 10px !important; background: linear-gradient(90deg, #d4af37 0%, #b8860b 100%) !important; color: #ffffff !important; font-weight: 800 !important; border: none !important; }
+            input, textarea { color: #1f2428 !important; background-color: #ffffff !important; border: 1px solid #d0d7de !important; }
         </style>
         """
 
@@ -242,7 +246,7 @@ def salva_errore_db(user_email, partita_id, categoria, mossa, spiegazione):
             data_ora = datetime.datetime.now().strftime("%Y-%m-%d")
             supabase.table("errori_utenti").insert({
                 "user_email": user_email,
-                "partita_id": partita_id,
+                "partita_id": partita_id if partita_id else "Partita_Sconosciuta",
                 "data": data_ora,
                 "categoria_errore": categoria,
                 "mossa_critica": mossa,
@@ -388,7 +392,6 @@ def determina_categoria_mossa(num_mossa, delta_cp, total_moves):
         return "Posizionale"
 
 def fetch_fen_evaluation(fen):
-    """Funzione ausiliaria eseguita in parallelo per valutare un singolo FEN"""
     headers_req = {"User-Agent": "ChessCoachPro/1.0", "Content-Type": "application/json"}
     try:
         r = requests.post("https://chess-api.com/v1", json={"fen": fen, "depth": 10}, headers=headers_req, timeout=4)
@@ -441,11 +444,9 @@ def analizza_partita_chess_api(pgn_text, target_usernames):
     total_ply_count = len(main_moves)
     total_full_moves = (total_ply_count + 1) // 2
     
-    # 1. Raccogliamo tutte le posizioni (FEN) da valutare lungo la partita
     fens_to_evaluate = []
     board_steps = []
     
-    # Posizione iniziale (ply 0)
     fens_to_evaluate.append(board.fen())
     board_steps.append((0, None, board.fen(), "", 0, False))
 
@@ -458,10 +459,7 @@ def analizza_partita_chess_api(pgn_text, target_usernames):
         fens_to_evaluate.append(fen_after)
         board_steps.append((idx + 1, move, fen_after, move.uci(), num_mossa, is_white_move))
 
-    # 2. CHIAMATE PARALLELE IN BLOCCO (Richiede ~1-2 secondi totali anziché 30!)
-    st.info("⚡ Analisi lampo in parallelo con Stockfish (Depth 10)...")
     evaluations_map = {}
-    
     with ThreadPoolExecutor(max_workers=10) as executor:
         future_to_fen = {executor.submit(fetch_fen_evaluation, fen): fen for fen in set(fens_to_evaluate)}
         for future in as_completed(future_to_fen):
@@ -473,11 +471,9 @@ def analizza_partita_chess_api(pgn_text, target_usernames):
             except Exception:
                 pass
 
-    # 3. ELABORAZIONE LOCALE ISTANNEA DEI DELTA E DEGLI ERRORI
     evaluations = []
     prev_eval = 0.0
 
-    # Ricostruiamo la sequenza passo dopo passo usando la mappa valutata
     board_evals = []
     for step in board_steps:
         idx, move, fen, mossa_uci, num_mossa, is_white_move = step
@@ -485,15 +481,11 @@ def analizza_partita_chess_api(pgn_text, target_usernames):
         board_evals.append((idx, move, fen, mossa_uci, num_mossa, is_white_move, curr_eval))
         prev_eval = curr_eval
 
-    # Calcolo imprecisioni filtrando solo per l'utente
     for i in range(1, len(board_evals)):
         idx, move, fen_after, mossa_uci, num_mossa, is_white_move, curr_eval = board_evals[i]
-        prev_eval = board_evals[i-1][2] # ripeschiamo eval precedente
-        # recuperiamo dal dizionario o usiamo il valore precedente
         e_prev = evaluations_map.get(board_evals[i-1][2], 0.0)
         e_curr = curr_eval
 
-        # Filtro utente
         if is_white_move and not user_is_white:
             continue
         if not is_white_move and not user_is_black:
