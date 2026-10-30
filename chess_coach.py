@@ -20,7 +20,7 @@ MASTER_GEMINI_KEY = st.secrets.get("GEMINI_API_KEY", "")
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", "")
 SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "")
 
-GEMINI_MODEL_NAME = "gemini-3.8-flash"
+GEMINI_MODEL_NAME = "gemini-2.5-flash"
 
 @st.cache_resource
 def init_supabase() -> Client:
@@ -440,7 +440,6 @@ def analizza_partita_chess_api(pgn_text, target_usernames):
     for idx, move in enumerate(main_moves):
         fen_before = board.fen()
         
-        # Valutazione posizione prima della mossa
         eval_before = prev_eval
         try:
             r = session.post("https://chess-api.com/v1", json={"fen": fen_before, "depth": 10}, timeout=4)
@@ -461,7 +460,6 @@ def analizza_partita_chess_api(pgn_text, target_usernames):
         
         progress_bar.progress((idx + 1) / total_ply_count, text=f"Analisi mossa {num_mossa} di {total_full_moves}...")
 
-        # Valutazione posizione dopo la mossa
         eval_after = eval_before
         try:
             r = session.post("https://chess-api.com/v1", json={"fen": fen_after, "depth": 10}, timeout=4)
@@ -474,7 +472,6 @@ def analizza_partita_chess_api(pgn_text, target_usernames):
         except Exception:
             pass
 
-        # Verifica se è una mossa dell'utente da analizzare
         is_user_move = (is_white_move and user_is_white) or (not is_white_move and user_is_black)
 
         if is_user_move:
@@ -505,7 +502,7 @@ def analizza_partita_chess_api(pgn_text, target_usernames):
                 })
 
         prev_eval = eval_after
-        time.sleep(0.03)  # Pausa minima e sicura per evitare blocchi IP sull'API
+        time.sleep(0.03)
 
     progress_bar.empty()
     return evaluations, partita_id, None
@@ -697,23 +694,37 @@ if current_tab == 0:
                 with st.expander(f"{err['tipo_problema']} su `{err['label_mossa']}` — Categoria: [{cat_label}] (Perdita: -{err['perdita_cp']} CP)"):
                     btn_key = f"btn_lesson_{idx}"
                     if st.button(f"{t['gm_lesson_btn']} {err['label_mossa']}", key=btn_key, type="primary"):
-                        if not MASTER_GEMINI_KEY:
-                            st.error("Chiave Master Gemini non configurata.")
+                        if not MASTER_GEMINI_KEY or "INSERISCI" in MASTER_GEMINI_KEY:
+                            st.error("⚠️ Chiave GEMINI_API_KEY non configurata nei Secrets!")
                         else:
-                            with st.spinner("Analisi GM in generazione..."):
+                            with st.spinner("🎓 Il Grandemaster AI sta analizzando la posizione..."):
                                 try:
-                                    genai.configure(api_key=MASTER_GEMINI_KEY)
-                                    generation_config = {"max_output_tokens": 150, "temperature": 0.3}
-                                    model_gm = genai.GenerativeModel(GEMINI_MODEL_NAME, generation_config=generation_config)
                                     prompt_lesson = f"""
-                                    Sei un GM. FEN: {err['fen_prima']} | Mossa errata: {err['mossa_giocata']}.
+                                    Sei un Grandemaster di scacchi.
+                                    Posizione FEN prima della mossa: {err['fen_prima']}
+                                    Mossa errata giocata: {err['mossa_giocata']}
                                     {t['prompt_lang']}
-                                    In max 30 parole spieghi: 1. L'errore. 2. La mossa migliore. 3. Regola d'oro.
+                                    Spiega in massimo 35 parole:
+                                    1. Per quale motivo la mossa giocata è un errore.
+                                    2. Qual era l'idea migliore da seguire.
+                                    3. Una regola/principio pratico da ricordare.
                                     """
-                                    resp = model_gm.generate_content(prompt_lesson)
-                                    st.session_state[f"lesson_{idx}"] = resp.text
+                                    try:
+                                        from google import genai
+                                        client = genai.Client(api_key=MASTER_GEMINI_KEY)
+                                        response = client.models.generate_content(
+                                            model=GEMINI_MODEL_NAME,
+                                            contents=prompt_lesson
+                                        )
+                                        st.session_state[f"lesson_{idx}"] = response.text
+                                    except Exception:
+                                        genai.configure(api_key=MASTER_GEMINI_KEY)
+                                        model_gm = genai.GenerativeModel(GEMINI_MODEL_NAME)
+                                        resp = model_gm.generate_content(prompt_lesson)
+                                        st.session_state[f"lesson_{idx}"] = resp.text
                                 except Exception as e:
-                                    st.error(f"Errore AI: {e}")
+                                    st.error(f"❌ Errore durante la generazione dell'analisi: {e}")
+
                     if f"lesson_{idx}" in st.session_state:
                         st.info(st.session_state[f"lesson_{idx}"])
         else:
