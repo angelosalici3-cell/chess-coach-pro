@@ -11,7 +11,6 @@ import os
 import tempfile
 import time
 import requests
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from fpdf import FPDF
 from PIL import Image
 from supabase import create_client, Client
@@ -121,7 +120,7 @@ TEXTS = {
         "login_btn": "Accedi alla Piattaforma",
         "register_btn": "Crea Account",
         "logout_btn": "🚪 Disconnetti",
-        "analyze_btn": "🔍 Avvia Analisi Lampo",
+        "analyze_btn": "🔍 Avvia Analisi Affidabile",
         "critique_found": "criticità identificate sulle tue mosse!",
         "no_errors": "Partita eccellente! Nessun errore grave rilevato sulle tue mosse.",
         "gm_lesson_btn": "🎓 Spiegazione GM AI",
@@ -149,7 +148,7 @@ TEXTS = {
         "login_btn": "Login to Platform",
         "register_btn": "Create Account",
         "logout_btn": "🚪 Logout",
-        "analyze_btn": "🔍 Start Lightning Analysis",
+        "analyze_btn": "🔍 Start Reliable Analysis",
         "critique_found": "critical issues identified on your moves!",
         "no_errors": "Great game! No major blunders found on your moves.",
         "gm_lesson_btn": "🎓 Quick GM Insight",
@@ -177,7 +176,7 @@ TEXTS = {
         "login_btn": "Iniciar Sesión",
         "register_btn": "Crear Cuenta",
         "logout_btn": "🚪 Cerrar Sesión",
-        "analyze_btn": "🔍 Iniciar Análisis Relámpago",
+        "analyze_btn": "🔍 Iniciar Análisis Fiable",
         "critique_found": "¡críticas identificadas en tus jugadas!",
         "no_errors": "¡Excelente partida! Sin errores graves en tus jugadas.",
         "gm_lesson_btn": "🎓 Análisis Rápido GM",
@@ -379,7 +378,7 @@ if not st.session_state.get('profile_setup_done', False):
     st.stop()
 
 # ==========================================
-# 3. ENGINE STOCKFISH ULTRA-VELOCE (PARALLELO + PROFONDITÀ 10)
+# 3. ENGINE STOCKFISH ROBUSTO E AFFIDABILE (SEQUENZIALE SICURO)
 # ==========================================
 def determina_categoria_mossa(num_mossa, delta_cp, total_moves):
     if num_mossa <= 12:
@@ -390,22 +389,6 @@ def determina_categoria_mossa(num_mossa, delta_cp, total_moves):
         return "Tattica"
     else:
         return "Posizionale"
-
-def fetch_fen_evaluation(fen):
-    headers_req = {"User-Agent": "ChessCoachPro/1.0", "Content-Type": "application/json"}
-    try:
-        r = requests.post("https://chess-api.com/v1", json={"fen": fen, "depth": 10}, headers=headers_req, timeout=4)
-        if r.status_code == 200:
-            data = r.json()
-            eval_val = data.get("eval")
-            mate_val = data.get("mate")
-            if eval_val is not None:
-                return float(eval_val)
-            elif mate_val is not None:
-                return 100.0 if mate_val > 0 else -100.0
-    except Exception:
-        pass
-    return None
 
 def analizza_partita_chess_api(pgn_text, target_usernames):
     game = chess.pgn.read_game(io.StringIO(pgn_text))
@@ -440,85 +423,91 @@ def analizza_partita_chess_api(pgn_text, target_usernames):
     partita_id = f"{headers.get('White', 'Unknown')}_vs_{headers.get('Black', 'Unknown')}_{headers.get('Date', 'Live')}"
 
     board = game.board()
+    evaluations = []
+    headers_req = {"User-Agent": "ChessCoachPro/1.0", "Content-Type": "application/json"}
+    
     main_moves = list(game.mainline_moves())
     total_ply_count = len(main_moves)
     total_full_moves = (total_ply_count + 1) // 2
     
-    fens_to_evaluate = []
-    board_steps = []
+    progress_bar = st.progress(0, text="Analisi Stockfish in corso...")
     
-    fens_to_evaluate.append(board.fen())
-    board_steps.append((0, None, board.fen(), "", 0, False))
-
+    session = requests.Session()
+    session.headers.update(headers_req)
+    
+    prev_eval = 0.0
+    
     for idx, move in enumerate(main_moves):
+        fen_before = board.fen()
+        
+        # Valutazione posizione prima della mossa
+        eval_before = prev_eval
+        try:
+            r = session.post("https://chess-api.com/v1", json={"fen": fen_before, "depth": 10}, timeout=4)
+            if r.status_code == 200:
+                data = r.json()
+                if data.get("eval") is not None:
+                    eval_before = float(data.get("eval"))
+                elif data.get("mate") is not None:
+                    eval_before = 100.0 if data.get("mate") > 0 else -100.0
+        except Exception:
+            pass
+
         board.push(move)
         fen_after = board.fen()
+        
         num_mossa = (idx // 2) + 1
         is_white_move = (idx % 2 == 0)
         
-        fens_to_evaluate.append(fen_after)
-        board_steps.append((idx + 1, move, fen_after, move.uci(), num_mossa, is_white_move))
+        progress_bar.progress((idx + 1) / total_ply_count, text=f"Analisi mossa {num_mossa} di {total_full_moves}...")
 
-    evaluations_map = {}
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        future_to_fen = {executor.submit(fetch_fen_evaluation, fen): fen for fen in set(fens_to_evaluate)}
-        for future in as_completed(future_to_fen):
-            fen = future_to_fen[future]
-            try:
-                res_eval = future.result()
-                if res_eval is not None:
-                    evaluations_map[fen] = res_eval
-            except Exception:
-                pass
+        # Valutazione posizione dopo la mossa
+        eval_after = eval_before
+        try:
+            r = session.post("https://chess-api.com/v1", json={"fen": fen_after, "depth": 10}, timeout=4)
+            if r.status_code == 200:
+                data = r.json()
+                if data.get("eval") is not None:
+                    eval_after = float(data.get("eval"))
+                elif data.get("mate") is not None:
+                    eval_after = 100.0 if data.get("mate") > 0 else -100.0
+        except Exception:
+            pass
 
-    evaluations = []
-    prev_eval = 0.0
+        # Verifica se è una mossa dell'utente da analizzare
+        is_user_move = (is_white_move and user_is_white) or (not is_white_move and user_is_black)
 
-    board_evals = []
-    for step in board_steps:
-        idx, move, fen, mossa_uci, num_mossa, is_white_move = step
-        curr_eval = evaluations_map.get(fen, prev_eval)
-        board_evals.append((idx, move, fen, mossa_uci, num_mossa, is_white_move, curr_eval))
-        prev_eval = curr_eval
+        if is_user_move:
+            delta = (eval_before - eval_after) if is_white_move else (eval_after - eval_before)
+            
+            if delta >= 2.0:
+                tipo_problema = "🔴 Blunder"
+            elif delta >= 1.0:
+                tipo_problema = "🟠 Mistake"
+            elif delta >= 0.5:
+                tipo_problema = "🟡 Inaccuracy"
+            else:
+                tipo_problema = None
 
-    for i in range(1, len(board_evals)):
-        idx, move, fen_after, mossa_uci, num_mossa, is_white_move, curr_eval = board_evals[i]
-        e_prev = evaluations_map.get(board_evals[i-1][2], 0.0)
-        e_curr = curr_eval
+            if tipo_problema:
+                label_mossa = f"{num_mossa}. {move.uci()}" if is_white_move else f"{num_mossa}... {move.uci()}"
+                cat_mossa = determina_categoria_mossa(num_mossa, round(delta, 2), total_full_moves)
+                evaluations.append({
+                    "mossa_num": idx + 1,
+                    "label_mossa": label_mossa,
+                    "fen_prima": fen_before,
+                    "fen_dopo": fen_after,
+                    "mossa_giocata": move.uci(),
+                    "perdita_cp": round(delta, 2),
+                    "eval_dopo": eval_after,
+                    "tipo_problema": tipo_problema,
+                    "categoria": cat_mossa
+                })
 
-        if is_white_move and not user_is_white:
-            continue
-        if not is_white_move and not user_is_black:
-            continue
+        prev_eval = eval_after
+        time.sleep(0.03)  # Pausa minima e sicura per evitare blocchi IP sull'API
 
-        label_mossa = f"{num_mossa}. {mossa_uci}" if is_white_move else f"{num_mossa}... {mossa_uci}"
-        fen_before = board_evals[i-1][2]
-
-        delta = (e_prev - e_curr) if is_white_move else (e_curr - e_prev)
-
-        if delta >= 2.0:
-            tipo_problema = "🔴 Blunder"
-        elif delta >= 1.0:
-            tipo_problema = "🟠 Mistake"
-        elif delta >= 0.5:
-            tipo_problema = "🟡 Inaccuracy"
-        else:
-            tipo_problema = None
-
-        if tipo_problema:
-            cat_mossa = determina_categoria_mossa(num_mossa, round(delta, 2), total_full_moves)
-            evaluations.append({
-                "mossa_num": idx,
-                "label_mossa": label_mossa,
-                "fen_prima": fen_before,
-                "fen_dopo": fen_after,
-                "mossa_giocata": mossa_uci,
-                "perdita_cp": round(delta, 2),
-                "eval_dopo": e_curr,
-                "tipo_problema": tipo_problema,
-                "categoria": cat_mossa
-            })
-
+    progress_bar.empty()
     return evaluations, partita_id, None
 
 def salva_immagine_scacchiera_png(board, path_temp):
@@ -648,7 +637,7 @@ if current_tab == 0:
                 st.warning(t["already_analyzed"])
             else:
                 st.session_state['last_analyzed_pgn'] = pgn_hash
-                with st.spinner("Scansione lampo in parallelo..."):
+                with st.spinner("Scansione affidabile Stockfish in corso..."):
                     user_profs = get_user_profiles(user_email)
                     user_usernames = [p['username'] for p in user_profs]
                     
