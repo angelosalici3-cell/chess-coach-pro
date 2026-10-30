@@ -56,23 +56,24 @@ st.components.v1.html("""
     <script>setInterval(function(){fetch(window.location.href);},25000);</script>
 """, height=0)
 
-# --- CSS DINAMICO PREMIUM CON MENU HAMBURGER VISIBILE ---
+# --- CSS DINAMICO PULITO (SENZA SOVRAPPOSIZIONI) ---
 def get_dynamic_css(theme):
     common_fix = """
-        #MainMenu { visibility: hidden !important; }
-        footer { visibility: hidden !important; }
-        [data-testid="stToolbar"] { visibility: hidden !important; }
-        [data-testid="stDecoration"] { visibility: hidden !important; }
-        [data-testid="stStatusWidget"] { visibility: hidden !important; }
+        #MainMenu { visibility: hidden !important; display: none !important; }
+        footer { visibility: hidden !important; display: none !important; }
+        [data-testid="stToolbar"] { visibility: hidden !important; display: none !important; }
+        [data-testid="stDecoration"] { visibility: hidden !important; display: none !important; }
+        [data-testid="stStatusWidget"] { visibility: hidden !important; display: none !important; }
+        .stDeployButton { visibility: hidden !important; display: none !important; }
 
         header[data-testid="stHeader"] {
             background: transparent !important;
             z-index: 999990 !important;
-            pointer-events: auto !important;
-            height: 3.5rem !important;
+            pointer-events: none !important;
+            height: 0px !important;
         }
 
-        /* ===== PULSANTE MENU HAMBURGER FISSO (ALTO A SINISTRA) ===== */
+        /* ===== MENU HAMBURGER ISOLATO E PERFETTAMENTE CLICCABILE ===== */
         [data-testid="collapsedControl"],
         [data-testid="stSidebarCollapsedControl"],
         button[kind="header"] {
@@ -82,12 +83,13 @@ def get_dynamic_css(theme):
             position: fixed !important;
             top: 12px !important;
             left: 12px !important;
-            z-index: 1000000 !important;
+            z-index: 9999999 !important;
+            pointer-events: auto !important;
             background: linear-gradient(135deg, #FFD700 0%, #FF8C00 100%) !important;
             color: #070b14 !important;
             border-radius: 10px !important;
-            padding: 6px 12px !important;
-            box-shadow: 0 4px 16px rgba(255, 140, 0, 0.6) !important;
+            padding: 8px 14px !important;
+            box-shadow: 0 4px 16px rgba(255, 140, 0, 0.7) !important;
             border: 2px solid #ffffff !important;
             cursor: pointer !important;
             align-items: center !important;
@@ -98,7 +100,7 @@ def get_dynamic_css(theme):
         [data-testid="stSidebarCollapsedControl"]:hover,
         button[kind="header"]:hover {
             transform: scale(1.06) !important;
-            box-shadow: 0 6px 20px rgba(255, 140, 0, 0.8) !important;
+            box-shadow: 0 6px 20px rgba(255, 140, 0, 0.9) !important;
         }
 
         [data-testid="collapsedControl"] svg,
@@ -112,7 +114,7 @@ def get_dynamic_css(theme):
         button[kind="header"]::after {
             content: "☰ Menu" !important;
             font-weight: 900 !important;
-            font-size: 13px !important;
+            font-size: 14px !important;
             color: #0a0e1a !important;
             letter-spacing: 0.5px;
             font-family: 'Outfit', sans-serif !important;
