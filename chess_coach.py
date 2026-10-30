@@ -56,7 +56,7 @@ st.components.v1.html("""
     <script>setInterval(function(){fetch(window.location.href);},25000);</script>
 """, height=0)
 
-# --- CSS DINAMICO PULITO (SENZA SOVRAPPOSIZIONI) ---
+# --- CSS DINAMICO PER IL MENU SEMPRE VISIBILE E DISTINTO ---
 def get_dynamic_css(theme):
     common_fix = """
         #MainMenu { visibility: hidden !important; display: none !important; }
@@ -67,13 +67,13 @@ def get_dynamic_css(theme):
         .stDeployButton { visibility: hidden !important; display: none !important; }
 
         header[data-testid="stHeader"] {
-            background: transparent !important;
+            background: transparent !important.
             z-index: 999990 !important;
             pointer-events: none !important;
             height: 0px !important;
         }
 
-        /* ===== MENU HAMBURGER ISOLATO E PERFETTAMENTE CLICCABILE ===== */
+        /* ===== PULSANTE MENU FISSO IN ALTO A SINISTRA (VISIBILE IN ENTRAMBI I TEMI) ===== */
         [data-testid="collapsedControl"],
         [data-testid="stSidebarCollapsedControl"],
         button[kind="header"] {
@@ -81,26 +81,26 @@ def get_dynamic_css(theme):
             visibility: visible !important;
             opacity: 1 !important;
             position: fixed !important;
-            top: 12px !important;
-            left: 12px !important;
-            z-index: 9999999 !important;
+            top: 14px !important;
+            left: 14px !important;
+            z-index: 99999999 !important;
             pointer-events: auto !important;
-            background: linear-gradient(135deg, #FFD700 0%, #FF8C00 100%) !important;
-            color: #070b14 !important;
-            border-radius: 10px !important;
-            padding: 8px 14px !important;
-            box-shadow: 0 4px 16px rgba(255, 140, 0, 0.7) !important;
+            background: linear-gradient(135deg, #FFD700 0%, #FF6B00 100%) !important;
             border: 2px solid #ffffff !important;
+            border-radius: 12px !important;
+            padding: 8px 16px !important;
+            box-shadow: 0 4px 20px rgba(255, 107, 0, 0.7) !important;
             cursor: pointer !important;
             align-items: center !important;
             justify-content: center !important;
+            transition: transform 0.2s ease, box-shadow 0.2s ease !important;
         }
 
         [data-testid="collapsedControl"]:hover,
         [data-testid="stSidebarCollapsedControl"]:hover,
         button[kind="header"]:hover {
-            transform: scale(1.06) !important;
-            box-shadow: 0 6px 20px rgba(255, 140, 0, 0.9) !important;
+            transform: scale(1.08) !important;
+            box-shadow: 0 6px 24px rgba(255, 107, 0, 0.9) !important;
         }
 
         [data-testid="collapsedControl"] svg,
@@ -112,16 +112,12 @@ def get_dynamic_css(theme):
         [data-testid="collapsedControl"]::after,
         [data-testid="stSidebarCollapsedControl"]::after,
         button[kind="header"]::after {
-            content: "☰ Menu" !important;
+            content: "☰ MENU" !important;
             font-weight: 900 !important;
             font-size: 14px !important;
-            color: #0a0e1a !important;
-            letter-spacing: 0.5px;
+            color: #070b14 !important;
+            letter-spacing: 1px;
             font-family: 'Outfit', sans-serif !important;
-        }
-
-        [data-testid="stSidebar"] [data-testid="baseButton-header"] {
-            color: #FFD700 !important;
         }
     """
 
