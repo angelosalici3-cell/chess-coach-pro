@@ -58,60 +58,47 @@ st.components.v1.html("""
 
 # --- CSS DINAMICO PREMIUM ---
 def get_dynamic_css(theme):
-    # FIX: Icona Hamburger forzata visibile in alto a sinistra, sempre cliccabile!
     common_fix = """
+        /* Nasconde elementi inutili della barra superiore di Streamlit */
         #MainMenu { visibility: hidden !important; }
         footer { visibility: hidden !important; }
-        [data-testid="stToolbar"] { visibility: hidden !important; }
+        [data-testid="stToolbar"] { visibility: visible !important; }
         [data-testid="stDecoration"] { visibility: hidden !important; }
         [data-testid="stStatusWidget"] { visibility: hidden !important; }
 
-        /* Permette i click sull'header */
+        /* Ripristina l'Header in alto a sinistra per mostrare il pulsante hamburger */
         header[data-testid="stHeader"] {
             background: transparent !important;
-            z-index: 999990 !important;
-            pointer-events: auto !important;
+            z-index: 999999 !important;
+            height: 3.5rem !important;
         }
 
-        /* ===== HAMBURGER MENU / SIDEBAR TOGGLE BOTTONE ===== */
+        /* Forzatura icona hamburger / apre sidebar */
+        button[data-testid="baseButton-header"],
         [data-testid="collapsedControl"],
-        [data-testid="stSidebarCollapsedControl"],
-        button[kind="header"] {
-            display: inline-flex !important;
+        [data-testid="stSidebarCollapsedControl"] {
+            display: flex !important;
             visibility: visible !important;
             opacity: 1 !important;
-            align-items: center !important;
-            justify-content: center !important;
+            position: fixed !important;
+            top: 12px !important;
+            left: 12px !important;
+            z-index: 1000000 !important;
             background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%) !important;
-            border-radius: 12px !important;
-            padding: 8px 12px !important;
-            margin: 10px !important;
-            box-shadow: 0 4px 16px rgba(255, 165, 0, 0.5) !important;
-            transition: transform 0.2s ease, box-shadow 0.2s ease !important;
-            z-index: 999999 !important;
-            border: 1px solid rgba(255, 255, 255, 0.3) !important;
+            border-radius: 10px !important;
+            padding: 6px !important;
+            border: none !important;
+            box-shadow: 0 4px 12px rgba(255, 165, 0, 0.4) !important;
             cursor: pointer !important;
         }
 
-        [data-testid="collapsedControl"]:hover,
-        [data-testid="stSidebarCollapsedControl"]:hover,
-        button[kind="header"]:hover {
-            transform: scale(1.08) !important;
-            box-shadow: 0 6px 22px rgba(255, 165, 0, 0.75) !important;
-        }
-
+        button[data-testid="baseButton-header"] svg,
         [data-testid="collapsedControl"] svg,
-        [data-testid="stSidebarCollapsedControl"] svg,
-        button[kind="header"] svg {
+        [data-testid="stSidebarCollapsedControl"] svg {
             fill: #0a0e1a !important;
             color: #0a0e1a !important;
-            stroke: #0a0e1a !important;
             width: 24px !important;
             height: 24px !important;
-        }
-
-        [data-testid="stSidebar"] [data-testid="baseButton-header"] {
-            color: #FFD700 !important;
         }
     """
 
