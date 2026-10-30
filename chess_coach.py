@@ -58,20 +58,62 @@ st.components.v1.html("""
 
 # --- CSS DINAMICO PREMIUM ---
 def get_dynamic_css(theme):
-    # FIX CRUCIALE: NON nascondere header (contiene il toggle sidebar).
-    # Nascondiamo solo toolbar/decoration/menu/footer.
+    # FIX: header visibile + hamburger menu ben evidente e cliccabile.
     common_fix = """
         #MainMenu { visibility: hidden !important; }
         footer { visibility: hidden !important; }
         [data-testid="stToolbar"] { visibility: hidden !important; }
         [data-testid="stDecoration"] { visibility: hidden !important; }
         [data-testid="stStatusWidget"] { visibility: hidden !important; }
+
+        /* Header trasparente ma sopra tutto per garantire il click */
         header[data-testid="stHeader"] {
             background: transparent !important;
             backdrop-filter: none !important;
+            z-index: 999990 !important;
+            pointer-events: auto !important;
         }
-        /* Rende ben visibile e cliccabile il toggle della sidebar */
-        [data-testid="collapsedControl"] { color: #FFD700 !important; }
+
+        /* ===== HAMBURGER MENU FORZATO VISIBILE ===== */
+        [data-testid="collapsedControl"],
+        [data-testid="stSidebarCollapsedControl"],
+        button[kind="header"] {
+            display: inline-flex !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            align-items: center !important;
+            justify-content: center !important;
+            background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%) !important;
+            border-radius: 10px !important;
+            padding: 8px !important;
+            margin: 8px !important;
+            width: 42px !important;
+            height: 42px !important;
+            box-shadow: 0 4px 14px rgba(255, 165, 0, 0.45) !important;
+            transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+            z-index: 999999 !important;
+            border: none !important;
+        }
+        [data-testid="collapsedControl"]:hover,
+        [data-testid="stSidebarCollapsedControl"]:hover,
+        button[kind="header"]:hover {
+            transform: scale(1.08) !important;
+            box-shadow: 0 6px 20px rgba(255, 165, 0, 0.7) !important;
+        }
+        [data-testid="collapsedControl"] svg,
+        [data-testid="stSidebarCollapsedControl"] svg,
+        button[kind="header"] svg {
+            fill: #0a0e1a !important;
+            color: #0a0e1a !important;
+            stroke: #0a0e1a !important;
+            width: 22px !important;
+            height: 22px !important;
+        }
+
+        /* Quando la sidebar è APERTA, il bottone di chiusura nella sidebar */
+        [data-testid="stSidebar"] [data-testid="baseButton-header"] {
+            color: #FFD700 !important;
+        }
     """
 
     if theme == 'Dark':
@@ -1088,7 +1130,7 @@ if current_tab == 0:
             st.markdown("<div class='info-box'>Nessun errore grave registrato sulle tue mosse in questa partita.</div>", unsafe_allow_html=True)
 
 # ==========================================
-# TAB 1: DASHBOARD
+# TAB 1: DASHBOARD (senza tabella dettagliata)
 # ==========================================
 elif current_tab == 1:
     st.markdown("<div class='section-title'>📊 La Tua Dashboard</div>", unsafe_allow_html=True)
@@ -1112,7 +1154,6 @@ elif current_tab == 1:
         st.write("")
         n_errors = len(df_filtered)
         n_games = df_filtered['partita_id'].nunique() if 'partita_id' in df_filtered else 0
-        # Precision proxy: errori per partita pesati
         avg_err_per_game = n_errors / max(n_games, 1)
         precision = max(0, min(100, int(100 - avg_err_per_game * 6)))
 
@@ -1231,10 +1272,6 @@ elif current_tab == 1:
                 st.line_chart(df_filtered.groupby('data').size(), use_container_width=True)
         else:
             st.markdown("<div class='info-box'>Dati temporali non sufficienti.</div>", unsafe_allow_html=True)
-
-        st.markdown("<div class='section-title'>🗂️ Registro Dettagliato</div>", unsafe_allow_html=True)
-        st.dataframe(df_filtered[['data', 'partita_id', 'categoria_errore', 'mossa_critica', 'spiegazione']],
-                     hide_index=True, use_container_width=True)
     else:
         st.markdown("<div class='info-box'>Nessun errore salvato nel cloud. Analizza qualche partita per popolare la tua Dashboard di crescita!</div>", unsafe_allow_html=True)
 
