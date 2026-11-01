@@ -13,6 +13,7 @@ import time
 import requests
 from fpdf import FPDF
 from PIL import Image
+import base64
 from supabase import create_client, Client
 
 try:
@@ -56,67 +57,62 @@ st.components.v1.html("""
     <script>setInterval(function(){fetch(window.location.href);},25000);</script>
 """, height=0)
 
-# --- CSS DINAMICO PER IL MENU SEMPRE VISIBILE E DISTINTO ---
+# --- CSS DINAMICO OTTIMIZZATO PER STREAMLIT CLOUD ---
 def get_dynamic_css(theme):
     common_fix = """
-        #MainMenu { visibility: hidden !important; display: none !important; }
-        footer { visibility: hidden !important; display: none !important; }
-        [data-testid="stToolbar"] { visibility: hidden !important; display: none !important; }
-        [data-testid="stDecoration"] { visibility: hidden !important; display: none !important; }
-        [data-testid="stStatusWidget"] { visibility: hidden !important; display: none !important; }
-        .stDeployButton { visibility: hidden !important; display: none !important; }
+        #MainMenu { visibility: hidden !important; }
+        footer { visibility: hidden !important; }
+        [data-testid="stToolbar"] { visibility: hidden !important; }
+        [data-testid="stDecoration"] { visibility: hidden !important; }
+        [data-testid="stStatusWidget"] { visibility: hidden !important; }
+        .stDeployButton { visibility: hidden !important; }
 
+        /* Mantiene l'header trasparente e cliccabile per non bloccare il menu hamburger */
         header[data-testid="stHeader"] {
-            background: transparent !important.
+            background: transparent !important;
             z-index: 999990 !important;
-            pointer-events: none !important;
-            height: 0px !important;
+            pointer-events: auto !important;
         }
 
-        /* ===== PULSANTE MENU FISSO IN ALTO A SINISTRA (VISIBILE IN ENTRAMBI I TEMI) ===== */
+        /* ===== PULSANTE MENU HAMBURGER PERFETTAMENTE VISIBILE E CLICCABILE ===== */
         [data-testid="collapsedControl"],
-        [data-testid="stSidebarCollapsedControl"],
-        button[kind="header"] {
+        [data-testid="stSidebarCollapsedControl"] {
             display: flex !important;
             visibility: visible !important;
             opacity: 1 !important;
             position: fixed !important;
-            top: 14px !important;
-            left: 14px !important;
+            top: 10px !important;
+            left: 10px !important;
             z-index: 99999999 !important;
             pointer-events: auto !important;
-            background: linear-gradient(135deg, #FFD700 0%, #FF6B00 100%) !important;
+            background: linear-gradient(135deg, #FFD700 0%, #FF8C00 100%) !important;
             border: 2px solid #ffffff !important;
-            border-radius: 12px !important;
-            padding: 8px 16px !important;
-            box-shadow: 0 4px 20px rgba(255, 107, 0, 0.7) !important;
+            border-radius: 10px !important;
+            padding: 6px 12px !important;
+            box-shadow: 0 4px 16px rgba(255, 140, 0, 0.7) !important;
             cursor: pointer !important;
             align-items: center !important;
             justify-content: center !important;
-            transition: transform 0.2s ease, box-shadow 0.2s ease !important;
         }
 
         [data-testid="collapsedControl"]:hover,
-        [data-testid="stSidebarCollapsedControl"]:hover,
-        button[kind="header"]:hover {
-            transform: scale(1.08) !important;
-            box-shadow: 0 6px 24px rgba(255, 107, 0, 0.9) !important;
+        [data-testid="stSidebarCollapsedControl"]:hover {
+            transform: scale(1.05) !important;
+            box-shadow: 0 6px 20px rgba(255, 140, 0, 0.9) !important;
         }
 
         [data-testid="collapsedControl"] svg,
-        [data-testid="stSidebarCollapsedControl"] svg,
-        button[kind="header"] svg {
+        [data-testid="stSidebarCollapsedControl"] svg {
             display: none !important;
         }
 
         [data-testid="collapsedControl"]::after,
-        [data-testid="stSidebarCollapsedControl"]::after,
-        button[kind="header"]::after {
+        [data-testid="stSidebarCollapsedControl"]::after {
             content: "☰ MENU" !important;
             font-weight: 900 !important;
-            font-size: 14px !important;
+            font-size: 13px !important;
             color: #070b14 !important;
-            letter-spacing: 1px;
+            letter-spacing: 0.8px;
             font-family: 'Outfit', sans-serif !important;
         }
     """
