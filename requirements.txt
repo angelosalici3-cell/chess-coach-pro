@@ -8,3 +8,4 @@ cairosvg
 berserk
 supabase
 plotly
+stripe
