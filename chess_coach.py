@@ -1,4 +1,8 @@
 import streamlit as st
+
+# --- 1. CONFIGURAZIONE PAGINA (DEVE ESSERE IL PRIMO COMANDO STREAMLIT) ---
+st.set_page_config(page_title="Chess Coach Pro", layout="wide", page_icon="⚡", initial_sidebar_state="expanded")
+
 import google.generativeai as genai
 import chess
 import chess.svg
@@ -22,7 +26,7 @@ try:
 except ImportError:
     HAS_PLOTLY = False
 
-# --- CONFIGURAZIONE CENTRALIZZATA ---
+# --- 2. CONFIGURAZIONE CENTRALIZZATA E DATABASE ---
 MASTER_GEMINI_KEY = st.secrets.get("GEMINI_API_KEY", "")
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", "")
 SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "")
@@ -40,9 +44,7 @@ def init_supabase() -> Client:
 
 supabase = init_supabase()
 
-st.set_page_config(page_title="Chess Coach Pro", layout="wide", page_icon="⚡", initial_sidebar_state="expanded")
-
-# --- GESTIONE STATO ---
+# --- 3. GESTIONE STATO ---
 for key, default in {
     'user': None, 'lang': 'it', 'profile_setup_done': False,
     'nav_selection': "📖 Analizza", 'theme_mode': 'Dark',
@@ -52,13 +54,14 @@ for key, default in {
     if key not in st.session_state:
         st.session_state[key] = default
 
-# --- KEEP-ALIVE MOBILE ---
+# --- 4. KEEP-ALIVE MOBILE ---
 st.components.v1.html("""
     <script>setInterval(function(){fetch(window.location.href);},25000);</script>
 """, height=0)
 
-# --- CSS DINAMICO OTTIMIZZATO PER STREAMLIT CLOUD ---
+# --- 5. CSS DINAMICO OTTIMIZZATO ---
 def get_dynamic_css(theme):
+    # CSS COMUNE CORRETTO PER IL MENU HAMBURGER
     common_fix = """
         #MainMenu { visibility: hidden !important; }
         footer { visibility: hidden !important; }
@@ -67,32 +70,29 @@ def get_dynamic_css(theme):
         [data-testid="stStatusWidget"] { visibility: hidden !important; }
         .stDeployButton { visibility: hidden !important; }
 
-        /* Mantiene l'header trasparente e cliccabile per non bloccare il menu hamburger */
+        /* Mantiene l'header trasparente */
         header[data-testid="stHeader"] {
             background: transparent !important;
-            z-index: 999990 !important;
-            pointer-events: auto !important;
+            z-index: 999 !important;
         }
 
-        /* ===== PULSANTE MENU HAMBURGER PERFETTAMENTE VISIBILE E CLICCABILE ===== */
+        /* PULSANTE MENU HAMBURGER CORRETTO E CLICCABILE */
         [data-testid="collapsedControl"],
         [data-testid="stSidebarCollapsedControl"] {
             display: flex !important;
             visibility: visible !important;
             opacity: 1 !important;
-            position: fixed !important;
-            top: 10px !important;
-            left: 10px !important;
-            z-index: 99999999 !important;
+            z-index: 9999999 !important;
             pointer-events: auto !important;
             background: linear-gradient(135deg, #FFD700 0%, #FF8C00 100%) !important;
             border: 2px solid #ffffff !important;
             border-radius: 10px !important;
-            padding: 6px 12px !important;
+            padding: 5px 12px !important;
             box-shadow: 0 4px 16px rgba(255, 140, 0, 0.7) !important;
             cursor: pointer !important;
-            align-items: center !important;
-            justify-content: center !important;
+            margin: 10px !important;
+            min-width: 85px !important; 
+            min-height: 35px !important; 
         }
 
         [data-testid="collapsedControl"]:hover,
@@ -110,10 +110,13 @@ def get_dynamic_css(theme):
         [data-testid="stSidebarCollapsedControl"]::after {
             content: "☰ MENU" !important;
             font-weight: 900 !important;
-            font-size: 13px !important;
+            font-size: 14px !important;
             color: #070b14 !important;
             letter-spacing: 0.8px;
             font-family: 'Outfit', sans-serif !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
         }
     """
 
@@ -996,6 +999,13 @@ with st.sidebar:
             except Exception: pass
         st.session_state['user'] = None
         st.session_state['profile_setup_done'] = False
+        st.rerun()
+
+# --- FALLBACK MENU DI NAVIGAZIONE (Solo se il menu laterale è chiuso) ---
+with st.expander("🧭 Menu di Navigazione Rapida (Clicca qui se il menu laterale non si apre)", expanded=False):
+    fallback_nav = st.radio("Vai a:", menu_options, key="fallback_nav", horizontal=False)
+    if fallback_nav != st.session_state['nav_selection']:
+        st.session_state['nav_selection'] = fallback_nav
         st.rerun()
 
 # --- HEADER PRINCIPALE ---
