@@ -27,7 +27,7 @@ MASTER_GEMINI_KEY = st.secrets.get("GEMINI_API_KEY", "")
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", "")
 SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "")
 
-GEMINI_MODEL_NAME = "gemini-3.8-flash"
+GEMINI_MODEL_NAME = "gemini-2.5-flash"
 
 @st.cache_resource
 def init_supabase() -> Client:
@@ -42,7 +42,7 @@ supabase = init_supabase()
 
 st.set_page_config(page_title="Chess Coach Pro", layout="wide", page_icon="⚡", initial_sidebar_state="expanded")
 
-# --- GESTIONE STATO ---
+# --- GESTIONE STATO INIZIALE ---
 for key, default in {
     'user': None, 'lang': 'it', 'profile_setup_done': False,
     'nav_selection': "📖 Analizza", 'theme_mode': 'Dark',
@@ -892,6 +892,468 @@ def render_eval_graph(eval_history, errors):
     st.plotly_chart(fig, use_container_width=True)
 
 # ==========================================
+# TEXTS & LOCALIZATION
+# ==========================================
+TEXTS = {
+    "it": {
+        "title": "Chess Coach Pro", "subtitle": "Coaching Scacchistico AI ad Altissima Efficienza",
+        "tab1": "📖 Analizza", "tab2": "📊 Dashboard", "tab3": "📚 Libri", "tab4": "📝 Diario", "tab5": "🌐 Importa",
+        "tab6": "💎 Piani Abbonamento", "tab7": "📞 Contatti & Donazioni",
+        "settings": "Account & Tema", "lang_select": "Lingua:", "theme_select": "Tema:",
+        "login_header": "🔐 Accedi", "register_header": "📝 Registrati",
+        "email_label": "Email:", "password_label": "Password:",
+        "login_btn": "Accedi", "register_btn": "Crea Account", "logout_btn": "🚪 Disconnetti",
+        "analyze_btn": "🔍 Avvia Analisi Affidabile",
+        "critique_found": "criticità identificate sulle tue mosse!",
+        "no_errors": "Partita eccellente! Nessun errore grave rilevato sulle tue mosse.",
+        "gm_lesson_btn": "🎓 Spiegazione GM AI",
+        "prompt_lang": "Rispondi in italiano.",
+        "profile_setup_title": "Configura i tuoi Profili",
+        "profile_setup_desc": "Collega i tuoi account Lichess o Chess.com per importare le tue partite al volo.",
+        "continue_btn": "🚀 Entra nell'App",
+        "already_analyzed": "⚠️ Questa partita è già stata analizzata in questa sessione per evitare duplicazioni."
+    },
+    "en": {
+        "title": "Chess Coach Pro", "subtitle": "High-Efficiency AI Chess Coaching",
+        "tab1": "📖 Analyze", "tab2": "📊 Dashboard", "tab3": "📚 Books", "tab4": "📝 Diary", "tab5": "🌐 Import",
+        "tab6": "💎 Subscription Plans", "tab7": "📞 Contacts & Donations",
+        "settings": "Account & Theme", "lang_select": "Language:", "theme_select": "Theme:",
+        "login_header": "🔐 Login", "register_header": "📝 Register",
+        "email_label": "Email:", "password_label": "Password:",
+        "login_btn": "Login", "register_btn": "Create Account", "logout_btn": "🚪 Logout",
+        "analyze_btn": "🔍 Start Reliable Analysis",
+        "critique_found": "critical issues on your moves!",
+        "no_errors": "Great game! No major blunders found on your moves.",
+        "gm_lesson_btn": "🎓 Quick GM Insight",
+        "prompt_lang": "Respond in English.",
+        "profile_setup_title": "Setup your Chess Profiles",
+        "profile_setup_desc": "Link your Lichess or Chess.com accounts to sync your games.",
+        "continue_btn": "🚀 Enter App",
+        "already_analyzed": "⚠️ This game has already been analyzed in this session."
+    },
+    "es": {
+        "title": "Chess Coach Pro", "subtitle": "Entrenamiento de Ajedrez con IA de Alta Eficiencia",
+        "tab1": "📖 Analizar", "tab2": "📊 Dashboard", "tab3": "📚 Libros", "tab4": "📝 Diario", "tab5": "🌐 Importar",
+        "tab6": "💎 Planes de Suscripción", "tab7": "📞 Contacto y Donaciones",
+        "settings": "Cuenta y Tema", "lang_select": "Idioma:", "theme_select": "Tema:",
+        "login_header": "🔐 Iniciar Sesión", "register_header": "📝 Registrarse",
+        "email_label": "Correo:", "password_label": "Contraseña:",
+        "login_btn": "Iniciar Sesión", "register_btn": "Crear Cuenta", "logout_btn": "🚪 Cerrar Sesión",
+        "analyze_btn": "🔍 Iniciar Análisis Fiable",
+        "critique_found": "¡críticas identificadas en tus jugadas!",
+        "no_errors": "¡Excelente partida! Sin errores graves en tus jugadas.",
+        "gm_lesson_btn": "🎓 Análisis Rápido GM",
+        "prompt_lang": "Responde en español.",
+        "profile_setup_title": "Configura tus Perfiles",
+        "profile_setup_desc": "Vincula tus cuentas para sincronizar tus partidas.",
+        "continue_btn": "🚀 Entrar a la App",
+        "already_analyzed": "⚠️ Esta partida ya ha sido analizada en esta sesión."
+    }
+}
+
+t = TEXTS[st.session_state['lang']]
+
+# --- DATABASE HELPERS ---
+def get_user_tier(email):
+    if supabase:
+        try:
+            res = supabase.table("config_utenti").select("tier").eq("user_email", email).execute()
+            if res.data and res.data[0].get("tier"):
+                return res.data[0].get("tier")
+        except Exception:
+            pass
+    return "Free"
+
+def get_user_profiles(email):
+    if supabase:
+        try:
+            res = supabase.table("profili_scacchi").select("*").eq("user_email", email).execute()
+            if res.data:
+                return res.data
+        except Exception:
+            pass
+    return []
+
+def add_user_profile(email, piattaforma, username):
+    tier = get_user_tier(email)
+    limit = 1 if tier == "Free" else (3 if tier == "Pro" else 5)
+    current_profiles = get_user_profiles(email)
+    if len(current_profiles) >= limit:
+        return False, f"Limite raggiunto per il piano {tier} ({limit} profil{'io' if limit==1 else 'i'})."
+    if supabase:
+        try:
+            supabase.table("profili_scacchi").insert({
+                "user_email": email, "piattaforma": piattaforma, "username": username.strip()
+            }).execute()
+            return True, "Profilo aggiunto!"
+        except Exception as e:
+            return False, f"Errore DB: {e}"
+    return False, "Supabase non connesso."
+
+def delete_user_profile(profile_id):
+    if supabase:
+        try:
+            supabase.table("profili_scacchi").delete().eq("id", profile_id).execute()
+            return True
+        except Exception:
+            pass
+    return False
+
+def salva_errore_db(user_email, partita_id, categoria, mossa, spiegazione):
+    if supabase:
+        try:
+            data_ora = datetime.datetime.now().strftime("%Y-%m-%d")
+            supabase.table("errori_utenti").insert({
+                "user_email": user_email,
+                "partita_id": partita_id if partita_id else "Partita_Sconosciuta",
+                "data": data_ora, "categoria_errore": categoria,
+                "mossa_critica": mossa, "spiegazione": spiegazione
+            }).execute()
+        except Exception:
+            pass
+
+def carica_errori_db(user_email):
+    if supabase:
+        try:
+            res = supabase.table("errori_utenti").select("*").eq("user_email", user_email).execute()
+            if res.data:
+                return pd.DataFrame(res.data)
+        except Exception:
+            pass
+    return pd.DataFrame(columns=["data", "partita_id", "categoria_errore", "mossa_critica", "spiegazione"])
+
+def tier_badge_html(tier):
+    cls = "badge-free" if tier == "Free" else ("badge-pro" if tier == "Pro" else "badge-diamond")
+    return f"<span class='tier-badge {cls}'>{tier}</span>"
+
+# ==========================================
+# LOGIN
+# ==========================================
+if not st.session_state['user']:
+    col_l1, col_l2, col_l3 = st.columns([1, 1.4, 1])
+    with col_l2:
+        st.markdown(f"""
+        <div class="hero" style="padding-top: 2.5rem;">
+            <span class="hero-logo">♟️</span>
+            <div class="brand-title">{t['title']}</div>
+            <p class="brand-sub">{t['subtitle']}</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        scelta_lingua_benvenuto = st.selectbox(
+            t["lang_select"], options=["Italiano", "English", "Español"],
+            index=0 if st.session_state['lang'] == 'it' else (1 if st.session_state['lang'] == 'en' else 2),
+            key="lang_login_select"
+        )
+        lang_c = 'it' if scelta_lingua_benvenuto == "Italiano" else ('en' if scelta_lingua_benvenuto == "English" else 'es')
+        if lang_c != st.session_state['lang']:
+            st.session_state['lang'] = lang_c
+            st.rerun()
+
+        tab_log, tab_reg = st.tabs([t["login_header"], t["register_header"]])
+        supabase_configurato = supabase is not None
+
+        with tab_log:
+            email_log = st.text_input(t["email_label"], key="login_email")
+            pass_log = st.text_input(t["password_label"], type="password", key="login_pass")
+            if st.button(t["login_btn"], type="primary", use_container_width=True):
+                if supabase_configurato and email_log and pass_log:
+                    try:
+                        res = supabase.auth.sign_in_with_password({"email": email_log, "password": pass_log})
+                        st.session_state['user'] = res.user.email
+                        st.session_state['profile_setup_done'] = False
+                        st.rerun()
+                    except Exception as e:
+                        st.markdown(f"<div class='error-box'>Errore: {e}</div>", unsafe_allow_html=True)
+                else:
+                    st.session_state['user'] = email_log if email_log else "beta_tester@chess.com"
+                    st.session_state['profile_setup_done'] = False
+                    st.rerun()
+
+        with tab_reg:
+            email_reg = st.text_input(t["email_label"], key="reg_email")
+            pass_reg = st.text_input(t["password_label"], type="password", key="reg_pass")
+            if st.button(t["register_btn"], type="primary", use_container_width=True):
+                if supabase_configurato and email_reg and pass_reg:
+                    try:
+                        supabase.auth.sign_up({"email": email_reg, "password": pass_reg})
+                        st.markdown("<div class='success-box'>Registrazione completata! Effettua il login.</div>", unsafe_allow_html=True)
+                    except Exception as e:
+                        st.markdown(f"<div class='error-box'>Errore: {e}</div>", unsafe_allow_html=True)
+                else:
+                    if email_reg:
+                        st.session_state['user'] = email_reg
+                        st.session_state['profile_setup_done'] = False
+                        st.rerun()
+    st.stop()
+
+# ==========================================
+# ONBOARDING
+# ==========================================
+user_email = st.session_state['user']
+user_tier = get_user_tier(user_email)
+
+if not st.session_state.get('profile_setup_done', False):
+    col_p1, col_p2, col_p3 = st.columns([1, 1.6, 1])
+    with col_p2:
+        st.markdown(f"""
+        <div class="hero" style="padding-top: 1.5rem;">
+            <span class="hero-logo">🎯</span>
+            <div class="brand-title" style="font-size: 2rem;">{t['profile_setup_title']}</div>
+            <p class="brand-sub">{t['profile_setup_desc']}</p>
+        </div>
+        """, unsafe_allow_html=True)
+        st.markdown(f"<div style='text-align:center;margin-bottom:1.2rem;'>Piano: {tier_badge_html(user_tier)}</div>", unsafe_allow_html=True)
+
+        st.markdown("<div class='section-title'>➕ Aggiungi Account</div>", unsafe_allow_html=True)
+        with st.form("form_add_profile"):
+            piattaforma_in = st.selectbox("Piattaforma:", ["Lichess", "Chess.com"])
+            username_in = st.text_input("Username:", placeholder="es. Chene91")
+            submit_prof = st.form_submit_button("Salva Profilo", type="primary", use_container_width=True)
+            if submit_prof:
+                if username_in.strip():
+                    success, msg = add_user_profile(user_email, piattaforma_in, username_in.strip())
+                    if success:
+                        st.markdown(f"<div class='success-box'>{msg}</div>", unsafe_allow_html=True)
+                        time.sleep(0.4)
+                        st.rerun()
+                    else:
+                        st.markdown(f"<div class='error-box'>{msg}</div>", unsafe_allow_html=True)
+                else:
+                    st.markdown("<div class='warning-box'>Inserisci un username valido.</div>", unsafe_allow_html=True)
+
+        st.markdown("<div class='section-title'>📋 Account Collegati</div>", unsafe_allow_html=True)
+        profiles_attuali = get_user_profiles(user_email)
+        if profiles_attuali:
+            for p in profiles_attuali:
+                cols_pr = st.columns([3, 1])
+                with cols_pr[0]:
+                    st.markdown(f"<div class='info-box'><b>{p['piattaforma']}</b>: <code>{p['username']}</code></div>", unsafe_allow_html=True)
+                if cols_pr[1].button("🗑️", key=f"del_prof_{p['id']}", use_container_width=True):
+                    delete_user_profile(p['id'])
+                    st.rerun()
+        else:
+            st.markdown("<div class='warning-box'>Nessun profilo salvato finora.</div>", unsafe_allow_html=True)
+
+        st.write("")
+        if st.button(t['continue_btn'], type="primary", use_container_width=True):
+            st.session_state['profile_setup_done'] = True
+            st.rerun()
+    st.stop()
+
+# ==========================================
+# ROBUST ENGINE
+# ==========================================
+def determina_categoria_mossa(num_mossa, delta_cp, total_moves):
+    if num_mossa <= 12: return "Apertura"
+    elif num_mossa >= total_moves - 10 or (total_moves > 40 and num_mossa > 30): return "Finale"
+    elif delta_cp >= 2.0: return "Tattica"
+    else: return "Posizionale"
+
+def fetch_stockfish_eval(session, fen, depth=10):
+    for attempt in range(2):
+        try:
+            r = session.post("https://chess-api.com/v1", json={"fen": fen, "depth": depth}, timeout=8)
+            if r.status_code == 200:
+                data = r.json()
+                if data.get("eval") is not None:
+                    return float(data.get("eval"))
+                elif data.get("centipawns") is not None:
+                    return float(data.get("centipawns")) / 100.0
+                elif data.get("cp") is not None:
+                    return float(data.get("cp")) / 100.0
+                elif data.get("value") is not None:
+                    return float(data.get("value")) / 100.0
+                elif data.get("mate") is not None:
+                    m = int(data.get("mate"))
+                    return 100.0 if m > 0 else -100.0
+        except Exception:
+            time.sleep(0.3)
+    return None
+
+def analizza_partita_chess_api(pgn_text, target_usernames):
+    game = chess.pgn.read_game(io.StringIO(pgn_text))
+    if not game:
+        return [], None, "Impossibile leggere il PGN fornito.", []
+
+    headers = game.headers
+    white_player = headers.get('White', 'Unknown').strip().lower()
+    black_player = headers.get('Black', 'Unknown').strip().lower()
+    user_is_white = True
+    user_is_black = True
+
+    if target_usernames:
+        user_list = [u.strip().lower() for u in target_usernames]
+        found_match = False
+        user_is_white = False
+        user_is_black = False
+        for u in user_list:
+            if u in white_player: user_is_white = True; found_match = True
+            if u in black_player: user_is_black = True; found_match = True
+        if not found_match:
+            user_is_white = True; user_is_black = True
+
+    partita_id = f"{headers.get('White', 'Unknown')}_vs_{headers.get('Black', 'Unknown')}_{headers.get('Date', 'Live')}"
+    board = game.board()
+    evaluations = []
+    eval_history = []
+    headers_req = {"User-Agent": "ChessCoachPro/1.0", "Content-Type": "application/json"}
+    main_moves = list(game.mainline_moves())
+    total_ply_count = len(main_moves)
+    total_full_moves = (total_ply_count + 1) // 2
+
+    progress_bar = st.progress(0, text="♟️ Analisi Stockfish in corso...")
+    session = requests.Session()
+    session.headers.update(headers_req)
+    prev_eval = 0.0
+
+    for idx, move in enumerate(main_moves):
+        fen_before = board.fen()
+        try:
+            move_san = board.san(move)
+        except Exception:
+            move_san = move.uci()
+
+        eval_before = fetch_stockfish_eval(session, fen_before, depth=10)
+        if eval_before is None:
+            eval_before = prev_eval
+
+        board.push(move)
+        fen_after = board.fen()
+        num_mossa = (idx // 2) + 1
+        is_white_move = (idx % 2 == 0)
+        progress_bar.progress((idx + 1) / max(total_ply_count, 1),
+                              text=f"♟️ Analisi mossa {num_mossa} di {total_full_moves}...")
+
+        eval_after = fetch_stockfish_eval(session, fen_after, depth=10)
+        if eval_after is None:
+            eval_after = eval_before
+
+        clamped = max(min(eval_after, 10.0), -10.0)
+        eval_history.append({
+            "ply": idx + 1, "num_move": num_mossa, "san": move_san,
+            "eval_cp": eval_after, "eval_clamped": clamped, "is_white": is_white_move
+        })
+
+        is_user_move = (is_white_move and user_is_white) or (not is_white_move and user_is_black)
+        if is_user_move:
+            delta = (eval_before - eval_after) if is_white_move else (eval_after - eval_before)
+            if delta >= 2.0: tipo_problema = "🔴 Blunder"
+            elif delta >= 1.0: tipo_problema = "🟠 Mistake"
+            elif delta >= 0.5: tipo_problema = "🟡 Inaccuracy"
+            else: tipo_problema = None
+            if tipo_problema:
+                label_mossa = f"{num_mossa}. {move_san}" if is_white_move else f"{num_mossa}... {move_san}"
+                cat_mossa = determina_categoria_mossa(num_mossa, round(delta, 2), total_full_moves)
+                evaluations.append({
+                    "mossa_num": idx + 1, "label_mossa": label_mossa,
+                    "fen_prima": fen_before, "fen_dopo": fen_after,
+                    "mossa_giocata": move.uci(), "perdita_cp": round(delta, 2),
+                    "eval_dopo": eval_after, "tipo_problema": tipo_problema, "categoria": cat_mossa
+                })
+        prev_eval = eval_after
+        time.sleep(0.02)
+
+    progress_bar.empty()
+    return evaluations, partita_id, None, eval_history
+
+def salva_immagine_scacchiera_png(board, path_temp):
+    svg_data = chess.svg.board(board=board, size=400)
+    try:
+        import cairosvg
+        cairosvg.svg2png(bytestring=svg_data.encode('utf-8'), write_to=path_temp)
+    except Exception:
+        img = Image.new('RGB', (400, 400), color=(240, 217, 181))
+        img.save(path_temp)
+
+def genera_pdf_partita(board, mosse_lista, note_mosse, note_finali):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.set_font("helvetica", "B", 16)
+    pdf.cell(0, 10, "Chess Coach Pro - Diario Partita", ln=True, align="C")
+    pdf.ln(3)
+    testo_mosse = ""
+    for idx, m in enumerate(mosse_lista):
+        num = (idx // 2) + 1
+        testo_mosse += f"{num}. {m} " if idx % 2 == 0 else f"{m}  "
+    pdf.set_font("helvetica", "", 9)
+    pdf.multi_cell(0, 5, testo_mosse if testo_mosse else "Nessuna mossa registrata.")
+    pdf.ln(4)
+    with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp_file:
+        tmp_img_path = tmp_file.name
+    salva_immagine_scacchiera_png(board, tmp_img_path)
+    y_inizio = pdf.get_y()
+    if os.path.exists(tmp_img_path):
+        pdf.image(tmp_img_path, x=10, y=y_inizio, w=85)
+        os.remove(tmp_img_path)
+    pdf.set_xy(100, y_inizio)
+    pdf.set_font("helvetica", "B", 11)
+    pdf.cell(95, 6, "Considerazioni per Mossa:", ln=True)
+    for idx, m in enumerate(mosse_lista):
+        num = (idx // 2) + 1
+        etichetta = f"{num}. {m}" if idx % 2 == 0 else f"{num}... {m}"
+        nota_utente = note_mosse.get(str(idx), "").strip()
+        pdf.set_x(100)
+        pdf.set_font("helvetica", "B", 9)
+        pdf.cell(95, 5, f"[{etichetta}]", ln=True)
+        if nota_utente:
+            pdf.set_x(100)
+            pdf.set_font("helvetica", "", 8)
+            pdf.multi_cell(95, 4, f"Note: {nota_utente}")
+        pdf.set_x(100)
+        pdf.cell(95, 4, "________________________________________", ln=True)
+        pdf.ln(1)
+    return bytes(pdf.output())
+
+def render_eval_graph(eval_history, errors):
+    if not HAS_PLOTLY or not eval_history:
+        return
+    x_vals = [e["ply"] for e in eval_history]
+    y_vals = [e["eval_clamped"] for e in eval_history]
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=x_vals, y=y_vals, mode="lines", fill="tozeroy",
+        line=dict(color="#FFD700", width=2),
+        fillcolor="rgba(255,215,0,0.15)",
+        name="Valutazione",
+        hovertemplate="Mossa %{x}<br>Eval: %{y:.2f}<extra></extra>",
+    ))
+
+    def get_y(ply):
+        for e in eval_history:
+            if e["ply"] == ply: return e["eval_clamped"]
+        return 0
+
+    blunders = [e["mossa_num"] for e in errors if "Blunder" in e["tipo_problema"]]
+    mistakes = [e["mossa_num"] for e in errors if "Mistake" in e["tipo_problema"]]
+    inaccuracies = [e["mossa_num"] for e in errors if "Inaccuracy" in e["tipo_problema"]]
+
+    if inaccuracies:
+        fig.add_trace(go.Scatter(
+            x=inaccuracies, y=[get_y(n) for n in inaccuracies], mode="markers",
+            marker=dict(color="#eab308", size=9, line=dict(width=1, color="#fff")), name="Inaccuracy"))
+    if mistakes:
+        fig.add_trace(go.Scatter(
+            x=mistakes, y=[get_y(n) for n in mistakes], mode="markers",
+            marker=dict(color="#f97316", size=10, line=dict(width=1, color="#fff")), name="Mistake"))
+    if blunders:
+        fig.add_trace(go.Scatter(
+            x=blunders, y=[get_y(n) for n in blunders], mode="markers",
+            marker=dict(color="#ef4444", size=12, symbol="x", line=dict(width=2, color="#fff")), name="Blunder"))
+
+    fig.update_layout(
+        template=plotly_template(), margin=dict(l=10, r=10, t=30, b=10),
+        height=320, showlegend=True,
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        xaxis=dict(title="Mossa", showgrid=False),
+        yaxis=dict(title="Valutazione (pedoni)", range=[-10, 10], showgrid=True, gridcolor="rgba(128,128,128,0.15)"),
+        hovermode="x unified",
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+# ==========================================
 # SIDEBAR / MENU NATIVO STREAMLIT & NAVIGAZIONE
 # ==========================================
 with st.sidebar:
@@ -913,10 +1375,10 @@ with st.sidebar:
         t["tab6"], t["tab7"]
     ]
     
-    # Gestione radio con key per permettere la navigazione programmatica pulita
     if 'nav_selection' not in st.session_state:
         st.session_state['nav_selection'] = t["tab1"]
 
+    # CORRETTO: Nessuna riassegnazione errata successiva, gestito nativamente da st.radio con chiave
     selected_nav = st.radio("Navigazione", menu_options, key="nav_selection", label_visibility="collapsed")
 
     st.markdown("<div class='section-title' style='font-size:1.05rem;margin-top:1rem;'>⚙️ Preferenze</div>", unsafe_allow_html=True)
