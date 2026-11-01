@@ -27,7 +27,7 @@ MASTER_GEMINI_KEY = st.secrets.get("GEMINI_API_KEY", "")
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", "")
 SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "")
 
-GEMINI_MODEL_NAME = "gemini-2.5-flash"
+GEMINI_MODEL_NAME = "gemini-3.8-flash"
 
 @st.cache_resource
 def init_supabase() -> Client:
@@ -57,7 +57,7 @@ st.components.v1.html("""
     <script>setInterval(function(){fetch(window.location.href);},25000);</script>
 """, height=0)
 
-# --- CSS DINAMICO PULITO (SENZA INTERFERIRE CON IL MENU NATIVO) ---
+# --- CSS DINAMICO PULITO ---
 def get_dynamic_css(theme):
     common_fix = """
         #MainMenu { visibility: hidden !important; }
@@ -913,8 +913,11 @@ with st.sidebar:
         t["tab6"], t["tab7"]
     ]
     
-    selected_nav = st.radio("Navigazione", menu_options, label_visibility="collapsed")
-    st.session_state['nav_selection'] = selected_nav
+    # Gestione radio con key per permettere la navigazione programmatica pulita
+    if 'nav_selection' not in st.session_state:
+        st.session_state['nav_selection'] = t["tab1"]
+
+    selected_nav = st.radio("Navigazione", menu_options, key="nav_selection", label_visibility="collapsed")
 
     st.markdown("<div class='section-title' style='font-size:1.05rem;margin-top:1rem;'>⚙️ Preferenze</div>", unsafe_allow_html=True)
 
@@ -971,20 +974,20 @@ if current_selection == t["tab1"]:
         if not pgn_input.strip():
             st.markdown("<div class='warning-box'>Inserisci un PGN valido.</div>", unsafe_allow_html=True)
         else:
-            pgn_hash = hash(pgn_input.strip())
-            if st.session_state.get('last_analyzed_pgn') == pgn_hash:
+            current_pgn_text = pgn_input.strip()
+            if st.session_state.get('last_analyzed_pgn') == current_pgn_text:
                 st.markdown(f"<div class='warning-box'>{t['already_analyzed']}</div>", unsafe_allow_html=True)
             else:
-                st.session_state['last_analyzed_pgn'] = pgn_hash
+                st.session_state['last_analyzed_pgn'] = current_pgn_text
                 with st.spinner("🔍 Scansione affidabile Stockfish in corso..."):
                     user_profs = get_user_profiles(user_email)
                     user_usernames = [p['username'] for p in user_profs]
-                    errori, p_id, err_msg, eval_hist = analizza_partita_chess_api(pgn_input.strip(), user_usernames)
+                    errori, p_id, err_msg, eval_hist = analizza_partita_chess_api(current_pgn_text, user_usernames)
                     st.session_state['stockfish_errors'] = errori
                     st.session_state['current_game_id'] = p_id
                     st.session_state['eval_history'] = eval_hist
 
-                    game_obj = chess.pgn.read_game(io.StringIO(pgn_input.strip()))
+                    game_obj = chess.pgn.read_game(io.StringIO(current_pgn_text))
                     if game_obj:
                         st.session_state['active_game_board'] = game_obj
                         st.session_state['active_game_moves'] = list(game_obj.mainline_moves())
@@ -1376,7 +1379,8 @@ elif current_selection == t["tab5"]:
                 white = headers.get("White", "Unknown")
                 black = headers.get("Black", "Unknown")
                 result = headers.get("Result", "*")
-                eco = headers.get("ECO", "?")
+                eco_raw = headers.get("ECO", "").strip()
+                eco = eco_raw if eco_raw and eco_raw != "?" else headers.get("Opening", "N/D")
                 date = headers.get("Date", "????.??.??")
                 event = headers.get("Event", "Casual Game")
                 event_lower = event.lower()
