@@ -1518,7 +1518,6 @@ elif current_selection == t["tab6"]:
                     try:
                         domain_url = st.get_option("server.baseUrlPath") or "https://tuo-dominio.streamlit.app"
                         checkout_session = stripe.checkout.Session.create(
-                            payment_method_types=['card'],
                             line_items=[{
                                 'price': STRIPE_PRO_PRICE_ID,
                                 'quantity': 1,
@@ -1561,7 +1560,6 @@ elif current_selection == t["tab6"]:
                 if HAS_STRIPE and STRIPE_SECRET_KEY:
                     try:
                         checkout_session = stripe.checkout.Session.create(
-                            payment_method_types=['card'],
                             line_items=[{
                                 'price': STRIPE_DIAMOND_PRICE_ID,
                                 'quantity': 1,
