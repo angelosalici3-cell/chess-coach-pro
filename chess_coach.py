@@ -1516,23 +1516,34 @@ elif current_selection == t["tab6"]:
             if st.button("Sottoscrivi Pro 🚀", type="primary", use_container_width=True, key="btn_sub_pro"):
                 if HAS_STRIPE and STRIPE_SECRET_KEY:
                     try:
-                        domain_url = st.get_option("server.baseUrlPath") or "https://tuo-dominio.streamlit.app"
+                        host = st.context.headers.get("Host", "tuo-dominio.streamlit.app")
+                        proto = "https" if "localhost" not in host else "http"
+                        success_url = f"{proto}://{host}/?success=pro"
+                        cancel_url = f"{proto}://{host}/?canceled=true"
+
                         checkout_session = stripe.checkout.Session.create(
                             line_items=[{
                                 'price': STRIPE_PRO_PRICE_ID,
                                 'quantity': 1,
                             }],
                             mode='subscription',
-                            success_url='https://' + st.context.headers.get("Host", "localhost:8501") + '/?success=pro',
-                            cancel_url='https://' + st.context.headers.get("Host", "localhost:8501") + '/?canceled=true',
+                            success_url=success_url,
+                            cancel_url=cancel_url,
                             customer_email=user_email
                         )
-                        st.markdown(f"<meta http-equiv='refresh' content='0;url={checkout_session.url}'>", unsafe_allow_html=True)
-                        st.link_button("👉 Clicca qui se non vieni reindirizzato", checkout_session.url, use_container_width=True)
+                        
+                        # Reindirizzamento JavaScript pulito e affidabile
+                        st.components.v1.html(f"""
+                            <script>
+                                window.top.location.href = "{checkout_session.url}";
+                            </script>
+                        """, height=0)
+                        
+                        st.success("Reindirizzamento a Stripe in corso...")
+                        st.link_button("👉 Clicca qui se non vieni reindirizzato automaticamente", checkout_session.url, use_container_width=True)
                     except Exception as e:
                         st.markdown(f"<div class='error-box'>Errore Stripe: {e}</div>", unsafe_allow_html=True)
                 else:
-                    # Fallback simulazione se Stripe non è configurato nei Secrets
                     update_user_tier(user_email, "Pro")
                     st.success("Abbonamento Pro attivato (Simulazione Test)!")
                     time.sleep(1)
@@ -1559,22 +1570,34 @@ elif current_selection == t["tab6"]:
             if st.button("Sottoscrivi Diamond 💎", type="primary", use_container_width=True, key="btn_sub_diamond"):
                 if HAS_STRIPE and STRIPE_SECRET_KEY:
                     try:
+                        host = st.context.headers.get("Host", "tuo-dominio.streamlit.app")
+                        proto = "https" if "localhost" not in host else "http"
+                        success_url = f"{proto}://{host}/?success=diamond"
+                        cancel_url = f"{proto}://{host}/?canceled=true"
+
                         checkout_session = stripe.checkout.Session.create(
                             line_items=[{
                                 'price': STRIPE_DIAMOND_PRICE_ID,
                                 'quantity': 1,
                             }],
                             mode='subscription',
-                            success_url='https://' + st.context.headers.get("Host", "localhost:8501") + '/?success=diamond',
-                            cancel_url='https://' + st.context.headers.get("Host", "localhost:8501") + '/?canceled=true',
+                            success_url=success_url,
+                            cancel_url=cancel_url,
                             customer_email=user_email
                         )
-                        st.markdown(f"<meta http-equiv='refresh' content='0;url={checkout_session.url}'>", unsafe_allow_html=True)
-                        st.link_button("👉 Clicca qui se non vieni reindirizzato", checkout_session.url, use_container_width=True)
+                        
+                        # Reindirizzamento JavaScript pulito e affidabile
+                        st.components.v1.html(f"""
+                            <script>
+                                window.top.location.href = "{checkout_session.url}";
+                            </script>
+                        """, height=0)
+                        
+                        st.success("Reindirizzamento a Stripe in corso...")
+                        st.link_button("👉 Clicca qui se non vieni reindirizzato automaticamente", checkout_session.url, use_container_width=True)
                     except Exception as e:
                         st.markdown(f"<div class='error-box'>Errore Stripe: {e}</div>", unsafe_allow_html=True)
                 else:
-                    # Fallback simulazione se Stripe non è configurato nei Secrets
                     update_user_tier(user_email, "Diamond")
                     st.success("Abbonamento Diamond attivato (Simulazione Test)!")
                     time.sleep(1)
