@@ -17,6 +17,12 @@ import base64
 from supabase import create_client, Client
 
 try:
+    import stripe
+    HAS_STRIPE = True
+except ImportError:
+    HAS_STRIPE = False
+
+try:
     import plotly.graph_objects as go
     HAS_PLOTLY = True
 except ImportError:
@@ -26,6 +32,14 @@ except ImportError:
 MASTER_GEMINI_KEY = st.secrets.get("GEMINI_API_KEY", "")
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", "")
 SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "")
+
+# Configurazione Stripe (da inserire nei Secrets di Streamlit)
+STRIPE_SECRET_KEY = st.secrets.get("STRIPE_SECRET_KEY", "")
+STRIPE_PRO_PRICE_ID = st.secrets.get("STRIPE_PRO_PRICE_ID", "price_PRO_ID_QUI")
+STRIPE_DIAMOND_PRICE_ID = st.secrets.get("STRIPE_DIAMOND_PRICE_ID", "price_DIAMOND_ID_QUI")
+
+if HAS_STRIPE and STRIPE_SECRET_KEY:
+    stripe.api_key = STRIPE_SECRET_KEY
 
 GEMINI_MODEL_NAME = "gemini-3.8-flash"
 
@@ -52,7 +66,7 @@ for key, default in {
     if key not in st.session_state:
         st.session_state[key] = default
 
-# Gestione sicura del reindirizzamento di pagina (evita StreamlitWidgetAlreadyInstantiatedError)
+# Gestione sicura del reindirizzamento di pagina
 if 'goto_tab' in st.session_state and st.session_state['goto_tab']:
     st.session_state['nav_selection'] = st.session_state['goto_tab']
     del st.session_state['goto_tab']
@@ -496,16 +510,28 @@ TEXTS = {
 
 t = TEXTS[st.session_state['lang']]
 
-# --- DATABASE HELPERS ---
+# --- DATABASE HELPERS (SUPABASE) ---
 def get_user_tier(email):
-    if supabase:
+    if supabase and email:
         try:
             res = supabase.table("config_utenti").select("tier").eq("user_email", email).execute()
-            if res.data and res.data[0].get("tier"):
+            if res.data and len(res.data) > 0 and res.data[0].get("tier"):
                 return res.data[0].get("tier")
         except Exception:
             pass
     return "Free"
+
+def update_user_tier(email, new_tier):
+    if supabase and email:
+        try:
+            # Controlla se esiste già la riga per l'utente
+            res = supabase.table("config_utenti").select("user_email").eq("user_email", email).execute()
+            if res.data and len(res.data) > 0:
+                supabase.table("config_utenti").update({"tier": new_tier}).eq("user_email", email).execute()
+            else:
+                supabase.table("config_utenti").insert({"user_email": email, "tier": new_tier}).execute()
+        except Exception:
+            pass
 
 def get_user_profiles(email):
     if supabase:
@@ -568,6 +594,19 @@ def carica_errori_db(user_email):
 def tier_badge_html(tier):
     cls = "badge-free" if tier == "Free" else ("badge-pro" if tier == "Pro" else "badge-diamond")
     return f"<span class='tier-badge {cls}'>{tier}</span>"
+
+# Gestione del ritorno da Stripe tramite query params
+query_params = st.query_params
+if "success" in query_params and st.session_state.get('user'):
+    sub_type = query_params.get("success")
+    if sub_type == "pro":
+        update_user_tier(st.session_state['user'], "Pro")
+        st.success("🎉 Abbonamento Pro attivato con successo!")
+        st.query_params.clear()
+    elif sub_type == "diamond":
+        update_user_tier(st.session_state['user'], "Diamond")
+        st.success("💎 Abbonamento Diamond attivato con successo!")
+        st.query_params.clear()
 
 # ==========================================
 # LOGIN
@@ -1450,9 +1489,11 @@ elif current_selection == t["tab6"]:
         """, unsafe_allow_html=True)
         st.write("")
         if user_tier == "Free":
-            st.button("Piano Attuale", disabled=True, use_container_width=True)
+            st.button("Piano Attuale", disabled=True, use_container_width=True, key="btn_free")
         else:
-            st.button("Passa a Free", use_container_width=True)
+            if st.button("Passa a Free", use_container_width=True, key="btn_to_free"):
+                update_user_tier(user_email, "Free")
+                st.rerun()
 
     with col_pr2:
         st.markdown("""
@@ -1470,10 +1511,33 @@ elif current_selection == t["tab6"]:
         """, unsafe_allow_html=True)
         st.write("")
         if user_tier == "Pro":
-            st.button("Piano Attuale", disabled=True, use_container_width=True)
+            st.button("Piano Attuale", disabled=True, use_container_width=True, key="btn_pro_current")
         else:
-            if st.button("Sottoscrivi Pro 🚀", type="primary", use_container_width=True):
-                st.markdown("<div class='success-box'>🎉 Grazie per l'interesse! Contatta il supporto per attivare il piano Pro in questa fase Beta.</div>", unsafe_allow_html=True)
+            if st.button("Sottoscrivi Pro 🚀", type="primary", use_container_width=True, key="btn_sub_pro"):
+                if HAS_STRIPE and STRIPE_SECRET_KEY:
+                    try:
+                        domain_url = st.get_option("server.baseUrlPath") or "https://tuo-dominio.streamlit.app"
+                        checkout_session = stripe.checkout.Session.create(
+                            payment_method_types=['card'],
+                            line_items=[{
+                                'price': STRIPE_PRO_PRICE_ID,
+                                'quantity': 1,
+                            }],
+                            mode='subscription',
+                            success_url='https://' + st.context.headers.get("Host", "localhost:8501") + '/?success=pro',
+                            cancel_url='https://' + st.context.headers.get("Host", "localhost:8501") + '/?canceled=true',
+                            customer_email=user_email
+                        )
+                        st.markdown(f"<meta http-equiv='refresh' content='0;url={checkout_session.url}'>", unsafe_allow_html=True)
+                        st.link_button("👉 Clicca qui se non vieni reindirizzato", checkout_session.url, use_container_width=True)
+                    except Exception as e:
+                        st.markdown(f"<div class='error-box'>Errore Stripe: {e}</div>", unsafe_allow_html=True)
+                else:
+                    # Fallback simulazione se Stripe non è configurato nei Secrets
+                    update_user_tier(user_email, "Pro")
+                    st.success("Abbonamento Pro attivato (Simulazione Test)!")
+                    time.sleep(1)
+                    st.rerun()
 
     with col_pr3:
         st.markdown("""
@@ -1491,10 +1555,32 @@ elif current_selection == t["tab6"]:
         """, unsafe_allow_html=True)
         st.write("")
         if user_tier == "Diamond":
-            st.button("Piano Attuale", disabled=True, use_container_width=True)
+            st.button("Piano Attuale", disabled=True, use_container_width=True, key="btn_diamond_current")
         else:
-            if st.button("Sottoscrivi Diamond 💎", type="primary", use_container_width=True):
-                st.markdown("<div class='success-box'>🎉 Grazie per l'interesse! Contatta il supporto per attivare il piano Diamond in questa fase Beta.</div>", unsafe_allow_html=True)
+            if st.button("Sottoscrivi Diamond 💎", type="primary", use_container_width=True, key="btn_sub_diamond"):
+                if HAS_STRIPE and STRIPE_SECRET_KEY:
+                    try:
+                        checkout_session = stripe.checkout.Session.create(
+                            payment_method_types=['card'],
+                            line_items=[{
+                                'price': STRIPE_DIAMOND_PRICE_ID,
+                                'quantity': 1,
+                            }],
+                            mode='subscription',
+                            success_url='https://' + st.context.headers.get("Host", "localhost:8501") + '/?success=diamond',
+                            cancel_url='https://' + st.context.headers.get("Host", "localhost:8501") + '/?canceled=true',
+                            customer_email=user_email
+                        )
+                        st.markdown(f"<meta http-equiv='refresh' content='0;url={checkout_session.url}'>", unsafe_allow_html=True)
+                        st.link_button("👉 Clicca qui se non vieni reindirizzato", checkout_session.url, use_container_width=True)
+                    except Exception as e:
+                        st.markdown(f"<div class='error-box'>Errore Stripe: {e}</div>", unsafe_allow_html=True)
+                else:
+                    # Fallback simulazione se Stripe non è configurato nei Secrets
+                    update_user_tier(user_email, "Diamond")
+                    st.success("Abbonamento Diamond attivato (Simulazione Test)!")
+                    time.sleep(1)
+                    st.rerun()
 
 # ==========================================
 # SEZIONE 6: CONTATTI & DONAZIONI
