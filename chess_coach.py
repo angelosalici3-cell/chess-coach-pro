@@ -41,7 +41,7 @@ STRIPE_DIAMOND_PRICE_ID = st.secrets.get("STRIPE_DIAMOND_PRICE_ID", "")
 if HAS_STRIPE and STRIPE_SECRET_KEY:
     stripe.api_key = STRIPE_SECRET_KEY
 
-GEMINI_MODEL_NAME = "gemini-3.8-flash"
+GEMINI_MODEL_NAME = "gemini-2.5-flash"
 
 @st.cache_resource
 def init_supabase() -> Client:
@@ -1144,21 +1144,33 @@ if current_selection == t["tab1"]:
                         else:
                             with st.spinner("🎓 Il Grandemaster AI sta analizzando..."):
                                 try:
+                                    # Prompt ottimizzato per massima rapidità e densità informativa
                                     prompt_lesson = f"""
-                                    Sei un Grandemaster di scacchi.
-                                    Posizione FEN prima della mossa: {err['fen_prima']}
-                                    Mossa errata giocata: {err['mossa_giocata']}
+                                    Sei un GM di scacchi. Analizza questo errore tattico/posizionale.
+                                    FEN: {err['fen_prima']}
+                                    Mossa errata: {err['mossa_giocata']}
                                     {t['prompt_lang']}
-                                    Spiega in massimo 35 parole:
-                                    1. Perché la mossa è un errore.
-                                    2. Qual era l'idea migliore.
-                                    3. Una regola/principio pratico.
+
+                                    Rispondi in massimo 3 righe con:
+                                    1. Errore: [perché errato]
+                                    2. Idea: [mossa/piano corretto]
+                                    3. Regola: [principio pratico]
                                     """
                                     try:
                                         from google import genai as new_genai
+                                        from google.genai import types
                                         client = new_genai.Client(api_key=MASTER_GEMINI_KEY)
+                                        
+                                        # Configurazione per velocità e risposta immediata
+                                        config_veloce = types.GenerateContentConfig(
+                                            max_output_tokens=100,
+                                            temperature=0.2
+                                        )
+                                        
                                         response = client.models.generate_content(
-                                            model=GEMINI_MODEL_NAME, contents=prompt_lesson
+                                            model=GEMINI_MODEL_NAME, 
+                                            contents=prompt_lesson,
+                                            config=config_veloce
                                         )
                                         st.session_state[f"lesson_{idx}"] = response.text
                                     except Exception:
