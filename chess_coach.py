@@ -687,7 +687,7 @@ if not st.session_state.get('profile_setup_done', False):
     st.stop()
 
 # ==========================================
-# SIDEBAR / MENU STRUTTURATO PER ABBONAMENTO
+# SIDEBAR / MENU STRUTTURATO E CORRETTO
 # ==========================================
 with st.sidebar:
     initials = (user_email[:2] if user_email else "U").upper()
@@ -701,24 +701,23 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
-    st.markdown("<div class='section-title' style='font-size:0.95rem;margin-top:0.5rem;'>📊 1. CONTROL ROOM</div>", unsafe_allow_html=True)
-    menu_c1 = ["📊 Dashboard & Insights"]
+    st.markdown("### 🧭 Navigazione Principale")
+    
+    menu_options = [
+        "📊 Dashboard & Insights",
+        "🔍 Analizza Partita",
+        "🌐 Importa & Sincronizza",
+        "🎯 Palestra sui Tuoi Errori",
+        "📚 Studio da Libri",
+        "📝 Diario & PDF",
+        "💎 Piani Abbonamento",
+        "📞 Contatti & Supporto"
+    ]
 
-    st.markdown("<div class='section-title' style='font-size:0.95rem;margin-top:0.5rem;'>📖 2. PARTITE & ANALISI</div>", unsafe_allow_html=True)
-    menu_c2 = ["🔍 Analizza Partita", "🌐 Importa & Sincronizza"]
+    if 'nav_selection' not in st.session_state or st.session_state['nav_selection'] not in menu_options:
+        st.session_state['nav_selection'] = menu_options[0]
 
-    st.markdown("<div class='section-title' style='font-size:0.95rem;margin-top:0.5rem;'>🎯 3. PALESTRA ALLENAMENTO</div>", unsafe_allow_html=True)
-    menu_c3 = ["🎯 Palestra sui Tuoi Errori"]
-
-    st.markdown("<div class='section-title' style='font-size:0.95rem;margin-top:0.5rem;'>🛠️ 4. STUDIO & ACCOUNT</div>", unsafe_allow_html=True)
-    menu_c4 = ["📚 Studio da Libri", "📝 Diario & PDF", "💎 Piani Abbonamento", "📞 Contatti & Supporto"]
-
-    all_menu_options = menu_c1 + menu_c2 + menu_c3 + menu_c4
-
-    if 'nav_selection' not in st.session_state or st.session_state['nav_selection'] not in all_menu_options:
-        st.session_state['nav_selection'] = "📊 Dashboard & Insights"
-
-    selected_nav = st.radio("Navigazione", all_menu_options, key="nav_selection", label_visibility="collapsed")
+    selected_nav = st.radio("Sezioni App", menu_options, key="nav_selection", label_visibility="collapsed")
 
     st.markdown("<div class='section-title' style='font-size:0.95rem;margin-top:1rem;'>⚙️ Preferenze</div>", unsafe_allow_html=True)
     scelta_tema = st.selectbox(t["theme_select"], ["Dark", "Light"], index=0 if st.session_state['theme_mode'] == 'Dark' else 1)
@@ -797,7 +796,7 @@ def analizza_partita_chess_api(pgn_text, target_usernames):
     partita_id = f"{headers.get('White', 'Unknown')}_vs_{headers.get('Black', 'Unknown')}_{headers.get('Date', 'Live')}"
     board = game.board()
     evaluations, eval_history = [], []
-    headers_req = {"User-Agent": "ChessCoachPro/1.0", "Content-Type": "application/json"}
+    headers_req = {"User-Agent": "ChessCoachPro/1.0 (support@chesscoachpro.com)", "Content-Type": "application/json"}
     main_moves = list(game.mainline_moves())
     total_ply_count = len(main_moves)
     total_full_moves = (total_ply_count + 1) // 2
@@ -922,7 +921,7 @@ def render_eval_graph(eval_history, errors):
     st.plotly_chart(fig, use_container_width=True)
 
 # ==========================================
-# SEZIONE 1: CONTROL ROOM (DASHBOARD & INSIGHTS)
+# SEZIONE 1: DASHBOARD & INSIGHTS
 # ==========================================
 if current_selection == "📊 Dashboard & Insights":
     st.markdown("<div class='section-title'>📊 Control Room & Insights Personali</div>", unsafe_allow_html=True)
@@ -931,7 +930,7 @@ if current_selection == "📊 Dashboard & Insights":
     if user_tier in ["Pro", "Diamond"]:
         st.markdown(f"<div class='success-box'>🟢 Sincronizzazione automatica notturna attiva per il piano <b>{user_tier}</b>. Le tue partite vengono sincronizzate e censite in background.</div>", unsafe_allow_html=True)
     else:
-        st.markdown(f"<div class='info-box'>⚪ Piano Free attivo. <a href='#' target='_self'>Passa a Pro o Diamond</a> per attivare lo scaricamento automatico notturno delle partite.</div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='info-box'>⚪ Piano Free attivo. Passa a Pro o Diamond per attivare lo scaricamento automatico notturno delle partite.</div>", unsafe_allow_html=True)
 
     if not df_err.empty:
         n_errors = len(df_err)
@@ -1043,7 +1042,7 @@ elif current_selection == "🔍 Analizza Partita":
             st.markdown("<div class='info-box'>Nessun errore registrato in questa partita.</div>", unsafe_allow_html=True)
 
 # ==========================================
-# SEZIONE 2B: IMPORTA & SINCRONIZZA
+# SEZIONE 3: IMPORTA & SINCRONIZZA
 # ==========================================
 elif current_selection == "🌐 Importa & Sincronizza":
     st.markdown("<div class='section-title'>🌐 Importa e Sincronizza Partite</div>", unsafe_allow_html=True)
@@ -1069,16 +1068,28 @@ elif current_selection == "🌐 Importa & Sincronizza":
                     user_lower = usr.strip().lower()
                     if plat == "Lichess":
                         url_lic = f"https://lichess.org/api/games/user/{user_lower}"
-                        r = requests.get(url_lic, params={"max": limite_partite}, headers={"Accept": "application/x-chess-pgn"}, timeout=20)
-                        if r.status_code == 200: st.session_state['partite_importate'] = r.text; st.success("Scaricamento completato!")
-                        else: st.error(f"Errore Lichess (HTTP {r.status_code})")
+                        headers_lic = {
+                            "Accept": "application/x-chess-pgn",
+                            "User-Agent": "ChessCoachPro/1.0 (support@chesscoachpro.com)"
+                        }
+                        r = requests.get(url_lic, params={"max": limite_partite}, headers=headers_lic, timeout=25)
+                        if r.status_code == 200 and r.text.strip():
+                            st.session_state['partite_importate'] = r.text
+                            st.success("Scaricamento completato con successo!")
+                        elif r.status_code == 404:
+                            st.error(f"Errore 404: Utente Lichess '{user_lower}' non trovato. Verifica lo username.")
+                        else:
+                            st.error(f"Errore Lichess (HTTP {r.status_code})")
                     else:
-                        r_arch = requests.get(f"https://api.chess.com/pub/player/{user_lower}/games/archives", headers={"User-Agent": "ChessCoachPro/1.0"}, timeout=10)
+                        headers_cc = {"User-Agent": "ChessCoachPro/1.0 (support@chesscoachpro.com)"}
+                        r_arch = requests.get(f"https://api.chess.com/pub/player/{user_lower}/games/archives", headers=headers_cc, timeout=10)
                         if r_arch.status_code == 200 and r_arch.json().get("archives"):
-                            r_m = requests.get(r_arch.json()["archives"][-1], headers={"User-Agent": "ChessCoachPro/1.0"}, timeout=10)
+                            r_m = requests.get(r_arch.json()["archives"][-1], headers=headers_cc, timeout=10)
                             games_j = r_m.json().get("games", [])[-limite_partite:][::-1]
                             st.session_state['partite_importate'] = "\n\n".join([g.get("pgn", "") for g in games_j if g.get("pgn")])
-                            st.success("Scaricamento completato!")
+                            st.success("Scaricamento completato con successo!")
+                        else:
+                            st.error("Impossibile recuperare gli archivi da Chess.com. Verifica lo username.")
                 except Exception as e: st.error(f"Errore download: {e}")
         else: st.warning("Inserisci uno username valido.")
 
@@ -1100,7 +1111,7 @@ elif current_selection == "🌐 Importa & Sincronizza":
                 st.rerun()
 
 # ==========================================
-# SEZIONE 3: PALESTRA ALLENAMENTO (CON CLUSTER AVANZATI)
+# SEZIONE 4: PALESTRA ALLENAMENTO
 # ==========================================
 elif current_selection == "🎯 Palestra sui Tuoi Errori":
     st.markdown("<div class='section-title'>🎯 Palestra di Allenamento Personalizzata</div>", unsafe_allow_html=True)
@@ -1138,7 +1149,7 @@ elif current_selection == "🎯 Palestra sui Tuoi Errori":
             st.markdown("<div class='info-box'>Nessun esercizio disponibile per questo cluster.</div>", unsafe_allow_html=True)
 
 # ==========================================
-# SEZIONE 4A: STUDIO DA LIBRI
+# SEZIONE 5: STUDIO DA LIBRI
 # ==========================================
 elif current_selection == "📚 Studio da Libri":
     st.markdown("<div class='section-title'>📚 Studio da Libri con AI</div>", unsafe_allow_html=True)
@@ -1180,7 +1191,7 @@ elif current_selection == "📚 Studio da Libri":
             st.markdown(f"<div class='info-box'>💬 {cur.get('commento', '')}</div>", unsafe_allow_html=True)
 
 # ==========================================
-# SEZIONE 4B: DIARIO & PDF
+# SEZIONE 6: DIARIO & PDF
 # ==========================================
 elif current_selection == "📝 Diario & PDF":
     st.markdown("<div class='section-title'>📝 Diario Partite & Report PDF</div>", unsafe_allow_html=True)
@@ -1215,7 +1226,7 @@ elif current_selection == "📝 Diario & PDF":
             st.download_button("📥 Scarica Report PDF", data=pdf_b, file_name="diario_partita.pdf", mime="application/pdf")
 
 # ==========================================
-# SEZIONE 4C: PIANI ABBONAMENTO
+# SEZIONE 7: PIANI ABBONAMENTO
 # ==========================================
 elif current_selection == "💎 Piani Abbonamento":
     st.markdown("<div class='section-title'>💎 Scegli il tuo Piano</div>", unsafe_allow_html=True)
@@ -1272,7 +1283,7 @@ elif current_selection == "💎 Piani Abbonamento":
                     st.rerun()
 
 # ==========================================
-# SEZIONE 4D: CONTATTI & SUPPORTO
+# SEZIONE 8: CONTATTI & SUPPORTO
 # ==========================================
 elif current_selection == "📞 Contatti & Supporto":
     st.markdown("<div class='section-title'>📞 Contatti & Supporto</div>", unsafe_allow_html=True)
