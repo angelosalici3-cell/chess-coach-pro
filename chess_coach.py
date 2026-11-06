@@ -11,8 +11,6 @@ import os
 import tempfile
 import time
 import requests
-from pydantic import BaseModel
-from typing import Literal
 from fpdf import FPDF
 from PIL import Image
 
@@ -356,16 +354,7 @@ TEXTS = {
 
 t = TEXTS[st.session_state['lang']]
 
-# --- DATABASE HELPERS & STRUCTURED OUTPUTS AI CLASSIFICATION ---
-class ClassificazioneErrore(BaseModel):
-    categoria: Literal[
-        "Fork", "Pin", "Skewer", "Hanging Piece", "Discovered Attack", 
-        "Double Check", "Interference", "Clearance", "Zugzwang", 
-        "Mate in 1", "Mate in 2", "Mate in 3+", "Back Rank Mate", 
-        "Smothered Mate", "Endgame", "Quiet Move", "Defensive Move", 
-        "Positional Weakness", "Opening Mistake"
-    ]
-
+# --- DATABASE HELPERS & NATIVE JSON AI CLASSIFICATION ---
 def get_user_profiles(email):
     if supabase:
         try:
@@ -397,31 +386,79 @@ def delete_user_profile(profile_id):
 
 def classifica_errore_con_ai(fen_prima, mossa_san):
     prompt = f"""
-    Analizza questa posizione di scacchi (FEN: {fen_prima}) e la mossa giocata in notazione algebrica (SAN: {mossa_san}).
-    Qual è il tema tattico o strategico principale di questo errore? 
-    Scegli l'etichetta più appropriata tra quelle disponibili nello schema.
+    Sei un Gran Maestro ed esperto di tattica negli scacchi.
+    Analizza la seguente posizione e la mossa errata giocata:
+    
+    FEN: {fen_prima}
+    Mossa errata (SAN): {mossa_san}
+    
+    Classifica l'errore scegliendo ESATTAMENTE UNA categoria tra queste:
+    - Fork
+    - Pin
+    - Skewer
+    - Hanging Piece
+    - Discovered Attack
+    - Double Check
+    - Interference
+    - Clearance
+    - Zugzwang
+    - Mate in 1
+    - Mate in 2
+    - Mate in 3+
+    - Back Rank Mate
+    - Smothered Mate
+    - Endgame
+    - Quiet Move
+    - Defensive Move
+    - Opening Mistake
+    - Positional Weakness
+
+    Rispondi rigorosamente in formato JSON puro:
+    {{"categoria": "NOME_CATEGORIA"}}
     """
+
+    valid_tags = [
+        "Fork", "Pin", "Skewer", "Hanging Piece", "Discovered Attack", 
+        "Double Check", "Interference", "Clearance", "Zugzwang", 
+        "Mate in 1", "Mate in 2", "Mate in 3+", "Back Rank Mate", 
+        "Smothered Mate", "Endgame", "Quiet Move", "Defensive Move", 
+        "Opening Mistake", "Positional Weakness"
+    ]
+
     try:
-        from google.genai import types
-        client = genai.Client(api_key=MASTER_GEMINI_KEY) if "Client" in dir(genai) else None
-        
-        config_strutturata = types.GenerateContentConfig(
-            response_mime_type="application/json",
-            response_schema=ClassificazioneErrore,
-            temperature=0.0
-        )
-        
-        if client:
-            resp = client.models.generate_content(model=GEMINI_MODEL_NAME, contents=prompt, config=config_strutturata)
-            dati = json.loads(resp.text)
-            return dati.get("categoria", "Positional Weakness")
-        else:
+        if "genai" in globals() and hasattr(genai, "GenerativeModel"):
             genai.configure(api_key=MASTER_GEMINI_KEY)
-            model = genai.GenerativeModel(GEMINI_MODEL_NAME)
-            resp = model.generate_content(prompt, generation_config={"temperature": 0.0})
-            cleaned = resp.text.replace("```json","").replace("```","").strip()
-            return json.loads(cleaned).get("categoria", "Positional Weakness")
-    except Exception:
+            model = genai.GenerativeModel(
+                GEMINI_MODEL_NAME,
+                generation_config={"response_mime_type": "application/json", "temperature": 0.0}
+            )
+            resp = model.generate_content(prompt)
+            raw_text = resp.text.strip()
+        else:
+            from google import genai as new_genai
+            from google.genai import types
+            client = new_genai.Client(api_key=MASTER_GEMINI_KEY)
+            resp = client.models.generate_content(
+                model=GEMINI_MODEL_NAME,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    temperature=0.0
+                )
+            )
+            raw_text = resp.text.strip()
+
+        data = json.loads(raw_text)
+        cat_estratta = data.get("categoria", "").strip()
+
+        for vt in valid_tags:
+            if vt.lower() == cat_estratta.lower() or vt.lower() in cat_estratta.lower():
+                return vt
+
+        return "Positional Weakness"
+
+    except Exception as e:
+        print(f"⚠️ [DEBUG] Errore Chiamata Gemini Cluster: {e}")
         return "Positional Weakness"
 
 def salva_errore_db(user_email, partita_id, categoria, mossa, spiegazione):
