@@ -6,10 +6,11 @@ import requests
 import chess
 import chess.pgn
 from supabase import create_client
+from google.genai import types
 
-# Configurazione credenziali da variabili d'ambiente (GitHub Secrets)
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY") # Usa la service_role key per i permessi di scrittura completi
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise ValueError("Credenziali Supabase mancanti nelle variabili d'ambiente.")
@@ -22,31 +23,48 @@ def fetch_stockfish_eval(session, fen, depth=10):
             r = session.post("https://chess-api.com/v1", json={"fen": fen, "depth": depth}, timeout=8)
             if r.status_code == 200:
                 data = r.json()
-                if data.get("eval") is not None:
-                    return float(data.get("eval"))
-                elif data.get("centipawns") is not None:
-                    return float(data.get("centipawns")) / 100.0
-                elif data.get("cp") is not None:
-                    return float(data.get("cp")) / 100.0
-                elif data.get("value") is not None:
-                    return float(data.get("value")) / 100.0
-                elif data.get("mate") is not None:
-                    m = int(data.get("mate"))
-                    return 100.0 if m > 0 else -100.0
-        except Exception:
-            time.sleep(0.3)
+                if data.get("eval") is not None: return float(data.get("eval"))
+                elif data.get("centipawns") is not None: return float(data.get("centipawns")) / 100.0
+                elif data.get("cp") is not None: return float(data.get("cp")) / 100.0
+                elif data.get("value") is not None: return float(data.get("value")) / 100.0
+        except Exception: time.sleep(0.3)
     return None
 
-def determina_categoria_mossa(num_mossa, delta_cp, total_moves):
-    if num_mossa <= 12: return "Apertura"
-    elif num_mossa >= total_moves - 10 or (total_moves > 40 and num_mossa > 30): return "Finale"
-    elif delta_cp >= 2.0: return "Tattica"
-    else: return "Posizionale"
+def classifica_errore_con_ai_veloce(fen_prima, mossa_giocata):
+    if not GEMINI_API_KEY:
+        return "Positional Weakness"
+    
+    prompt = f"""
+    FEN: {fen_prima} | Mossa errata: {mossa_giocata}.
+    Classifica l'errore scegliendo SOLO UNA di queste etichette in inglese:
+    - Fork, Pin, Skewer, Hanging Piece, Discovered Attack, Double Check, Interference, Clearance, Zugzwang, Mate in 1, Mate in 2, Mate in 3+, Back Rank Mate, Smothered Mate, Endgame, Quiet Move, Defensive Move, Positional Weakness, Opening Mistake.
+    Rispondi solo con il nome esatto dell'etichetta.
+    """
+    try:
+        from google import genai as new_genai
+        client = new_genai.Client(api_key=GEMINI_API_KEY)
+        config_veloce = types.GenerateContentConfig(max_output_tokens=10, temperature=0.0)
+        
+        resp = client.models.generate_content(model="gemini-3.8-flash", contents=prompt, config=config_veloce)
+        tag = resp.text.strip()
+        
+        valid_tags = [
+            "Fork", "Pin", "Skewer", "Hanging Piece", "Discovered Attack", 
+            "Double Check", "Interference", "Clearance", "Zugzwang", 
+            "Mate in 1", "Mate in 2", "Mate in 3+", "Back Rank Mate", 
+            "Smothered Mate", "Endgame", "Quiet Move", "Defensive Move", 
+            "Positional Weakness", "Opening Mistake"
+        ]
+        for vt in valid_tags:
+            if vt.lower() in tag.lower():
+                return vt
+        return "Positional Weakness"
+    except Exception:
+        return "Positional Weakness"
 
 def analizza_e_salva_partita(user_email, pgn_text, target_username):
     game = chess.pgn.read_game(io.StringIO(pgn_text))
-    if not game:
-        return
+    if not game: return
 
     headers = game.headers
     white_player = headers.get('White', 'Unknown').strip().lower()
@@ -55,31 +73,27 @@ def analizza_e_salva_partita(user_email, pgn_text, target_username):
     user_is_white = target_username.lower() in white_player
     user_is_black = target_username.lower() in black_player
     if not user_is_white and not user_is_black:
-        user_is_white = True
-        user_is_black = True # Fallback
+        user_is_white = user_is_black = True
 
     partita_id = f"{headers.get('White', 'Unknown')}_vs_{headers.get('Black', 'Unknown')}_{headers.get('Date', 'Live')}"
     
-    # Verifica se la partita è già stata analizzata per questo utente
+    # Verifica se già analizzata per l'utente
     existing = supabase.table("errori_utenti").select("id").eq("user_email", user_email).eq("partita_id", partita_id).execute()
     if existing.data and len(existing.data) > 0:
-        return # Già analizzata, saltiamo
+        return
 
     board = game.board()
-    headers_req = {"User-Agent": "ChessCoachProWorker/1.0", "Content-Type": "application/json"}
+    headers_req = {"User-Agent": "ChessCoachProWorker/1.0 (support@chesscoachpro.com)", "Content-Type": "application/json"}
     main_moves = list(game.mainline_moves())
-    total_full_moves = (len(main_moves) + 1) // 2
-
+    
     session = requests.Session()
     session.headers.update(headers_req)
     prev_eval = 0.0
 
     for idx, move in enumerate(main_moves):
         fen_before = board.fen()
-        try:
-            move_san = board.san(move)
-        except Exception:
-            move_san = move.uci()
+        try: move_san = board.san(move)
+        except Exception: move_san = move.uci()
 
         eval_before = fetch_stockfish_eval(session, fen_before, depth=10)
         if eval_before is None: eval_before = prev_eval
@@ -95,12 +109,13 @@ def analizza_e_salva_partita(user_email, pgn_text, target_username):
         is_user_move = (is_white_move and user_is_white) or (not is_white_move and user_is_black)
         if is_user_move:
             delta = (eval_before - eval_after) if is_white_move else (eval_after - eval_before)
-            if delta >= 1.0: # Salva inaccuracy, mistakes e blunders
-                tipo_problema = "🔴 Blunder" if delta >= 2.0 else ("🟠 Mistake" if delta >= 1.0 else "🟡 Inaccuracy")
+            if delta >= 1.0: # Solo Mistake (>=1.0) e Blunder (>=2.0)
+                tipo_problema = "🔴 Blunder" if delta >= 2.0 else "🟠 Mistake"
                 label_mossa = f"{num_mossa}. {move_san}" if is_white_move else f"{num_mossa}... {move_san}"
-                cat_mossa = determina_categoria_mossa(num_mossa, round(delta, 2), total_full_moves)
                 
-                # Salvataggio immediato nel DB Supabase
+                # Classificazione AI coerente e ultra-veloce
+                cat_mossa = classifica_errore_con_ai_veloce(fen_before, move.uci())
+                
                 try:
                     supabase.table("errori_utenti").insert({
                         "user_email": user_email,
@@ -113,13 +128,10 @@ def analizza_e_salva_partita(user_email, pgn_text, target_username):
                 except Exception:
                     pass
         prev_eval = eval_after
-        time.sleep(0.1) # Pausa di cortesia per non sovraccaricare l'API di Stockfish
+        time.sleep(0.05)
 
 def main():
-    print("🔄 Avvio sincronizzazione giornaliera abbonati Pro/Diamond...")
-    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
-
-    # 1. Prendi tutti gli utenti con abbonamento Pro o Diamond attivo
+    print("🔄 Avvio sincronizzazione notturna abbonati Pro/Diamond...")
     res_users = supabase.table("config_utenti").select("user_email, tier, data_scadenza").in_("tier", ["Pro", "Diamond"]).execute()
     
     if not res_users.data:
@@ -130,27 +142,19 @@ def main():
         email = user["user_email"]
         scadenza = user["data_scadenza"]
         
-        # Controlla se l'abbonamento è davvero valido
         if scadenza and datetime.datetime.fromisoformat(scadenza.replace("Z", "+00:00")) < datetime.datetime.now(datetime.timezone.utc):
             continue
 
-        print(f"👉 Elaborazione utente: {email} ({user['tier']})")
-
-        # 2. Recupera i profili scacchistici dell'utente
         res_prof = supabase.table("profili_scacchi").select("piattaforma, username").eq("user_email", email).execute()
-        if not res_prof.data:
-            continue
+        if not res_prof.data: continue
 
         for prof in res_prof.data:
             plat = prof["piattaforma"]
             usr = prof["username"].strip().lower()
-            print(f"   -> Controllo profilo {plat}: {usr}")
-
             try:
-                # 3. Scarica le ultime 5 partite per aggiornamento giornaliero
                 if plat == "Lichess":
                     url = f"https://lichess.org/api/games/user/{usr}"
-                    headers = {"Accept": "application/x-chess-pgn", "User-Agent": "ChessCoachPro/1.0"}
+                    headers = {"Accept": "application/x-chess-pgn", "User-Agent": "ChessCoachProWorker/1.0 (support@chesscoachpro.com)"}
                     r = requests.get(url, params={"max": 5}, headers=headers, timeout=20)
                     if r.status_code == 200 and r.text.strip():
                         pgns = [p.strip() for p in r.text.split("\n[Event ") if p.strip()]
@@ -158,7 +162,7 @@ def main():
                             full_pgn = "[Event " + p if not p.startswith("[Event") else p
                             analizza_e_salva_partita(email, full_pgn, usr)
                 elif plat == "Chess.com":
-                    headers_c = {"User-Agent": "ChessCoachPro/1.0"}
+                    headers_c = {"User-Agent": "ChessCoachProWorker/1.0 (support@chesscoachpro.com)"}
                     arch_url = f"https://api.chess.com/pub/player/{usr}/games/archives"
                     r_arch = requests.get(arch_url, headers=headers_c, timeout=10)
                     if r_arch.status_code == 200:
@@ -172,9 +176,9 @@ def main():
                                     if pgn_text:
                                         analizza_e_salva_partita(email, pgn_text, usr)
             except Exception as e:
-                print(f"   ❌ Errore scaricamento partite per {usr}: {e}")
+                print(f"Errore sync {usr}: {e}")
 
-    print("✅ Sincronizzazione giornaliera completata con successo!")
+    print("✅ Sincronizzazione notturna completata!")
 
 if __name__ == "__main__":
     main()
