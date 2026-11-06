@@ -11,6 +11,8 @@ import os
 import tempfile
 import time
 import requests
+from pydantic import BaseModel
+from typing import Literal
 from fpdf import FPDF
 from PIL import Image
 
@@ -354,7 +356,16 @@ TEXTS = {
 
 t = TEXTS[st.session_state['lang']]
 
-# --- DATABASE HELPERS & ULTRA-FAST AI CLASSIFICATION (CON NOTAZIONE SAN) ---
+# --- DATABASE HELPERS & STRUCTURED OUTPUTS AI CLASSIFICATION ---
+class ClassificazioneErrore(BaseModel):
+    categoria: Literal[
+        "Fork", "Pin", "Skewer", "Hanging Piece", "Discovered Attack", 
+        "Double Check", "Interference", "Clearance", "Zugzwang", 
+        "Mate in 1", "Mate in 2", "Mate in 3+", "Back Rank Mate", 
+        "Smothered Mate", "Endgame", "Quiet Move", "Defensive Move", 
+        "Positional Weakness", "Opening Mistake"
+    ]
+
 def get_user_profiles(email):
     if supabase:
         try:
@@ -387,37 +398,29 @@ def delete_user_profile(profile_id):
 def classifica_errore_con_ai(fen_prima, mossa_san):
     prompt = f"""
     Analizza questa posizione di scacchi (FEN: {fen_prima}) e la mossa giocata in notazione algebrica (SAN: {mossa_san}).
-    Qual è il tema tattico o strategico principale di questo errore?
-    Scegli UNA sola etichetta da questo elenco esatto:
-    Fork, Pin, Skewer, Hanging Piece, Discovered Attack, Double Check, Interference, Clearance, Zugzwang, Mate in 1, Mate in 2, Mate in 3+, Back Rank Mate, Smothered Mate, Endgame, Quiet Move, Defensive Move, Positional Weakness, Opening Mistake.
-    Rispondi unicamente con il nome dell'etichetta, senza altro testo.
+    Qual è il tema tattico o strategico principale di questo errore? 
+    Scegli l'etichetta più appropriata tra quelle disponibili nello schema.
     """
     try:
         from google.genai import types
         client = genai.Client(api_key=MASTER_GEMINI_KEY) if "Client" in dir(genai) else None
         
-        config_veloce = types.GenerateContentConfig(max_output_tokens=30, temperature=0.0)
+        config_strutturata = types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=ClassificazioneErrore,
+            temperature=0.0
+        )
         
         if client:
-            resp = client.models.generate_content(model=GEMINI_MODEL_NAME, contents=prompt, config=config_veloce)
-            tag = resp.text.strip().replace('"', '').replace("'", "")
+            resp = client.models.generate_content(model=GEMINI_MODEL_NAME, contents=prompt, config=config_strutturata)
+            dati = json.loads(resp.text)
+            return dati.get("categoria", "Positional Weakness")
         else:
             genai.configure(api_key=MASTER_GEMINI_KEY)
             model = genai.GenerativeModel(GEMINI_MODEL_NAME)
-            resp = model.generate_content(prompt, generation_config={"max_output_tokens": 30, "temperature": 0.0})
-            tag = resp.text.strip().replace('"', '').replace("'", "")
-
-        valid_tags = [
-            "Fork", "Pin", "Skewer", "Hanging Piece", "Discovered Attack", 
-            "Double Check", "Interference", "Clearance", "Zugzwang", 
-            "Mate in 1", "Mate in 2", "Mate in 3+", "Back Rank Mate", 
-            "Smothered Mate", "Endgame", "Quiet Move", "Defensive Move", 
-            "Positional Weakness", "Opening Mistake"
-        ]
-        for vt in valid_tags:
-            if vt.lower() == tag.lower() or vt.lower() in tag.lower():
-                return vt
-        return "Positional Weakness"
+            resp = model.generate_content(prompt, generation_config={"temperature": 0.0})
+            cleaned = resp.text.replace("```json","").replace("```","").strip()
+            return json.loads(cleaned).get("categoria", "Positional Weakness")
     except Exception:
         return "Positional Weakness"
 
@@ -695,7 +698,6 @@ def analizza_partita_chess_api(pgn_text, target_usernames):
             tipo_problema = "🔴 Blunder" if delta >= 2.0 else ("🟠 Mistake" if delta >= 1.0 else ("🟡 Inaccuracy" if delta >= 0.5 else None))
             if tipo_problema:
                 label_mossa = f"{num_mossa}. {move_san}" if is_white_move else f"{num_mossa}... {move_san}"
-                # Chiamata passando move_san per una corretta clusterizzazione tattica
                 cat_mossa = classifica_errore_con_ai(fen_before, move_san)
                 evaluations.append({
                     "mossa_num": idx + 1, "label_mossa": label_mossa, "fen_prima": fen_before,
