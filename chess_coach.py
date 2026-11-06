@@ -143,7 +143,7 @@ if "success" in query_params and st.session_state.get('user'):
         st.success(f"🎉 Abbonamento {tier_name} attivato con successo!")
         st.query_params.clear()
 
-# --- CSS DINAMICO PULITO ---
+# --- CSS DINAMICO ---
 def get_dynamic_css(theme):
     common_fix = """
         #MainMenu { visibility: hidden !important; }
@@ -164,7 +164,7 @@ def get_dynamic_css(theme):
         }
         .main .block-container { padding-top: 1.2rem; padding-bottom: 3rem; max-width: 1200px; }
         h1, h2, h3, h4, h5, h6, p, span, label, div { color: #e8eaf0; }
-        .hero { text-align: center; padding: 1rem 0 0.5rem 0; animation: fadeIn 0.6s ease-in; }
+        .hero { text-align: center; padding: 1rem 0 0.5rem 0; }
         .brand-title {
             background: linear-gradient(90deg, #FFD700 0%, #FFA500 50%, #FFB347 100%);
             -webkit-background-clip: text; -webkit-text-fill-color: transparent;
@@ -179,7 +179,6 @@ def get_dynamic_css(theme):
             background: linear-gradient(180deg, #0b101c 0%, #080c15 100%) !important;
             border-right: 1px solid rgba(255, 215, 0, 0.08);
         }
-        section[data-testid="stSidebar"] > div { padding-top: 1rem; }
         .user-card {
             display: flex; align-items: center; gap: 0.9rem;
             padding: 0.9rem; border-radius: 14px;
@@ -213,17 +212,14 @@ def get_dynamic_css(theme):
             background: linear-gradient(135deg, rgba(20,26,42,0.75) 0%, rgba(15,20,32,0.75) 100%) !important;
             border: 1px solid rgba(255, 215, 0, 0.12) !important;
             border-radius: 14px !important; color: #e8eaf0 !important;
-            margin-bottom: 0.6rem; overflow: hidden; backdrop-filter: blur(6px);
+            margin-bottom: 0.6rem; backdrop-filter: blur(6px);
         }
-        div[data-testid="stExpander"]:hover { border-color: rgba(255, 215, 0, 0.3) !important; }
-        div[data-testid="stExpander"] summary p { color: #e8eaf0 !important; font-weight: 600; }
         .metric-card {
             background: linear-gradient(135deg, rgba(20,26,42,0.9), rgba(15,20,32,0.9));
             border-radius: 16px; padding: 1.2rem 1.1rem;
             border: 1px solid rgba(255,255,255,0.06);
-            position: relative; overflow: hidden; transition: transform 0.25s ease, border-color 0.25s ease;
+            position: relative; overflow: hidden;
         }
-        .metric-card:hover { transform: translateY(-3px); border-color: rgba(255,215,0,0.35); }
         .metric-card::before {
             content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
             background: linear-gradient(90deg, #FFD700, #FFA500);
@@ -231,11 +227,8 @@ def get_dynamic_css(theme):
         .metric-card.blue::before   { background: linear-gradient(90deg, #3b82f6, #6366f1); }
         .metric-card.purple::before { background: linear-gradient(90deg, #a855f7, #ec4899); }
         .metric-card.green::before  { background: linear-gradient(90deg, #10b981, #34d399); }
-        .metric-icon { font-size: 1.6rem; margin-bottom: 0.3rem; }
-        .metric-value { font-size: 2rem; font-weight: 800; font-family: 'Outfit', sans-serif;
-                        color: #fff; line-height: 1.1; margin-bottom: 0.2rem; }
-        .metric-label { font-size: 0.8rem; color: #8892a6; text-transform: uppercase;
-                        letter-spacing: 0.8px; font-weight: 500; }
+        .metric-value { font-size: 2rem; font-weight: 800; font-family: 'Outfit', sans-serif; color: #fff; line-height: 1.1; }
+        .metric-label { font-size: 0.8rem; color: #8892a6; text-transform: uppercase; letter-spacing: 0.8px; }
         .board-wrapper {
             display: flex; justify-content: center; align-items: center;
             padding: 1.2rem; border-radius: 20px;
@@ -243,180 +236,67 @@ def get_dynamic_css(theme):
             border: 1px solid rgba(255,215,0,0.12); box-shadow: 0 20px 50px rgba(0,0,0,0.35);
             max-width: fit-content; margin: 0 auto;
         }
-        .board-wrapper svg { border-radius: 12px; }
         .pricing-card {
             background: linear-gradient(135deg, rgba(20,26,42,0.9), rgba(15,20,32,0.9));
             border: 1px solid rgba(255,215,0,0.2); border-radius: 20px;
-            padding: 2rem 1.5rem; text-align: center; position: relative;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.4); height: 100%;
+            padding: 2rem 1.5rem; text-align: center; height: 100%;
         }
-        .pricing-card.featured {
-            border: 2px solid #FFD700;
-            background: linear-gradient(135deg, rgba(30,38,60,0.95), rgba(20,26,42,0.95));
-            box-shadow: 0 15px 40px rgba(255,215,0,0.2);
-        }
+        .pricing-card.featured { border: 2px solid #FFD700; background: linear-gradient(135deg, rgba(30,38,60,0.95), rgba(20,26,42,0.95)); }
         .pricing-title { font-size: 1.5rem; font-weight: 800; color: #FFD700; margin-bottom: 0.5rem; }
         .pricing-price { font-size: 2.5rem; font-weight: 900; color: #fff; margin-bottom: 1rem; }
         .pricing-features { text-align: left; margin: 1.5rem 0; font-size: 0.9rem; color: #cbd5e1; list-style: none; padding: 0; }
         .pricing-features li { margin-bottom: 0.6rem; display: flex; align-items: center; gap: 0.5rem; }
-        .info-box, .success-box, .warning-box, .error-box {
-            border-radius: 12px; padding: 0.9rem 1.1rem; margin: 0.5rem 0;
-            border-left: 3px solid; font-size: 0.92rem;
-        }
+        .info-box, .success-box, .warning-box { border-radius: 12px; padding: 0.9rem 1.1rem; margin: 0.5rem 0; border-left: 3px solid; font-size: 0.92rem; }
         .info-box    { background: rgba(59,130,246,0.08); border-color: #3b82f6; color: #93c5fd; }
         .success-box { background: rgba(16,185,129,0.08); border-color: #10b981; color: #6ee7b7; }
         .warning-box { background: rgba(234,179,8,0.08);  border-color: #eab308; color: #fde047; }
-        .error-box   { background: rgba(239,68,68,0.08);  border-color: #ef4444; color: #fca5a5; }
         .section-title {
             font-family: 'Outfit', sans-serif; font-size: 1.4rem; font-weight: 700;
             margin: 1.4rem 0 0.8rem 0; display: flex; align-items: center; gap: 0.5rem; color: #fff;
         }
-        .section-title::after {
-            content: ''; flex: 1; height: 1px;
-            background: linear-gradient(90deg, rgba(255,215,0,0.35), transparent);
-            margin-left: 0.6rem;
-        }
-        .stButton > button {
-            border-radius: 10px !important; transition: all 0.22s ease !important;
-            font-weight: 600 !important; border: 1px solid rgba(255,215,0,0.25) !important;
-            background: rgba(20,26,42,0.6) !important; color: #e8eaf0 !important;
-        }
-        .stButton > button:hover {
-            border-color: rgba(255,215,0,0.6) !important; background: rgba(255,215,0,0.08) !important;
-            transform: translateY(-1px);
-        }
-        .stButton > button[kind="primary"] {
-            background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%) !important;
-            color: #0a0e1a !important; font-weight: 800 !important; border: none !important;
-            box-shadow: 0 6px 18px rgba(255, 165, 0, 0.25) !important;
-        }
-        input, textarea { color: #e8eaf0 !important; background-color: rgba(10,14,26,0.7) !important;
-            border: 1px solid rgba(255,255,255,0.08) !important; border-radius: 10px !important; }
+        .section-title::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, rgba(255,215,0,0.35), transparent); margin-left: 0.6rem; }
+        .stButton > button { border-radius: 10px !important; font-weight: 600 !important; border: 1px solid rgba(255,215,0,0.25) !important; background: rgba(20,26,42,0.6) !important; color: #e8eaf0 !important; }
+        .stButton > button[kind="primary"] { background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%) !important; color: #0a0e1a !important; font-weight: 800 !important; border: none !important; }
+        input, textarea { color: #e8eaf0 !important; background-color: rgba(10,14,26,0.7) !important; border-radius: 10px !important; }
         </style>"""
     else:
         return "<style>" + common_fix + """
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap');
         html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
         h1, h2, h3, h4, h5, h6, .brand-title { font-family: 'Outfit', sans-serif; }
-        .stApp {
-            background:
-                radial-gradient(1200px 800px at 10% -10%, rgba(212,175,55,0.12), transparent 50%),
-                radial-gradient(1000px 600px at 90% 110%, rgba(59,130,246,0.10), transparent 50%),
-                linear-gradient(135deg, #f8fafc 0%, #eef2f7 50%, #e2e8f0 100%);
-            color: #1a202c;
-        }
+        .stApp { background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); color: #1a202c; }
         .main .block-container { padding-top: 1.2rem; padding-bottom: 3rem; max-width: 1200px; }
         h1, h2, h3, h4, h5, h6, p, span, label, div { color: #1a202c; }
         .hero { text-align: center; padding: 1rem 0 0.5rem 0; }
-        .brand-title {
-            background: linear-gradient(90deg, #b8860b 0%, #d4af37 50%, #c9a227 100%);
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-            font-size: 2.6rem; font-weight: 900; text-align: center; letter-spacing: -0.5px; margin-bottom: 0;
-        }
-        .brand-sub {
-            text-align: center; color: #64748b !important;
-            font-size: 0.95rem; margin: 0.2rem 0 1rem 0; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 500;
-        }
-        .hero-logo { font-size: 3.5rem; display: block; text-align: center; margin-bottom: -0.4rem; }
-        section[data-testid="stSidebar"] {
-            background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%) !important;
-            border-right: 1px solid rgba(0,0,0,0.06);
-        }
-        .user-card {
-            display: flex; align-items: center; gap: 0.9rem;
-            padding: 0.9rem; border-radius: 14px;
-            background: linear-gradient(135deg, rgba(212,175,55,0.10), rgba(212,175,55,0.02));
-            border: 1px solid rgba(212,175,55,0.25); margin-bottom: 1rem;
-        }
-        .avatar {
-            width: 46px; height: 46px; border-radius: 50%;
-            background: linear-gradient(135deg, #d4af37, #b8860b);
-            display: flex; align-items: center; justify-content: center;
-            color: #ffffff; font-weight: 800; font-size: 1.05rem;
-            box-shadow: 0 4px 14px rgba(212,175,55,0.35); flex-shrink: 0;
-        }
-        .user-info { flex: 1; min-width: 0; }
-        .user-name { font-size: 0.82rem; font-weight: 600; color: #1a202c;
-                     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .tier-badge {
-            display: inline-block; padding: 3px 10px; border-radius: 20px;
-            font-weight: 700; font-size: 0.68rem; text-transform: uppercase;
-            letter-spacing: 0.5px; margin-top: 2px;
-        }
-        .badge-free    { background: #e2e8f0; color: #64748b; border: 1px solid #cbd5e1; }
-        .badge-pro     { background: rgba(212,175,55,0.15); color: #b8860b; border: 1px solid #d4af37; }
-        .badge-diamond { background: rgba(59,130,246,0.15); color: #2563eb; border: 1px solid #3b82f6; }
-        .category-tag {
-            background: rgba(212,175,55,0.15); color: #b8860b;
-            padding: 2px 8px; border-radius: 6px; font-weight: 600; font-size: 0.75rem;
-            border: 1px solid rgba(212,175,55,0.3);
-        }
-        .metric-card {
-            background: #ffffff; border-radius: 16px; padding: 1.2rem 1.1rem;
-            border: 1px solid #e2e8f0; position: relative; overflow: hidden;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.05);
-            transition: transform 0.25s ease, border-color 0.25s ease;
-        }
-        .metric-card:hover { transform: translateY(-3px); border-color: rgba(212,175,55,0.5); }
-        .metric-card::before {
-            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
-            background: linear-gradient(90deg, #d4af37, #b8860b);
-        }
-        .metric-card.blue::before   { background: linear-gradient(90deg, #3b82f6, #6366f1); }
-        .metric-card.purple::before { background: linear-gradient(90deg, #a855f7, #ec4899); }
-        .metric-card.green::before  { background: linear-gradient(90deg, #10b981, #34d399); }
-        .metric-icon { font-size: 1.6rem; margin-bottom: 0.3rem; }
-        .metric-value { font-size: 2rem; font-weight: 800; font-family: 'Outfit', sans-serif;
-                        color: #1a202c; line-height: 1.1; margin-bottom: 0.2rem; }
-        .metric-label { font-size: 0.8rem; color: #64748b; text-transform: uppercase;
-                        letter-spacing: 0.8px; font-weight: 500; }
-        .board-wrapper {
-            display: flex; justify-content: center; align-items: center;
-            padding: 1.2rem; border-radius: 20px; background: #ffffff;
-            border: 1px solid #e2e8f0; box-shadow: 0 8px 30px rgba(0,0,0,0.08);
-            max-width: fit-content; margin: 0 auto;
-        }
-        .board-wrapper svg { border-radius: 12px; }
-        .pricing-card {
-            background: #ffffff; border: 1px solid #cbd5e1; border-radius: 20px;
-            padding: 2rem 1.5rem; text-align: center; position: relative;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.05); height: 100%;
-        }
-        .pricing-card.featured {
-            border: 2px solid #d4af37; background: #ffffff;
-            box-shadow: 0 10px 30px rgba(212,175,55,0.15);
-        }
+        .brand-title { background: linear-gradient(90deg, #b8860b 0%, #d4af37 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 2.6rem; font-weight: 900; text-align: center; }
+        .brand-sub { text-align: center; color: #64748b !important; font-size: 0.95rem; text-transform: uppercase; font-weight: 500; }
+        section[data-testid="stSidebar"] { background: #ffffff !important; border-right: 1px solid rgba(0,0,0,0.06); }
+        .user-card { display: flex; align-items: center; gap: 0.9rem; padding: 0.9rem; border-radius: 14px; background: rgba(212,175,55,0.10); border: 1px solid rgba(212,175,55,0.25); margin-bottom: 1rem; }
+        .avatar { width: 46px; height: 46px; border-radius: 50%; background: linear-gradient(135deg, #d4af37, #b8860b); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; }
+        .user-name { font-size: 0.82rem; font-weight: 600; color: #1a202c; }
+        .tier-badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-weight: 700; font-size: 0.68rem; text-transform: uppercase; }
+        .badge-free { background: #e2e8f0; color: #64748b; }
+        .badge-pro { background: rgba(212,175,55,0.15); color: #b8860b; }
+        .badge-diamond { background: rgba(59,130,246,0.15); color: #2563eb; }
+        .category-tag { background: rgba(212,175,55,0.15); color: #b8860b; padding: 2px 8px; border-radius: 6px; font-weight: 600; font-size: 0.75rem; }
+        .metric-card { background: #ffffff; border-radius: 16px; padding: 1.2rem 1.1rem; border: 1px solid #e2e8f0; box-shadow: 0 2px 12px rgba(0,0,0,0.05); }
+        .metric-value { font-size: 2rem; font-weight: 800; font-family: 'Outfit', sans-serif; color: #1a202c; }
+        .metric-label { font-size: 0.8rem; color: #64748b; text-transform: uppercase; }
+        .board-wrapper { display: flex; justify-content: center; align-items: center; padding: 1.2rem; border-radius: 20px; background: #ffffff; border: 1px solid #e2e8f0; box-shadow: 0 8px 30px rgba(0,0,0,0.08); max-width: fit-content; margin: 0 auto; }
+        .pricing-card { background: #ffffff; border: 1px solid #cbd5e1; border-radius: 20px; padding: 2.1rem 1.5rem; text-align: center; height: 100%; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
+        .pricing-card.featured { border: 2px solid #d4af37; box-shadow: 0 10px 30px rgba(212,175,55,0.15); }
         .pricing-title { font-size: 1.5rem; font-weight: 800; color: #b8860b; margin-bottom: 0.5rem; }
         .pricing-price { font-size: 2.5rem; font-weight: 900; color: #1a202c; margin-bottom: 1rem; }
         .pricing-features { text-align: left; margin: 1.5rem 0; font-size: 0.9rem; color: #475569; list-style: none; padding: 0; }
         .pricing-features li { margin-bottom: 0.6rem; display: flex; align-items: center; gap: 0.5rem; }
-        .info-box, .success-box, .warning-box, .error-box {
-            border-radius: 12px; padding: 0.9rem 1.1rem; margin: 0.5rem 0;
-            border-left: 3px solid; font-size: 0.92rem;
-        }
-        .info-box    { background: rgba(59,130,246,0.08); border-color: #3b82f6; color: #1e40af; }
+        .info-box, .success-box, .warning-box { border-radius: 12px; padding: 0.9rem 1.1rem; margin: 0.5rem 0; border-left: 3px solid; font-size: 0.92rem; }
+        .info-box { background: rgba(59,130,246,0.08); border-color: #3b82f6; color: #1e40af; }
         .success-box { background: rgba(16,185,129,0.08); border-color: #10b981; color: #047857; }
-        .warning-box { background: rgba(234,179,8,0.10);  border-color: #eab308; color: #854d0e; }
-        .error-box   { background: rgba(239,68,68,0.08);  border-color: #ef4444; color: #b91c1c; }
-        .section-title {
-            font-family: 'Outfit', sans-serif; font-size: 1.4rem; font-weight: 700;
-            margin: 1.4rem 0 0.8rem 0; display: flex; align-items: center; gap: 0.5rem; color: #1a202c;
-        }
-        .section-title::after {
-            content: ''; flex: 1; height: 1px;
-            background: linear-gradient(90deg, rgba(212,175,55,0.4), transparent);
-            margin-left: 0.6rem;
-        }
-        .stButton > button {
-            border-radius: 10px !important; transition: all 0.22s ease !important;
-            font-weight: 600 !important; border: 1px solid #e2e8f0 !important;
-            background: #ffffff !important; color: #1a202c !important;
-        }
-        .stButton > button[kind="primary"] {
-            background: linear-gradient(135deg, #d4af37 0%, #b8860b 100%) !important;
-            color: #ffffff !important; font-weight: 800 !important; border: none !important;
-            box-shadow: 0 6px 18px rgba(212,175,55,0.3) !important;
-        }
+        .warning-box { background: rgba(234,179,8,0.10); border-color: #eab308; color: #854d0e; }
+        .section-title { font-family: 'Outfit', sans-serif; font-size: 1.4rem; font-weight: 700; margin: 1.4rem 0 0.8rem 0; display: flex; align-items: center; gap: 0.5rem; color: #1a202c; }
+        .section-title::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, rgba(212,175,55,0.4), transparent); margin-left: 0.6rem; }
+        .stButton > button { border-radius: 10px !important; font-weight: 600 !important; border: 1px solid #e2e8f0 !important; background: #ffffff !important; color: #1a202c !important; }
+        .stButton > button[kind="primary"] { background: linear-gradient(135deg, #d4af37 0%, #b8860b 100%) !important; color: #ffffff !important; font-weight: 800 !important; border: none !important; }
         </style>"""
 
 st.markdown(get_dynamic_css(st.session_state['theme_mode']), unsafe_allow_html=True)
@@ -436,7 +316,7 @@ TEXTS = {
         "profile_setup_title": "Configura i tuoi Profili",
         "profile_setup_desc": "Collega i tuoi account Lichess o Chess.com per la sincronizzazione.",
         "continue_btn": "🚀 Entra nell'App",
-        "already_analyzed": "⚠️ Questa partita è già stata analizzata in questa sessione."
+        "already_analyzed": "⚠️ Questa partita è già stata analizzata ed è presente nel tuo archivio."
     },
     "en": {
         "title": "Chess Coach Pro", "subtitle": "High-Efficiency AI Chess Coaching",
@@ -452,7 +332,7 @@ TEXTS = {
         "profile_setup_title": "Setup your Chess Profiles",
         "profile_setup_desc": "Link your Lichess or Chess.com accounts for sync.",
         "continue_btn": "🚀 Enter App",
-        "already_analyzed": "⚠️ This game has already been analyzed in this session."
+        "already_analyzed": "⚠️ This game has already been analyzed and saved."
     },
     "es": {
         "title": "Chess Coach Pro", "subtitle": "Entrenamiento de Ajedrez con IA de Alta Eficiencia",
@@ -474,7 +354,7 @@ TEXTS = {
 
 t = TEXTS[st.session_state['lang']]
 
-# --- DATABASE HELPERS & AI CLUSTERS ---
+# --- DATABASE HELPERS & ULTRA-FAST AI CLASSIFICATION ---
 def get_user_profiles(email):
     if supabase:
         try:
@@ -506,42 +386,25 @@ def delete_user_profile(profile_id):
 
 def classifica_errore_con_ai(fen_prima, mossa_giocata):
     prompt = f"""
-    Sei un GM di scacchi ed un esperto di tattica. Analizza questa posizione e la mossa errata giocata.
-    FEN prima della mossa: {fen_prima}
-    Mossa errata: {mossa_giocata}
-    
-    Classifica l'errore scegliendo ESATTAMENTE UNA delle seguenti etichette tematiche:
-    - Fork
-    - Pin
-    - Skewer
-    - Hanging Piece
-    - Discovered Attack
-    - Double Check
-    - Interference
-    - Clearance
-    - Zugzwang
-    - Mate in 1
-    - Mate in 2
-    - Mate in 3+
-    - Back Rank Mate
-    - Smothered Mate
-    - Endgame
-    - Quiet Move
-    - Defensive Move
-    - Positional Weakness
-    - Opening Mistake
-
-    Rispondi SOLO con il nome esatto dell'etichetta in inglese tra quelle elencate, senza aggiungere altro testo.
+    FEN: {fen_prima} | Mossa errata: {mossa_giocata}.
+    Classifica l'errore scegliendo SOLO UNA di queste etichette in inglese:
+    - Fork, Pin, Skewer, Hanging Piece, Discovered Attack, Double Check, Interference, Clearance, Zugzwang, Mate in 1, Mate in 2, Mate in 3+, Back Rank Mate, Smothered Mate, Endgame, Quiet Move, Defensive Move, Positional Weakness, Opening Mistake.
+    Rispondi solo con il nome esatto dell'etichetta.
     """
     try:
+        from google.genai import types
         client = genai.Client(api_key=MASTER_GEMINI_KEY) if "Client" in dir(genai) else None
+        
+        # Configurazione ultra-veloce e deterministica (<0.3s)
+        config_veloce = types.GenerateContentConfig(max_output_tokens=10, temperature=0.0)
+        
         if client:
-            resp = client.models.generate_content(model=GEMINI_MODEL_NAME, contents=prompt)
+            resp = client.models.generate_content(model=GEMINI_MODEL_NAME, contents=prompt, config=config_veloce)
             tag = resp.text.strip()
         else:
             genai.configure(api_key=MASTER_GEMINI_KEY)
             model = genai.GenerativeModel(GEMINI_MODEL_NAME)
-            resp = model.generate_content(prompt)
+            resp = model.generate_content(prompt, generation_config={"max_output_tokens": 10, "temperature": 0.0})
             tag = resp.text.strip()
 
         valid_tags = [
@@ -687,7 +550,7 @@ if not st.session_state.get('profile_setup_done', False):
     st.stop()
 
 # ==========================================
-# SIDEBAR / MENU STRUTTURATO E CORRETTO
+# SIDEBAR / MENU STRUTTURATO
 # ==========================================
 with st.sidebar:
     initials = (user_email[:2] if user_email else "U").upper()
@@ -757,7 +620,7 @@ st.divider()
 current_selection = st.session_state['nav_selection']
 
 # ==========================================
-# MOTORE STOCKFISH & HELPER DI ANALISI COMPLETI
+# MOTORE STOCKFISH & HELPER DI ANALISI
 # ==========================================
 def fetch_stockfish_eval(session, fen, depth=10):
     for attempt in range(2):
@@ -832,6 +695,7 @@ def analizza_partita_chess_api(pgn_text, target_usernames):
             tipo_problema = "🔴 Blunder" if delta >= 2.0 else ("🟠 Mistake" if delta >= 1.0 else ("🟡 Inaccuracy" if delta >= 0.5 else None))
             if tipo_problema:
                 label_mossa = f"{num_mossa}. {move_san}" if is_white_move else f"{num_mossa}... {move_san}"
+                # Chiamata rapida <0.3s grazie a max_output_tokens=10 e temp=0.0
                 cat_mossa = classifica_errore_con_ai(fen_before, move.uci())
                 evaluations.append({
                     "mossa_num": idx + 1, "label_mossa": label_mossa, "fen_prima": fen_before,
@@ -839,7 +703,7 @@ def analizza_partita_chess_api(pgn_text, target_usernames):
                     "eval_dopo": eval_after, "tipo_problema": tipo_problema, "categoria": cat_mossa
                 })
         prev_eval = eval_after
-        time.sleep(0.02)
+        time.sleep(0.01)
 
     progress_bar.empty()
     return evaluations, partita_id, None, eval_history
@@ -953,7 +817,7 @@ if current_selection == "📊 Dashboard & Insights":
         st.markdown("<div class='info-box'>Nessun errore registrato nel cloud. Analizza qualche partita per popolare la tua Control Room!</div>", unsafe_allow_html=True)
 
 # ==========================================
-# SEZIONE 2: ANALIZZA PARTITA
+# SEZIONE 2: ANALIZZA PARTITA (CON ANTI-DOPPIA ANALISI)
 # ==========================================
 elif current_selection == "🔍 Analizza Partita":
     st.markdown("<div class='section-title'>📖 Analisi Dettagliata Partita</div>", unsafe_allow_html=True)
@@ -965,10 +829,21 @@ elif current_selection == "🔍 Analizza Partita":
         if not pgn_input.strip(): st.warning("Inserisci un PGN valido.")
         else:
             current_pgn_text = pgn_input.strip()
-            if st.session_state.get('last_analyzed_pgn') == current_pgn_text:
+            
+            # Controllo anti-doppia analisi tramite Supabase
+            game_check = chess.pgn.read_game(io.StringIO(current_pgn_text))
+            already_exists = False
+            if game_check:
+                h_check = game_check.headers
+                p_id_check = f"{h_check.get('White', 'Unknown')}_vs_{h_check.get('Black', 'Unknown')}_vs_{h_check.get('Date', 'Live')}"
+                if supabase:
+                    res_dup = supabase.table("errori_utenti").select("id").eq("user_email", user_email).eq("partita_id", p_id_check).execute()
+                    if res_dup.data and len(res_dup.data) > 0:
+                        already_exists = True
+
+            if already_exists:
                 st.warning(t['already_analyzed'])
             else:
-                st.session_state['last_analyzed_pgn'] = current_pgn_text
                 with st.spinner("🔍 Scansione Stockfish & Classificazione AI Cluster in corso..."):
                     user_profs = get_user_profiles(user_email)
                     user_usernames = [p['username'] for p in user_profs]
@@ -1029,7 +904,7 @@ elif current_selection == "🔍 Analizza Partita":
                             """
                             client = genai.Client(api_key=MASTER_GEMINI_KEY) if "Client" in dir(genai) else None
                             if client:
-                                resp = client.models.generate_content(model=GEMINI_MODEL_NAME, contents=prompt_lesson, config=types.GenerateContentConfig(max_output_tokens=100, temperature=0.2))
+                                resp = client.models.generate_content(model=GEMINI_MODEL_NAME, contents=prompt_lesson)
                                 st.session_state[f"lesson_{idx}"] = resp.text
                             else:
                                 genai.configure(api_key=MASTER_GEMINI_KEY)
@@ -1226,7 +1101,7 @@ elif current_selection == "📝 Diario & PDF":
             st.download_button("📥 Scarica Report PDF", data=pdf_b, file_name="diario_partita.pdf", mime="application/pdf")
 
 # ==========================================
-# SEZIONE 7: PIANI ABBONAMENTO
+# SEZIONE 7: PIANI ABBONAMENTO (CON GESTIONE ATTIVI & CAFFÈ)
 # ==========================================
 elif current_selection == "💎 Piani Abbonamento":
     st.markdown("<div class='section-title'>💎 Scegli il tuo Piano</div>", unsafe_allow_html=True)
@@ -1234,13 +1109,21 @@ elif current_selection == "💎 Piani Abbonamento":
 
     with col_pr1:
         st.markdown("<div class='pricing-card'><div class='pricing-title'>Free</div><div class='pricing-price'>€0</div><ul class='pricing-features'><li>✅ 1 Profilo</li><li>✅ Analisi Base</li></ul></div>", unsafe_allow_html=True)
-        if user_tier == "Free": st.button("Attuale", disabled=True, use_container_width=True, key="b_f")
+        if user_tier == "Free":
+            st.button("Piano Attuale", disabled=True, use_container_width=True, key="b_f")
         else:
-            if st.button("Passa a Free", use_container_width=True, key="b_tf"): registra_nuovo_abbonamento(user_email, "Free"); st.rerun()
+            if st.button("Passa a Free", use_container_width=True, key="b_tf"):
+                registra_nuovo_abbonamento(user_email, "Free")
+                st.rerun()
 
     with col_pr2:
-        st.markdown("<div class='pricing-card featured'><div class='tier-badge badge-pro'>Popolare</div><div class='pricing-title'>Pro</div><div class='pricing-price'>€4.99</div><ul class='pricing-features'><li>✅ 3 Profili</li><li>✅ Sincronizzazione Notturna</li><li>✅ Palestra Avanzata</li></ul></div>", unsafe_allow_html=True)
-        if user_tier == "Pro": st.button("Attuale", disabled=True, use_container_width=True, key="b_p")
+        is_pro = (user_tier == "Pro")
+        st.markdown(f"<div class='pricing-card {'featured' if is_pro else ''}'><div class='tier-badge badge-pro'>Popolare</div><div class='pricing-title'>Pro</div><div class='pricing-price'>€4.99</div><ul class='pricing-features'><li>✅ 3 Profili</li><li>✅ Sincronizzazione Notturna</li><li>✅ Palestra Avanzata</li></ul></div>", unsafe_allow_html=True)
+        
+        if is_pro:
+            st.markdown("<div class='success-box' style='text-align:center;'>✨ Piano Attivo</div>", unsafe_allow_html=True)
+        elif user_tier == "Diamond":
+            st.markdown("<div class='info-box' style='text-align:center;'>🔒 Incluso in Diamond</div>", unsafe_allow_html=True)
         else:
             if st.button("Sottoscrivi Pro 🚀", type="primary", use_container_width=True, key="b_tp"):
                 if HAS_STRIPE and STRIPE_SECRET_KEY:
@@ -1261,8 +1144,11 @@ elif current_selection == "💎 Piani Abbonamento":
                     st.rerun()
 
     with col_pr3:
-        st.markdown("<div class='pricing-card'><div class='tier-badge badge-diamond'>Elite</div><div class='pricing-title'>Diamond</div><div class='pricing-price'>€9.99</div><ul class='pricing-features'><li>✅ 5 Profili</li><li>✅ Sync Prioritario</li><li>✅ Supporto 24/7</li></ul></div>", unsafe_allow_html=True)
-        if user_tier == "Diamond": st.button("Attuale", disabled=True, use_container_width=True, key="b_d")
+        is_diamond = (user_tier == "Diamond")
+        st.markdown(f"<div class='pricing-card {'featured' if is_diamond else ''}'><div class='tier-badge badge-diamond'>Elite</div><div class='pricing-title'>Diamond</div><div class='pricing-price'>€9.99</div><ul class='pricing-features'><li>✅ 5 Profili</li><li>✅ Sync Prioritario</li><li>✅ Supporto 24/7</li></ul></div>", unsafe_allow_html=True)
+        
+        if is_diamond:
+            st.markdown("<div class='success-box' style='text-align:center;'>✨ Piano Attivo</div>", unsafe_allow_html=True)
         else:
             if st.button("Sottoscrivi Diamond 💎", type="primary", use_container_width=True, key="b_td"):
                 if HAS_STRIPE and STRIPE_SECRET_KEY:
@@ -1282,6 +1168,17 @@ elif current_selection == "💎 Piani Abbonamento":
                     time.sleep(1)
                     st.rerun()
 
+    # Box donazione caffè per sostenere il progetto ulteriormente
+    st.divider()
+    st.markdown("""
+    <div style="text-align: center; padding: 1rem;">
+        <p style="color: #8892a6; margin-bottom: 0.5rem;">Vuoi sostenere ulteriormente lo sviluppo di Chess Coach Pro?</p>
+        <a href="https://buymeacoffee.com" target="_blank" style="text-decoration: none; font-weight: 700; background: #FFDD00; color: #000; padding: 8px 16px; border-radius: 8px; display: inline-block;">
+            ☕ Offrici un Caffè
+        </a>
+    </div>
+    """, unsafe_allow_html=True)
+
 # ==========================================
 # SEZIONE 8: CONTATTI & SUPPORTO
 # ==========================================
@@ -1290,7 +1187,6 @@ elif current_selection == "📞 Contatti & Supporto":
     col_c1, col_c2 = st.columns(2)
     with col_c1:
         st.markdown("<div class='info-box'>Hai riscontrato un bug o hai suggerimenti? Scrivici a <b>support@chesscoachpro.com</b>.</div>", unsafe_allow_html=True)
-        st.link_button("☕ Offrici un Caffè", "https://buymeacoffee.com", use_container_width=True)
     with col_c2:
         with st.form("contact_form"):
             c_name = st.text_input("Il tuo nome o username:")
