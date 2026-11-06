@@ -354,7 +354,7 @@ TEXTS = {
 
 t = TEXTS[st.session_state['lang']]
 
-# --- DATABASE HELPERS & ULTRA-FAST AI CLASSIFICATION ---
+# --- DATABASE HELPERS & ULTRA-FAST AI CLASSIFICATION (CON NOTAZIONE SAN) ---
 def get_user_profiles(email):
     if supabase:
         try:
@@ -396,7 +396,6 @@ def classifica_errore_con_ai(fen_prima, mossa_san):
         from google.genai import types
         client = genai.Client(api_key=MASTER_GEMINI_KEY) if "Client" in dir(genai) else None
         
-        # Aumentato a 30 token per evitare troncamenti e consentire risposte pulite
         config_veloce = types.GenerateContentConfig(max_output_tokens=30, temperature=0.0)
         
         if client:
@@ -415,7 +414,6 @@ def classifica_errore_con_ai(fen_prima, mossa_san):
             "Smothered Mate", "Endgame", "Quiet Move", "Defensive Move", 
             "Positional Weakness", "Opening Mistake"
         ]
-        
         for vt in valid_tags:
             if vt.lower() == tag.lower() or vt.lower() in tag.lower():
                 return vt
@@ -697,8 +695,8 @@ def analizza_partita_chess_api(pgn_text, target_usernames):
             tipo_problema = "🔴 Blunder" if delta >= 2.0 else ("🟠 Mistake" if delta >= 1.0 else ("🟡 Inaccuracy" if delta >= 0.5 else None))
             if tipo_problema:
                 label_mossa = f"{num_mossa}. {move_san}" if is_white_move else f"{num_mossa}... {move_san}"
-                # Chiamata rapida <0.3s grazie a max_output_tokens=10 e temp=0.0
-                cat_mossa = classifica_errore_con_ai(fen_before, move.san)
+                # Chiamata passando move_san per una corretta clusterizzazione tattica
+                cat_mossa = classifica_errore_con_ai(fen_before, move_san)
                 evaluations.append({
                     "mossa_num": idx + 1, "label_mossa": label_mossa, "fen_prima": fen_before,
                     "fen_dopo": fen_after, "mossa_giocata": move.uci(), "perdita_cp": round(delta, 2),
@@ -819,7 +817,7 @@ if current_selection == "📊 Dashboard & Insights":
         st.markdown("<div class='info-box'>Nessun errore registrato nel cloud. Analizza qualche partita per popolare la tua Control Room!</div>", unsafe_allow_html=True)
 
 # ==========================================
-# SEZIONE 2: ANALIZZA PARTITA (CON ANTI-DOPPIA ANALISI)
+# SEZIONE 2: ANALIZZA PARTITA
 # ==========================================
 elif current_selection == "🔍 Analizza Partita":
     st.markdown("<div class='section-title'>📖 Analisi Dettagliata Partita</div>", unsafe_allow_html=True)
@@ -832,7 +830,6 @@ elif current_selection == "🔍 Analizza Partita":
         else:
             current_pgn_text = pgn_input.strip()
             
-            # Controllo anti-doppia analisi tramite Supabase
             game_check = chess.pgn.read_game(io.StringIO(current_pgn_text))
             already_exists = False
             if game_check:
@@ -1103,7 +1100,7 @@ elif current_selection == "📝 Diario & PDF":
             st.download_button("📥 Scarica Report PDF", data=pdf_b, file_name="diario_partita.pdf", mime="application/pdf")
 
 # ==========================================
-# SEZIONE 7: PIANI ABBONAMENTO (CON GESTIONE ATTIVI & CAFFÈ)
+# SEZIONE 7: PIANI ABBONAMENTO
 # ==========================================
 elif current_selection == "💎 Piani Abbonamento":
     st.markdown("<div class='section-title'>💎 Scegli il tuo Piano</div>", unsafe_allow_html=True)
@@ -1170,7 +1167,6 @@ elif current_selection == "💎 Piani Abbonamento":
                     time.sleep(1)
                     st.rerun()
 
-    # Box donazione caffè per sostenere il progetto ulteriormente
     st.divider()
     st.markdown("""
     <div style="text-align: center; padding: 1rem;">
