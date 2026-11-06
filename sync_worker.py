@@ -35,10 +35,11 @@ def classifica_errore_con_ai_veloce(fen_prima, mossa_san):
         return "Positional Weakness"
     
     prompt = f"""
-    FEN: {fen_prima} | Mossa SAN: {mossa_san}.
-    Classifica l'errore scegliendo SOLO UNA di queste etichette in inglese:
+    Analizza questa posizione di scacchi (FEN: {fen_prima}) e la mossa giocata in notazione algebrica (SAN: {mossa_san}).
+    Qual è il tema tattico o strategico principale di questo errore?
+    Scegli UNA sola etichetta da questo elenco esatto:
     Fork, Pin, Skewer, Hanging Piece, Discovered Attack, Double Check, Interference, Clearance, Zugzwang, Mate in 1, Mate in 2, Mate in 3+, Back Rank Mate, Smothered Mate, Endgame, Quiet Move, Defensive Move, Positional Weakness, Opening Mistake.
-    Rispondi solo con il nome esatto dell'etichetta.
+    Rispondi unicamente con il nome dell'etichetta, senza altro testo.
     """
     try:
         from google import genai as new_genai
@@ -61,6 +62,7 @@ def classifica_errore_con_ai_veloce(fen_prima, mossa_san):
         return "Positional Weakness"
     except Exception:
         return "Positional Weakness"
+
 def analizza_e_salva_partita(user_email, pgn_text, target_username):
     game = chess.pgn.read_game(io.StringIO(pgn_text))
     if not game: return
@@ -76,7 +78,6 @@ def analizza_e_salva_partita(user_email, pgn_text, target_username):
 
     partita_id = f"{headers.get('White', 'Unknown')}_vs_{headers.get('Black', 'Unknown')}_{headers.get('Date', 'Live')}"
     
-    # Verifica se già analizzata per l'utente
     existing = supabase.table("errori_utenti").select("id").eq("user_email", user_email).eq("partita_id", partita_id).execute()
     if existing.data and len(existing.data) > 0:
         return
@@ -112,8 +113,8 @@ def analizza_e_salva_partita(user_email, pgn_text, target_username):
                 tipo_problema = "🔴 Blunder" if delta >= 2.0 else "🟠 Mistake"
                 label_mossa = f"{num_mossa}. {move_san}" if is_white_move else f"{num_mossa}... {move_san}"
                 
-                # Classificazione AI coerente e ultra-veloce
-                cat_mossa = classifica_errore_con_ai_veloce(fen_before, move.san)
+                # Chiamata passandogli move_san
+                cat_mossa = classifica_errore_con_ai_veloce(fen_before, move_san)
                 
                 try:
                     supabase.table("errori_utenti").insert({
