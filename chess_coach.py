@@ -384,28 +384,29 @@ def delete_user_profile(profile_id):
         except Exception: pass
     return False
 
-def classifica_errore_con_ai(fen_prima, mossa_giocata):
+def classifica_errore_con_ai(fen_prima, mossa_san):
     prompt = f"""
-    FEN: {fen_prima} | Mossa errata: {mossa_giocata}.
-    Classifica l'errore scegliendo SOLO UNA di queste etichette in inglese:
-    - Fork, Pin, Skewer, Hanging Piece, Discovered Attack, Double Check, Interference, Clearance, Zugzwang, Mate in 1, Mate in 2, Mate in 3+, Back Rank Mate, Smothered Mate, Endgame, Quiet Move, Defensive Move, Positional Weakness, Opening Mistake.
-    Rispondi solo con il nome esatto dell'etichetta.
+    Analizza questa posizione di scacchi (FEN: {fen_prima}) e la mossa giocata in notazione algebrica (SAN: {mossa_san}).
+    Qual è il tema tattico o strategico principale di questo errore?
+    Scegli UNA sola etichetta da questo elenco esatto:
+    Fork, Pin, Skewer, Hanging Piece, Discovered Attack, Double Check, Interference, Clearance, Zugzwang, Mate in 1, Mate in 2, Mate in 3+, Back Rank Mate, Smothered Mate, Endgame, Quiet Move, Defensive Move, Positional Weakness, Opening Mistake.
+    Rispondi unicamente con il nome dell'etichetta, senza altro testo.
     """
     try:
         from google.genai import types
         client = genai.Client(api_key=MASTER_GEMINI_KEY) if "Client" in dir(genai) else None
         
-        # Configurazione ultra-veloce e deterministica (<0.3s)
-        config_veloce = types.GenerateContentConfig(max_output_tokens=10, temperature=0.0)
+        # Aumentato a 30 token per evitare troncamenti e consentire risposte pulite
+        config_veloce = types.GenerateContentConfig(max_output_tokens=30, temperature=0.0)
         
         if client:
             resp = client.models.generate_content(model=GEMINI_MODEL_NAME, contents=prompt, config=config_veloce)
-            tag = resp.text.strip()
+            tag = resp.text.strip().replace('"', '').replace("'", "")
         else:
             genai.configure(api_key=MASTER_GEMINI_KEY)
             model = genai.GenerativeModel(GEMINI_MODEL_NAME)
-            resp = model.generate_content(prompt, generation_config={"max_output_tokens": 10, "temperature": 0.0})
-            tag = resp.text.strip()
+            resp = model.generate_content(prompt, generation_config={"max_output_tokens": 30, "temperature": 0.0})
+            tag = resp.text.strip().replace('"', '').replace("'", "")
 
         valid_tags = [
             "Fork", "Pin", "Skewer", "Hanging Piece", "Discovered Attack", 
@@ -414,8 +415,9 @@ def classifica_errore_con_ai(fen_prima, mossa_giocata):
             "Smothered Mate", "Endgame", "Quiet Move", "Defensive Move", 
             "Positional Weakness", "Opening Mistake"
         ]
+        
         for vt in valid_tags:
-            if vt.lower() in tag.lower():
+            if vt.lower() == tag.lower() or vt.lower() in tag.lower():
                 return vt
         return "Positional Weakness"
     except Exception:
@@ -696,7 +698,7 @@ def analizza_partita_chess_api(pgn_text, target_usernames):
             if tipo_problema:
                 label_mossa = f"{num_mossa}. {move_san}" if is_white_move else f"{num_mossa}... {move_san}"
                 # Chiamata rapida <0.3s grazie a max_output_tokens=10 e temp=0.0
-                cat_mossa = classifica_errore_con_ai(fen_before, move.uci())
+                cat_mossa = classifica_errore_con_ai(fen_before, move.san)
                 evaluations.append({
                     "mossa_num": idx + 1, "label_mossa": label_mossa, "fen_prima": fen_before,
                     "fen_dopo": fen_after, "mossa_giocata": move.uci(), "perdita_cp": round(delta, 2),
