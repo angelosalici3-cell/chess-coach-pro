@@ -5,8 +5,11 @@ import io
 import requests
 import chess
 import chess.pgn
+import json
 from supabase import create_client
 from google.genai import types
+from pydantic import BaseModel
+from typing import Literal
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
@@ -16,6 +19,15 @@ if not SUPABASE_URL or not SUPABASE_KEY:
     raise ValueError("Credenziali Supabase mancanti nelle variabili d'ambiente.")
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+
+class ClassificazioneErrore(BaseModel):
+    categoria: Literal[
+        "Fork", "Pin", "Skewer", "Hanging Piece", "Discovered Attack", 
+        "Double Check", "Interference", "Clearance", "Zugzwang", 
+        "Mate in 1", "Mate in 2", "Mate in 3+", "Back Rank Mate", 
+        "Smothered Mate", "Endgame", "Quiet Move", "Defensive Move", 
+        "Positional Weakness", "Opening Mistake"
+    ]
 
 def fetch_stockfish_eval(session, fen, depth=10):
     for attempt in range(2):
@@ -37,29 +49,20 @@ def classifica_errore_con_ai_veloce(fen_prima, mossa_san):
     prompt = f"""
     Analizza questa posizione di scacchi (FEN: {fen_prima}) e la mossa giocata in notazione algebrica (SAN: {mossa_san}).
     Qual è il tema tattico o strategico principale di questo errore?
-    Scegli UNA sola etichetta da questo elenco esatto:
-    Fork, Pin, Skewer, Hanging Piece, Discovered Attack, Double Check, Interference, Clearance, Zugzwang, Mate in 1, Mate in 2, Mate in 3+, Back Rank Mate, Smothered Mate, Endgame, Quiet Move, Defensive Move, Positional Weakness, Opening Mistake.
-    Rispondi unicamente con il nome dell'etichetta, senza altro testo.
     """
     try:
         from google import genai as new_genai
         client = new_genai.Client(api_key=GEMINI_API_KEY)
-        config_veloce = types.GenerateContentConfig(max_output_tokens=30, temperature=0.0)
         
-        resp = client.models.generate_content(model="gemini-3.8-flash", contents=prompt, config=config_veloce)
-        tag = resp.text.strip().replace('"', '').replace("'", "")
+        config_strutturata = types.GenerateContentConfig(
+            response_mime_type="application/json",
+            response_schema=ClassificazioneErrore,
+            temperature=0.0
+        )
         
-        valid_tags = [
-            "Fork", "Pin", "Skewer", "Hanging Piece", "Discovered Attack", 
-            "Double Check", "Interference", "Clearance", "Zugzwang", 
-            "Mate in 1", "Mate in 2", "Mate in 3+", "Back Rank Mate", 
-            "Smothered Mate", "Endgame", "Quiet Move", "Defensive Move", 
-            "Positional Weakness", "Opening Mistake"
-        ]
-        for vt in valid_tags:
-            if vt.lower() == tag.lower() or vt.lower() in tag.lower():
-                return vt
-        return "Positional Weakness"
+        resp = client.models.generate_content(model="gemini-3.8-flash", contents=prompt, config=config_strutturata)
+        dati = json.loads(resp.text)
+        return dati.get("categoria", "Positional Weakness")
     except Exception:
         return "Positional Weakness"
 
@@ -113,7 +116,6 @@ def analizza_e_salva_partita(user_email, pgn_text, target_username):
                 tipo_problema = "🔴 Blunder" if delta >= 2.0 else "🟠 Mistake"
                 label_mossa = f"{num_mossa}. {move_san}" if is_white_move else f"{num_mossa}... {move_san}"
                 
-                # Chiamata passandogli move_san
                 cat_mossa = classifica_errore_con_ai_veloce(fen_before, move_san)
                 
                 try:
