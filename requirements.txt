@@ -9,3 +9,4 @@ berserk
 supabase
 plotly
 stripe
+pydantic
