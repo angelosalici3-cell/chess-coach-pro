@@ -7,9 +7,6 @@ import chess
 import chess.pgn
 import json
 from supabase import create_client
-from google.genai import types
-from pydantic import BaseModel
-from typing import Literal
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
@@ -19,15 +16,6 @@ if not SUPABASE_URL or not SUPABASE_KEY:
     raise ValueError("Credenziali Supabase mancanti nelle variabili d'ambiente.")
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-
-class ClassificazioneErrore(BaseModel):
-    categoria: Literal[
-        "Fork", "Pin", "Skewer", "Hanging Piece", "Discovered Attack", 
-        "Double Check", "Interference", "Clearance", "Zugzwang", 
-        "Mate in 1", "Mate in 2", "Mate in 3+", "Back Rank Mate", 
-        "Smothered Mate", "Endgame", "Quiet Move", "Defensive Move", 
-        "Positional Weakness", "Opening Mistake"
-    ]
 
 def fetch_stockfish_eval(session, fen, depth=10):
     for attempt in range(2):
@@ -47,23 +35,53 @@ def classifica_errore_con_ai_veloce(fen_prima, mossa_san):
         return "Positional Weakness"
     
     prompt = f"""
-    Analizza questa posizione di scacchi (FEN: {fen_prima}) e la mossa giocata in notazione algebrica (SAN: {mossa_san}).
-    Qual è il tema tattico o strategico principale di questo errore?
+    Sei un Gran Maestro ed esperto di tattica negli scacchi.
+    Analizza la seguente posizione e la mossa errata giocata:
+    
+    FEN: {fen_prima}
+    Mossa errata (SAN): {mossa_san}
+    
+    Classifica l'errore scegliendo ESATTAMENTE UNA categoria tra queste:
+    Fork, Pin, Skewer, Hanging Piece, Discovered Attack, Double Check, Interference, Clearance, Zugzwang, Mate in 1, Mate in 2, Mate in 3+, Back Rank Mate, Smothered Mate, Endgame, Quiet Move, Defensive Move, Opening Mistake, Positional Weakness.
+
+    Rispondi rigorosamente in formato JSON puro:
+    {{"categoria": "NOME_CATEGORIA"}}
     """
+
+    valid_tags = [
+        "Fork", "Pin", "Skewer", "Hanging Piece", "Discovered Attack", 
+        "Double Check", "Interference", "Clearance", "Zugzwang", 
+        "Mate in 1", "Mate in 2", "Mate in 3+", "Back Rank Mate", 
+        "Smothered Mate", "Endgame", "Quiet Move", "Defensive Move", 
+        "Opening Mistake", "Positional Weakness"
+    ]
+
     try:
         from google import genai as new_genai
+        from google.genai import types
         client = new_genai.Client(api_key=GEMINI_API_KEY)
         
-        config_strutturata = types.GenerateContentConfig(
+        config_json = types.GenerateContentConfig(
             response_mime_type="application/json",
-            response_schema=ClassificazioneErrore,
             temperature=0.0
         )
         
-        resp = client.models.generate_content(model="gemini-3.8-flash", contents=prompt, config=config_strutturata)
-        dati = json.loads(resp.text)
-        return dati.get("categoria", "Positional Weakness")
-    except Exception:
+        resp = client.models.generate_content(
+            model="gemini-3.8-flash", 
+            contents=prompt, 
+            config=config_json
+        )
+        
+        data = json.loads(resp.text.strip())
+        cat_estratta = data.get("categoria", "").strip()
+
+        for vt in valid_tags:
+            if vt.lower() == cat_estratta.lower() or vt.lower() in cat_estratta.lower():
+                return vt
+
+        return "Positional Weakness"
+    except Exception as e:
+        print(f"⚠️ [DEBUG WORKER] Errore Gemini: {e}")
         return "Positional Weakness"
 
 def analizza_e_salva_partita(user_email, pgn_text, target_username):
