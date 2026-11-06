@@ -30,23 +30,23 @@ def fetch_stockfish_eval(session, fen, depth=10):
         except Exception: time.sleep(0.3)
     return None
 
-def classifica_errore_con_ai_veloce(fen_prima, mossa_giocata):
+def classifica_errore_con_ai_veloce(fen_prima, mossa_san):
     if not GEMINI_API_KEY:
         return "Positional Weakness"
     
     prompt = f"""
-    FEN: {fen_prima} | Mossa errata: {mossa_giocata}.
+    FEN: {fen_prima} | Mossa SAN: {mossa_san}.
     Classifica l'errore scegliendo SOLO UNA di queste etichette in inglese:
-    - Fork, Pin, Skewer, Hanging Piece, Discovered Attack, Double Check, Interference, Clearance, Zugzwang, Mate in 1, Mate in 2, Mate in 3+, Back Rank Mate, Smothered Mate, Endgame, Quiet Move, Defensive Move, Positional Weakness, Opening Mistake.
+    Fork, Pin, Skewer, Hanging Piece, Discovered Attack, Double Check, Interference, Clearance, Zugzwang, Mate in 1, Mate in 2, Mate in 3+, Back Rank Mate, Smothered Mate, Endgame, Quiet Move, Defensive Move, Positional Weakness, Opening Mistake.
     Rispondi solo con il nome esatto dell'etichetta.
     """
     try:
         from google import genai as new_genai
         client = new_genai.Client(api_key=GEMINI_API_KEY)
-        config_veloce = types.GenerateContentConfig(max_output_tokens=10, temperature=0.0)
+        config_veloce = types.GenerateContentConfig(max_output_tokens=30, temperature=0.0)
         
         resp = client.models.generate_content(model="gemini-3.8-flash", contents=prompt, config=config_veloce)
-        tag = resp.text.strip()
+        tag = resp.text.strip().replace('"', '').replace("'", "")
         
         valid_tags = [
             "Fork", "Pin", "Skewer", "Hanging Piece", "Discovered Attack", 
@@ -56,12 +56,11 @@ def classifica_errore_con_ai_veloce(fen_prima, mossa_giocata):
             "Positional Weakness", "Opening Mistake"
         ]
         for vt in valid_tags:
-            if vt.lower() in tag.lower():
+            if vt.lower() == tag.lower() or vt.lower() in tag.lower():
                 return vt
         return "Positional Weakness"
     except Exception:
         return "Positional Weakness"
-
 def analizza_e_salva_partita(user_email, pgn_text, target_username):
     game = chess.pgn.read_game(io.StringIO(pgn_text))
     if not game: return
@@ -114,7 +113,7 @@ def analizza_e_salva_partita(user_email, pgn_text, target_username):
                 label_mossa = f"{num_mossa}. {move_san}" if is_white_move else f"{num_mossa}... {move_san}"
                 
                 # Classificazione AI coerente e ultra-veloce
-                cat_mossa = classifica_errore_con_ai_veloce(fen_before, move.uci())
+                cat_mossa = classifica_errore_con_ai_veloce(fen_before, move.san)
                 
                 try:
                     supabase.table("errori_utenti").insert({
