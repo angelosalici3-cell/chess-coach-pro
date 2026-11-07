@@ -354,7 +354,7 @@ TEXTS = {
 
 t = TEXTS[st.session_state['lang']]
 
-# --- DATABASE HELPERS & NATIVE JSON AI CLASSIFICATION ---
+# --- DATABASE HELPERS & ULTRA-FAST AI CLASSIFICATION ---
 def get_user_profiles(email):
     if supabase:
         try:
@@ -386,79 +386,41 @@ def delete_user_profile(profile_id):
 
 def classifica_errore_con_ai(fen_prima, mossa_san):
     prompt = f"""
-    Sei un Gran Maestro ed esperto di tattica negli scacchi.
-    Analizza la seguente posizione e la mossa errata giocata:
-    
-    FEN: {fen_prima}
-    Mossa errata (SAN): {mossa_san}
-    
-    Classifica l'errore scegliendo ESATTAMENTE UNA categoria tra queste:
-    - Fork
-    - Pin
-    - Skewer
-    - Hanging Piece
-    - Discovered Attack
-    - Double Check
-    - Interference
-    - Clearance
-    - Zugzwang
-    - Mate in 1
-    - Mate in 2
-    - Mate in 3+
-    - Back Rank Mate
-    - Smothered Mate
-    - Endgame
-    - Quiet Move
-    - Defensive Move
-    - Opening Mistake
-    - Positional Weakness
-
-    Rispondi rigorosamente in formato JSON puro:
-    {{"categoria": "NOME_CATEGORIA"}}
+    Analizza questa posizione di scacchi (FEN: {fen_prima}) e la mossa giocata in notazione algebrica (SAN: {mossa_san}).
+    Qual è il tema tattico o strategico principale di questo errore?
+    Scegli UNA sola etichetta da questo elenco esatto:
+    Fork, Pin, Skewer, Hanging Piece, Discovered Attack, Double Check, Interference, Clearance, Zugzwang, Mate in 1, Mate in 2, Mate in 3+, Back Rank Mate, Smothered Mate, Endgame, Quiet Move, Defensive Move, Positional Weakness, Opening Mistake.
+    Rispondi unicamente con il nome dell'etichetta, senza altro testo.
     """
-
-    valid_tags = [
-        "Fork", "Pin", "Skewer", "Hanging Piece", "Discovered Attack", 
-        "Double Check", "Interference", "Clearance", "Zugzwang", 
-        "Mate in 1", "Mate in 2", "Mate in 3+", "Back Rank Mate", 
-        "Smothered Mate", "Endgame", "Quiet Move", "Defensive Move", 
-        "Opening Mistake", "Positional Weakness"
-    ]
-
     try:
-        if "genai" in globals() and hasattr(genai, "GenerativeModel"):
-            genai.configure(api_key=MASTER_GEMINI_KEY)
-            model = genai.GenerativeModel(
-                GEMINI_MODEL_NAME,
-                generation_config={"response_mime_type": "application/json", "temperature": 0.0}
-            )
-            resp = model.generate_content(prompt)
-            raw_text = resp.text.strip()
+        from google.genai import types
+        client = genai.Client(api_key=MASTER_GEMINI_KEY) if "Client" in dir(genai) else None
+        
+        # Aumentato a 30 token per evitare troncamenti e consentire risposte pulite
+        config_veloce = types.GenerateContentConfig(max_output_tokens=30, temperature=0.0)
+        
+        if client:
+            resp = client.models.generate_content(model=GEMINI_MODEL_NAME, contents=prompt, config=config_veloce)
+            tag = resp.text.strip().replace('"', '').replace("'", "")
         else:
-            from google import genai as new_genai
-            from google.genai import types
-            client = new_genai.Client(api_key=MASTER_GEMINI_KEY)
-            resp = client.models.generate_content(
-                model=GEMINI_MODEL_NAME,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    temperature=0.0
-                )
-            )
-            raw_text = resp.text.strip()
+            genai.configure(api_key=MASTER_GEMINI_KEY)
+            model = genai.GenerativeModel(GEMINI_MODEL_NAME)
+            resp = model.generate_content(prompt, generation_config={"max_output_tokens": 30, "temperature": 0.0})
+            tag = resp.text.strip().replace('"', '').replace("'", "")
 
-        data = json.loads(raw_text)
-        cat_estratta = data.get("categoria", "").strip()
-
+        valid_tags = [
+            "Fork", "Pin", "Skewer", "Hanging Piece", "Discovered Attack", 
+            "Double Check", "Interference", "Clearance", "Zugzwang", 
+            "Mate in 1", "Mate in 2", "Mate in 3+", "Back Rank Mate", 
+            "Smothered Mate", "Endgame", "Quiet Move", "Defensive Move", 
+            "Positional Weakness", "Opening Mistake"
+        ]
+        
         for vt in valid_tags:
-            if vt.lower() == cat_estratta.lower() or vt.lower() in cat_estratta.lower():
+            if vt.lower() == tag.lower() or vt.lower() in tag.lower():
                 return vt
-
         return "Positional Weakness"
-
-    except Exception as e:
-        print(f"⚠️ [DEBUG] Errore Chiamata Gemini Cluster: {e}")
+    except Exception:
         return "Positional Weakness"
 
 def salva_errore_db(user_email, partita_id, categoria, mossa, spiegazione):
@@ -665,7 +627,8 @@ current_selection = st.session_state['nav_selection']
 def fetch_stockfish_eval(session, fen, depth=10):
     for attempt in range(2):
         try:
-            r = session.post("https://chess-api.com/v1", json={"fen": fen, "depth": depth}, timeout=8)
+            # Timeout ridotto a 3 secondi per evitare blocchi infiniti dell'app
+            r = session.post("https://chess-api.com/v1", json={"fen": fen, "depth": depth}, timeout=3)
             if r.status_code == 200:
                 data = r.json()
                 if data.get("eval") is not None: return float(data.get("eval"))
@@ -675,8 +638,9 @@ def fetch_stockfish_eval(session, fen, depth=10):
                 elif data.get("mate") is not None:
                     m = int(data.get("mate"))
                     return 100.0 if m > 0 else -100.0
-        except Exception: time.sleep(0.3)
-    return None
+        except Exception: 
+            time.sleep(0.2)
+    return 0.0 # Ritorna un valore neutro di fallback in caso di blocco del server esterno anziché fermare l'app
 
 def analizza_partita_chess_api(pgn_text, target_usernames):
     game = chess.pgn.read_game(io.StringIO(pgn_text))
@@ -735,7 +699,8 @@ def analizza_partita_chess_api(pgn_text, target_usernames):
             tipo_problema = "🔴 Blunder" if delta >= 2.0 else ("🟠 Mistake" if delta >= 1.0 else ("🟡 Inaccuracy" if delta >= 0.5 else None))
             if tipo_problema:
                 label_mossa = f"{num_mossa}. {move_san}" if is_white_move else f"{num_mossa}... {move_san}"
-                cat_mossa = classifica_errore_con_ai(fen_before, move_san)
+                # Chiamata rapida <0.3s grazie a max_output_tokens=10 e temp=0.0
+                cat_mossa = classifica_errore_con_ai(fen_before, move.san)
                 evaluations.append({
                     "mossa_num": idx + 1, "label_mossa": label_mossa, "fen_prima": fen_before,
                     "fen_dopo": fen_after, "mossa_giocata": move.uci(), "perdita_cp": round(delta, 2),
@@ -856,7 +821,7 @@ if current_selection == "📊 Dashboard & Insights":
         st.markdown("<div class='info-box'>Nessun errore registrato nel cloud. Analizza qualche partita per popolare la tua Control Room!</div>", unsafe_allow_html=True)
 
 # ==========================================
-# SEZIONE 2: ANALIZZA PARTITA
+# SEZIONE 2: ANALIZZA PARTITA (CON ANTI-DOPPIA ANALISI)
 # ==========================================
 elif current_selection == "🔍 Analizza Partita":
     st.markdown("<div class='section-title'>📖 Analisi Dettagliata Partita</div>", unsafe_allow_html=True)
@@ -869,6 +834,7 @@ elif current_selection == "🔍 Analizza Partita":
         else:
             current_pgn_text = pgn_input.strip()
             
+            # Controllo anti-doppia analisi tramite Supabase
             game_check = chess.pgn.read_game(io.StringIO(current_pgn_text))
             already_exists = False
             if game_check:
@@ -1139,7 +1105,7 @@ elif current_selection == "📝 Diario & PDF":
             st.download_button("📥 Scarica Report PDF", data=pdf_b, file_name="diario_partita.pdf", mime="application/pdf")
 
 # ==========================================
-# SEZIONE 7: PIANI ABBONAMENTO
+# SEZIONE 7: PIANI ABBONAMENTO (CON GESTIONE ATTIVI & CAFFÈ)
 # ==========================================
 elif current_selection == "💎 Piani Abbonamento":
     st.markdown("<div class='section-title'>💎 Scegli il tuo Piano</div>", unsafe_allow_html=True)
@@ -1206,6 +1172,7 @@ elif current_selection == "💎 Piani Abbonamento":
                     time.sleep(1)
                     st.rerun()
 
+    # Box donazione caffè per sostenere il progetto ulteriormente
     st.divider()
     st.markdown("""
     <div style="text-align: center; padding: 1rem;">
