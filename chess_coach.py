@@ -385,6 +385,9 @@ def delete_user_profile(profile_id):
     return False
 
 def classifica_errore_con_ai(fen_prima, mossa_san):
+    # Pausa di sicurezza per evitare errori 429 (ResourceExhausted) sul piano Free
+    time.sleep(0.6)
+    
     prompt = f"""
     Sei un Gran Maestro ed esperto di tattica negli scacchi.
     Analizza la seguente posizione e la mossa errata giocata:
@@ -942,14 +945,17 @@ elif current_selection == "🔍 Analizza Partita":
                             {t['prompt_lang']}
                             Rispondi in massimo 3 righe con: 1. Errore; 2. Idea corretta; 3. Regola pratica.
                             """
-                            client = genai.Client(api_key=MASTER_GEMINI_KEY) if "Client" in dir(genai) else None
-                            if client:
-                                resp = client.models.generate_content(model=GEMINI_MODEL_NAME, contents=prompt_lesson)
-                                st.session_state[f"lesson_{idx}"] = resp.text
-                            else:
-                                genai.configure(api_key=MASTER_GEMINI_KEY)
-                                resp = genai.GenerativeModel(GEMINI_MODEL_NAME).generate_content(prompt_lesson)
-                                st.session_state[f"lesson_{idx}"] = resp.text
+                            try:
+                                client = genai.Client(api_key=MASTER_GEMINI_KEY) if "Client" in dir(genai) else None
+                                if client:
+                                    resp = client.models.generate_content(model=GEMINI_MODEL_NAME, contents=prompt_lesson)
+                                    st.session_state[f"lesson_{idx}"] = resp.text
+                                else:
+                                    genai.configure(api_key=MASTER_GEMINI_KEY)
+                                    resp = genai.GenerativeModel(GEMINI_MODEL_NAME).generate_content(prompt_lesson)
+                                    st.session_state[f"lesson_{idx}"] = resp.text
+                            except Exception as e:
+                                st.session_state[f"lesson_{idx}"] = "⚠️ Limite richieste API raggiunto (Quota Exceeded / Rate Limit). Riprova tra qualche istante."
 
                     if f"lesson_{idx}" in st.session_state:
                         st.markdown(f"<div class='info-box'>💡 {st.session_state[f'lesson_{idx}']}</div>", unsafe_allow_html=True)
