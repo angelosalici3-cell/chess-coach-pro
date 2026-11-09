@@ -60,7 +60,7 @@ for key, default in {
     'user': None, 'lang': 'it', 'profile_setup_done': False,
     'nav_selection': "📊 Dashboard & Insights", 'theme_mode': 'Dark',
     'last_analyzed_pgn': None, 'current_board_ply': 0,
-    'eval_history': None, 'storico_errori_locale': []
+    'eval_history': None
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default
@@ -354,7 +354,7 @@ TEXTS = {
 
 t = TEXTS[st.session_state['lang']]
 
-# --- DATABASE & LOCAL STORAGE HELPERS ---
+# --- DATABASE HELPERS & NATIVE JSON AI CLASSIFICATION ---
 def get_user_profiles(email):
     if supabase:
         try:
@@ -462,40 +462,21 @@ def classifica_errore_con_ai(fen_prima, mossa_san):
         return "Positional Weakness"
 
 def salva_errore_db(user_email, partita_id, categoria, mossa, spiegazione):
-    data_ora = datetime.datetime.now().strftime("%Y-%m-%d")
-    nuovo_errore = {
-        "user_email": user_email,
-        "partita_id": partita_id if partita_id else "Partita_Sconosciuta",
-        "data": data_ora,
-        "categoria_errore": categoria,
-        "mossa_critica": mossa,
-        "spiegazione": spiegazione
-    }
-    # Salvataggio di sicurezza in sessione locale
-    if 'storico_errori_locale' not in st.session_state:
-        st.session_state['storico_errori_locale'] = []
-    if nuovo_errore not in st.session_state['storico_errori_locale']:
-        st.session_state['storico_errori_locale'].append(nuovo_errore)
-
     if supabase:
         try:
-            supabase.table("errori_utenti").insert(nuovo_errore).execute()
+            data_ora = datetime.datetime.now().strftime("%Y-%m-%d")
+            supabase.table("errori_utenti").insert({
+                "user_email": user_email, "partita_id": partita_id if partita_id else "Partita_Sconosciuta",
+                "data": data_ora, "categoria_errore": categoria, "mossa_critica": mossa, "spiegazione": spiegazione
+            }).execute()
         except Exception: pass
 
 def carica_errori_db(user_email):
-    rows = []
     if supabase:
         try:
             res = supabase.table("errori_utenti").select("*").eq("user_email", user_email).execute()
-            if res.data:
-                rows = res.data
+            if res.data: return pd.DataFrame(res.data)
         except Exception: pass
-    
-    local_rows = st.session_state.get('storico_errori_locale', [])
-    combined = rows + [r for r in local_rows if r not in rows]
-    
-    if combined:
-        return pd.DataFrame(combined)
     return pd.DataFrame(columns=["data", "partita_id", "categoria_errore", "mossa_critica", "spiegazione"])
 
 def tier_badge_html(tier):
@@ -679,23 +660,23 @@ st.divider()
 current_selection = st.session_state['nav_selection']
 
 # ==========================================
-# MOTORE STOCKFISH OTTIMIZZATO & VELOCE
+# MOTORE STOCKFISH & HELPER DI ANALISI
 # ==========================================
 def fetch_stockfish_eval(session, fen, depth=10):
-    try:
-        r = session.post("https://chess-api.com/v1", json={"fen": fen, "depth": depth}, timeout=2.5)
-        if r.status_code == 200:
-            data = r.json()
-            if data.get("eval") is not None: return float(data.get("eval"))
-            elif data.get("centipawns") is not None: return float(data.get("centipawns")) / 100.0
-            elif data.get("cp") is not None: return float(data.get("cp")) / 100.0
-            elif data.get("value") is not None: return float(data.get("value")) / 100.0
-            elif data.get("mate") is not None:
-                m = int(data.get("mate"))
-                return 100.0 if m > 0 else -100.0
-    except Exception:
-        pass
-    return None
+    for attempt in range(2):
+        try:
+            r = session.post("https://chess-api.com/v1", json={"fen": fen, "depth": depth}, timeout=5)
+            if r.status_code == 200:
+                data = r.json()
+                if data.get("eval") is not None: return float(data.get("eval"))
+                elif data.get("centipawns") is not None: return float(data.get("centipawns")) / 100.0
+                elif data.get("cp") is not None: return float(data.get("cp")) / 100.0
+                elif data.get("value") is not None: return float(data.get("value")) / 100.0
+                elif data.get("mate") is not None:
+                    m = int(data.get("mate"))
+                    return 100.0 if m > 0 else -100.0
+        except Exception: time.sleep(0.3)
+    return 0.0
 
 def analizza_partita_chess_api(pgn_text, target_usernames):
     game = chess.pgn.read_game(io.StringIO(pgn_text))
@@ -723,7 +704,7 @@ def analizza_partita_chess_api(pgn_text, target_usernames):
     total_ply_count = len(main_moves)
     total_full_moves = (total_ply_count + 1) // 2
 
-    progress_bar = st.progress(0, text="♟️ Analisi rapida Stockfish in corso...")
+    progress_bar = st.progress(0, text="♟️ Analisi Stockfish in corso...")
     session = requests.Session()
     session.headers.update(headers_req)
     prev_eval = 0.0
@@ -753,28 +734,17 @@ def analizza_partita_chess_api(pgn_text, target_usernames):
         is_user_move = (is_white_move and user_is_white) or (not is_white_move and user_is_black)
         if is_user_move:
             delta = (eval_before - eval_after) if is_white_move else (eval_after - eval_before)
-            
-            # Ottimizzazione velocità: Chiamiamo Gemini SOLO per Blunder e Mistake. Le Inaccuracy vengono classificate istantaneamente a costo zero.
-            if delta >= 2.0:
-                tipo_problema = "🔴 Blunder"
-                cat_mossa = classifica_errore_con_ai(fen_before, move_san)
-            elif delta >= 1.0:
-                tipo_problema = "🟠 Mistake"
-                cat_mossa = classifica_errore_con_ai(fen_before, move_san)
-            elif delta >= 0.5:
-                tipo_problema = "🟡 Inaccuracy"
-                cat_mossa = "Quiet Move"
-            else:
-                tipo_problema = None
-
+            tipo_problema = "🔴 Blunder" if delta >= 2.0 else ("🟠 Mistake" if delta >= 1.0 else ("🟡 Inaccuracy" if delta >= 0.5 else None))
             if tipo_problema:
                 label_mossa = f"{num_mossa}. {move_san}" if is_white_move else f"{num_mossa}... {move_san}"
+                cat_mossa = classifica_errore_con_ai(fen_before, move_san)
                 evaluations.append({
                     "mossa_num": idx + 1, "label_mossa": label_mossa, "fen_prima": fen_before,
                     "fen_dopo": fen_after, "mossa_giocata": move.uci(), "perdita_cp": round(delta, 2),
                     "eval_dopo": eval_after, "tipo_problema": tipo_problema, "categoria": cat_mossa
                 })
         prev_eval = eval_after
+        time.sleep(0.01)
 
     progress_bar.empty()
     return evaluations, partita_id, None, eval_history
@@ -885,7 +855,7 @@ if current_selection == "📊 Dashboard & Insights":
             fig_pie.update_layout(template='plotly_dark' if st.session_state['theme_mode'] == 'Dark' else 'plotly_white', height=340, margin=dict(l=10, r=10, t=20, b=20))
             st.plotly_chart(fig_pie, use_container_width=True)
     else:
-        st.markdown("<div class='info-box'>Nessun errore registrato nel cloud o in memoria. Analizza qualche partita per popolare la tua Control Room!</div>", unsafe_allow_html=True)
+        st.markdown("<div class='info-box'>Nessun errore registrato nel cloud. Analizza qualche partita per popolare la tua Control Room!</div>", unsafe_allow_html=True)
 
 # ==========================================
 # SEZIONE 2: ANALIZZA PARTITA
@@ -906,15 +876,15 @@ elif current_selection == "🔍 Analizza Partita":
             if game_check:
                 h_check = game_check.headers
                 p_id_check = f"{h_check.get('White', 'Unknown')}_vs_{h_check.get('Black', 'Unknown')}_vs_{h_check.get('Date', 'Live')}"
-                df_check = carica_errori_db(user_email)
-                if not df_check.empty and 'partita_id' in df_check.columns:
-                    if p_id_check in df_check['partita_id'].values:
+                if supabase:
+                    res_dup = supabase.table("errori_utenti").select("id").eq("user_email", user_email).eq("partita_id", p_id_check).execute()
+                    if res_dup.data and len(res_dup.data) > 0:
                         already_exists = True
 
             if already_exists:
                 st.warning(t['already_analyzed'])
             else:
-                with st.spinner("🔍 Scansione Stockfish veloce & Classificazione AI Cluster in corso..."):
+                with st.spinner("🔍 Scansione Stockfish & Classificazione AI Cluster in corso..."):
                     user_profs = get_user_profiles(user_email)
                     user_usernames = [p['username'] for p in user_profs]
                     errori, p_id, err_msg, eval_hist = analizza_partita_chess_api(current_pgn_text, user_usernames)
@@ -972,17 +942,14 @@ elif current_selection == "🔍 Analizza Partita":
                             {t['prompt_lang']}
                             Rispondi in massimo 3 righe con: 1. Errore; 2. Idea corretta; 3. Regola pratica.
                             """
-                            try:
-                                client = genai.Client(api_key=MASTER_GEMINI_KEY) if "Client" in dir(genai) else None
-                                if client:
-                                    resp = client.models.generate_content(model=GEMINI_MODEL_NAME, contents=prompt_lesson)
-                                    st.session_state[f"lesson_{idx}"] = resp.text
-                                else:
-                                    genai.configure(api_key=MASTER_GEMINI_KEY)
-                                    resp = genai.GenerativeModel(GEMINI_MODEL_NAME).generate_content(prompt_lesson)
-                                    st.session_state[f"lesson_{idx}"] = resp.text
-                            except Exception as e:
-                                st.session_state[f"lesson_{idx}"] = "⚠️ Limite richieste API raggiunto (Quota Exceeded / Rate Limit). Riprova tra qualche istante."
+                            client = genai.Client(api_key=MASTER_GEMINI_KEY) if "Client" in dir(genai) else None
+                            if client:
+                                resp = client.models.generate_content(model=GEMINI_MODEL_NAME, contents=prompt_lesson)
+                                st.session_state[f"lesson_{idx}"] = resp.text
+                            else:
+                                genai.configure(api_key=MASTER_GEMINI_KEY)
+                                resp = genai.GenerativeModel(GEMINI_MODEL_NAME).generate_content(prompt_lesson)
+                                st.session_state[f"lesson_{idx}"] = resp.text
 
                     if f"lesson_{idx}" in st.session_state:
                         st.markdown(f"<div class='info-box'>💡 {st.session_state[f'lesson_{idx}']}</div>", unsafe_allow_html=True)
