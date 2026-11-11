@@ -129,7 +129,53 @@ def get_user_tier(email):
         pass
     return "Free"
 
-def salva_errore_db(user_email, partita_id, categoria, mossa, spiegazione=""):
+def check_and_consume_gm_quota(email, tier):
+    if tier in ["Pro", "Diamond"]:
+        return True, ""
+    
+    current_month = datetime.datetime.now().strftime("%Y-%m")
+    key_quota = f"gm_quota_{email}_{current_month}"
+    
+    if key_quota not in st.session_state:
+        st.session_state[key_quota] = 0
+        
+    if st.session_state[key_quota] >= 5:
+        return False, "⚠️ Hai esaurito le 5 analisi GM gratuite di questo mese per il piano Free. Passa a Pro o Diamond per analisi illimitate!"
+        
+    st.session_state[key_quota] += 1
+    return True, ""
+
+def format_gm_lesson_html(raw_text):
+    lines = raw_text.strip().split('\n')
+    formatted_parts = []
+    for line in lines:
+        line_clean = line.strip()
+        if not line_clean:
+            continue
+        if line_clean.startswith("1.") or "**Errore:**" in line_clean:
+            text = line_clean.replace("1.", "").replace("**Errore:**", "").strip()
+            formatted_parts.append(f"<div class='gm-section'><b>❌ Analisi Errore:</b> {text}</div>")
+        elif line_clean.startswith("2.") or "**Idea corretta:**" in line_clean:
+            text = line_clean.replace("2.", "").replace("**Idea corretta:**", "").strip()
+            formatted_parts.append(f"<div class='gm-section'><b>💡 Idea Corretta:</b> {text}</div>")
+        elif line_clean.startswith("3.") or "**Regola pratica:**" in line_clean:
+            text = line_clean.replace("3.", "").replace("**Regola pratica:**", "").strip()
+            formatted_parts.append(f"<div class='gm-section'><b>♟️ Regola Pratica:</b> {text}</div>")
+        else:
+            formatted_parts.append(f"<div class='gm-section'>{line_clean}</div>")
+    
+    if not formatted_parts:
+        formatted_parts = [f"<div class='gm-section'>{raw_text}</div>"]
+
+    content = "".join(formatted_parts)
+    return f"""
+    <div class='gm-card'>
+        <div class='gm-header'>🎓 Lezione del Gran Maestro AI</div>
+        {content}
+    </div>
+    """
+
+def salva_errore_db(user_email, partita_id, categoria, mossa, spiegazione="", apertura=""):
     data_ora = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
     nuovo_errore = {
         "user_email": user_email,
@@ -137,15 +183,18 @@ def salva_errore_db(user_email, partita_id, categoria, mossa, spiegazione=""):
         "data": data_ora,
         "categoria_errore": categoria,
         "mossa_critica": mossa,
-        "spiegazione": spiegazione
+        "spiegazione": spiegazione,
+        "apertura": apertura
     }
     if 'storico_errori_locale' not in st.session_state:
         st.session_state['storico_errori_locale'] = []
     
-    # Aggiorna se esiste già o aggiungi
     esistente = next((e for e in st.session_state['storico_errori_locale'] if e['partita_id'] == partita_id and e['mossa_critica'] == mossa), None)
     if esistente:
-        esistente['spiegazione'] = spiegazione
+        if spiegazione:
+            esistente['spiegazione'] = spiegazione
+        if apertura:
+            esistente['apertura'] = apertura
     else:
         st.session_state['storico_errori_locale'].append(nuovo_errore)
 
@@ -167,8 +216,11 @@ def carica_errori_db(user_email):
     combined = rows + [r for r in local_rows if r not in rows]
     
     if combined:
-        return pd.DataFrame(combined)
-    return pd.DataFrame(columns=["data", "partita_id", "categoria_errore", "mossa_critica", "spiegazione"])
+        df = pd.DataFrame(combined)
+        if 'apertura' not in df.columns:
+            df['apertura'] = "Standard"
+        return df
+    return pd.DataFrame(columns=["data", "partita_id", "categoria_errore", "mossa_critica", "spiegazione", "apertura"])
 
 def salva_rating_db(user_email, data_partita, rating, partita_id):
     record = {
@@ -210,185 +262,73 @@ def tier_badge_html(tier):
     cls = "badge-free" if tier == "Free" else ("badge-pro" if tier == "Pro" else "badge-diamond")
     return f"<span class='tier-badge {cls}'>{tier}</span>"
 
-# --- CSS DINAMICO ---
-def get_dynamic_css(theme):
-    common_fix = """
-        #MainMenu { visibility: hidden !important; }
-        footer { visibility: hidden !important; }
-        [data-testid="stDecoration"] { visibility: hidden !important; }
-    """
-    if theme == 'Dark':
-        return "<style>" + common_fix + """
-        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap');
-        html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
-        h1, h2, h3, h4, h5, h6, .brand-title { font-family: 'Outfit', sans-serif; }
-        .stApp {
-            background:
-                radial-gradient(1200px 800px at 10% -10%, rgba(255, 215, 0, 0.08), transparent 50%),
-                radial-gradient(1000px 600px at 90% 110%, rgba(124, 58, 237, 0.10), transparent 50%),
-                linear-gradient(135deg, #070b14 0%, #0d1220 50%, #0a0e1a 100%);
-            color: #e8eaf0;
-        }
-        .main .block-container { padding-top: 1.2rem; padding-bottom: 3rem; max-width: 1200px; }
-        h1, h2, h3, h4, h5, h6, p, span, label, div { color: #e8eaf0; }
-        .hero { text-align: center; padding: 1rem 0 0.5rem 0; }
-        .brand-title {
-            background: linear-gradient(90deg, #FFD700 0%, #FFA500 50%, #FFB347 100%);
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-            font-size: 2.6rem; font-weight: 900; text-align: center; letter-spacing: -0.5px; margin-bottom: 0;
-        }
-        .brand-sub {
-            text-align: center; color: #8892a6 !important;
-            font-size: 0.95rem; margin: 0.2rem 0 1rem 0; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 500;
-        }
-        .hero-logo { font-size: 3.5rem; display: block; text-align: center; margin-bottom: -0.4rem; }
-        section[data-testid="stSidebar"] {
-            background: linear-gradient(180deg, #0b101c 0%, #080c15 100%) !important;
-            border-right: 1px solid rgba(255, 215, 0, 0.08);
-        }
-        .user-card {
-            display: flex; align-items: center; gap: 0.9rem;
-            padding: 0.9rem; border-radius: 14px;
-            background: linear-gradient(135deg, rgba(255,215,0,0.10), rgba(255,165,0,0.03));
-            border: 1px solid rgba(255, 215, 0, 0.18); margin-bottom: 1rem;
-        }
-        .avatar {
-            width: 46px; height: 46px; border-radius: 50%;
-            background: linear-gradient(135deg, #FFD700, #FFA500);
-            display: flex; align-items: center; justify-content: center;
-            color: #0a0e1a; font-weight: 800; font-size: 1.05rem;
-            box-shadow: 0 4px 14px rgba(255, 215, 0, 0.35); flex-shrink: 0;
-        }
-        .user-info { flex: 1; min-width: 0; }
-        .user-name { font-size: 0.82rem; font-weight: 600; color: #e8eaf0;
-                     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .tier-badge {
-            display: inline-block; padding: 3px 10px; border-radius: 20px;
-            font-weight: 700; font-size: 0.68rem; text-transform: uppercase;
-            letter-spacing: 0.5px; margin-top: 2px;
-        }
-        .badge-free    { background: rgba(136,146,166,0.15); color: #8892a6; border: 1px solid rgba(136,146,166,0.3); }
-        .badge-pro     { background: rgba(255,215,0,0.15); color: #FFD700; border: 1px solid rgba(255,215,0,0.4); }
-        .badge-diamond { background: rgba(0,210,255,0.15); color: #00d2ff; border: 1px solid rgba(0,210,255,0.4); }
-        .category-tag {
-            background: rgba(255, 215, 0, 0.1); color: #FFD700;
-            padding: 2px 8px; border-radius: 6px; font-weight: 600; font-size: 0.75rem;
-            border: 1px solid rgba(255,215,0,0.2);
-        }
-        div[data-testid="stExpander"] {
-            background: linear-gradient(135deg, rgba(20,26,42,0.75) 0%, rgba(15,20,32,0.75) 100%) !important;
-            border: 1px solid rgba(255, 215, 0, 0.12) !important;
-            border-radius: 14px !important; color: #e8eaf0 !important;
-            margin-bottom: 0.6rem; backdrop-filter: blur(6px);
-        }
-        .metric-card {
-            background: linear-gradient(135deg, rgba(20,26,42,0.9), rgba(15,20,32,0.9));
-            border-radius: 16px; padding: 1.2rem 1.1rem;
-            border: 1px solid rgba(255,255,255,0.06);
-            position: relative; overflow: hidden;
-        }
-        .metric-card::before {
-            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
-            background: linear-gradient(90deg, #FFD700, #FFA500);
-        }
-        .metric-card.blue::before   { background: linear-gradient(90deg, #3b82f6, #6366f1); }
-        .metric-card.purple::before { background: linear-gradient(90deg, #a855f7, #ec4899); }
-        .metric-card.green::before  { background: linear-gradient(90deg, #10b981, #34d399); }
-        .metric-value { font-size: 2rem; font-weight: 800; font-family: 'Outfit', sans-serif; color: #fff; line-height: 1.1; }
-        .metric-label { font-size: 0.8rem; color: #8892a6; text-transform: uppercase; letter-spacing: 0.8px; }
-        .board-wrapper {
-            display: flex; justify-content: center; align-items: center;
-            padding: 1.2rem; border-radius: 20px;
-            background: linear-gradient(135deg, rgba(255,215,0,0.05), rgba(255,165,0,0.02));
-            border: 1px solid rgba(255,215,0,0.12); box-shadow: 0 20px 50px rgba(0,0,0,0.35);
-            max-width: fit-content; margin: 0 auto;
-        }
-        .gm-card {
-            background: linear-gradient(135deg, rgba(30, 41, 59, 0.85), rgba(15, 23, 42, 0.95));
-            border: 1px solid rgba(255, 215, 0, 0.25);
-            border-radius: 16px;
-            padding: 1.2rem 1.4rem;
-            margin-top: 0.8rem;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.25);
-        }
-        .gm-header {
-            display: flex; align-items: center; gap: 0.5rem;
-            color: #FFD700; font-weight: 700; font-size: 1.05rem;
-            margin-bottom: 0.8rem; border-bottom: 1px solid rgba(255,215,0,0.15);
-            padding-bottom: 0.5rem;
-        }
-        .gm-section {
-            margin-bottom: 0.7rem; font-size: 0.93rem; line-height: 1.5; color: #cbd5e1;
-        }
-        .gm-section b { color: #FFD700; }
-        .pricing-card {
-            background: linear-gradient(135deg, rgba(20,26,42,0.9), rgba(15,20,32,0.9));
-            border: 1px solid rgba(255,215,0,0.2); border-radius: 20px;
-            padding: 2rem 1.5rem; text-align: center; height: 100%;
-        }
-        .pricing-card.featured { border: 2px solid #FFD700; background: linear-gradient(135deg, rgba(30,38,60,0.95), rgba(20,26,42,0.95)); }
-        .pricing-title { font-size: 1.5rem; font-weight: 800; color: #FFD700; margin-bottom: 0.5rem; }
-        .pricing-price { font-size: 2.5rem; font-weight: 900; color: #fff; margin-bottom: 1rem; }
-        .pricing-features { text-align: left; margin: 1.5rem 0; font-size: 0.9rem; color: #cbd5e1; list-style: none; padding: 0; }
-        .pricing-features li { margin-bottom: 0.6rem; display: flex; align-items: center; gap: 0.5rem; }
-        .info-box, .success-box, .warning-box { border-radius: 12px; padding: 0.9rem 1.1rem; margin: 0.5rem 0; border-left: 3px solid; font-size: 0.92rem; }
-        .info-box    { background: rgba(59,130,246,0.08); border-color: #3b82f6; color: #93c5fd; }
-        .success-box { background: rgba(16,185,129,0.08); border-color: #10b981; color: #6ee7b7; }
-        .warning-box { background: rgba(234,179,8,0.08);  border-color: #eab308; color: #fde047; }
-        .section-title {
-            font-family: 'Outfit', sans-serif; font-size: 1.4rem; font-weight: 700;
-            margin: 1.4rem 0 0.8rem 0; display: flex; align-items: center; gap: 0.5rem; color: #fff;
-        }
-        .section-title::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, rgba(255,215,0,0.35), transparent); margin-left: 0.6rem; }
-        .stButton > button { border-radius: 10px !important; font-weight: 600 !important; border: 1px solid rgba(255,215,0,0.25) !important; background: rgba(20,26,42,0.6) !important; color: #e8eaf0 !important; }
-        .stButton > button[kind="primary"] { background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%) !important; color: #0a0e1a !important; font-weight: 800 !important; border: none !important; }
-        input, textarea { color: #e8eaf0 !important; background-color: rgba(10,14,26,0.7) !important; border-radius: 10px !important; }
-        </style>"""
-    else:
-        return "<style>" + common_fix + """
-        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap');
-        html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
-        h1, h2, h3, h4, h5, h6, .brand-title { font-family: 'Outfit', sans-serif; }
-        .stApp { background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); color: #1a202c; }
-        .main .block-container { padding-top: 1.2rem; padding-bottom: 3rem; max-width: 1200px; }
-        h1, h2, h3, h4, h5, h6, p, span, label, div { color: #1a202c; }
-        .hero { text-align: center; padding: 1rem 0 0.5rem 0; }
-        .brand-title { background: linear-gradient(90deg, #b8860b 0%, #d4af37 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 2.6rem; font-weight: 900; text-align: center; }
-        .brand-sub { text-align: center; color: #64748b !important; font-size: 0.95rem; text-transform: uppercase; font-weight: 500; }
-        section[data-testid="stSidebar"] { background: #ffffff !important; border-right: 1px solid rgba(0,0,0,0.06); }
-        .user-card { display: flex; align-items: center; gap: 0.9rem; padding: 0.9rem; border-radius: 14px; background: rgba(212,175,55,0.10); border: 1px solid rgba(212,175,55,0.25); margin-bottom: 1rem; }
-        .avatar { width: 46px; height: 46px; border-radius: 50%; background: linear-gradient(135deg, #d4af37, #b8860b); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; }
-        .user-name { font-size: 0.82rem; font-weight: 600; color: #1a202c; }
-        .tier-badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-weight: 700; font-size: 0.68rem; text-transform: uppercase; }
-        .badge-free { background: #e2e8f0; color: #64748b; }
-        .badge-pro { background: rgba(212,175,55,0.15); color: #b8860b; }
-        .badge-diamond { background: rgba(59,130,246,0.15); color: #2563eb; }
-        .category-tag { background: rgba(212,175,55,0.15); color: #b8860b; padding: 2px 8px; border-radius: 6px; font-weight: 600; font-size: 0.75rem; }
-        .gm-card { background: #ffffff; border: 1px solid rgba(212,175,55,0.3); border-radius: 16px; padding: 1.2rem 1.4rem; margin-top: 0.8rem; box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
-        .gm-header { display: flex; align-items: center; gap: 0.5rem; color: #b8860b; font-weight: 700; font-size: 1.05rem; margin-bottom: 0.8rem; border-bottom: 1px solid rgba(212,175,55,0.15); padding-bottom: 0.5rem; }
-        .gm-section { margin-bottom: 0.7rem; font-size: 0.93rem; line-height: 1.5; color: #334155; }
-        .gm-section b { color: #b8860b; }
-        .metric-card { background: #ffffff; border-radius: 16px; padding: 1.2rem 1.1rem; border: 1px solid #e2e8f0; box-shadow: 0 2px 12px rgba(0,0,0,0.05); }
-        .metric-value { font-size: 2rem; font-weight: 800; font-family: 'Outfit', sans-serif; color: #1a202c; }
-        .metric-label { font-size: 0.8rem; color: #64748b; text-transform: uppercase; }
-        .board-wrapper { display: flex; justify-content: center; align-items: center; padding: 1.2rem; border-radius: 20px; background: #ffffff; border: 1px solid #e2e8f0; box-shadow: 0 8px 30px rgba(0,0,0,0.08); max-width: fit-content; margin: 0 auto; }
-        .pricing-card { background: #ffffff; border: 1px solid #cbd5e1; border-radius: 20px; padding: 2.1rem 1.5rem; text-align: center; height: 100%; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
-        .pricing-card.featured { border: 2px solid #d4af37; box-shadow: 0 10px 30px rgba(212,175,55,0.15); }
-        .pricing-title { font-size: 1.5rem; font-weight: 800; color: #b8860b; margin-bottom: 0.5rem; }
-        .pricing-price { font-size: 2.5rem; font-weight: 900; color: #1a202c; margin-bottom: 1rem; }
-        .pricing-features { text-align: left; margin: 1.5rem 0; font-size: 0.9rem; color: #475569; list-style: none; padding: 0; }
-        .pricing-features li { margin-bottom: 0.6rem; display: flex; align-items: center; gap: 0.5rem; }
-        .info-box, .success-box, .warning-box { border-radius: 12px; padding: 0.9rem 1.1rem; margin: 0.5rem 0; border-left: 3px solid; font-size: 0.92rem; }
-        .info-box { background: rgba(59,130,246,0.08); border-color: #3b82f6; color: #1e40af; }
-        .success-box { background: rgba(16,185,129,0.08); border-color: #10b981; color: #047857; }
-        .warning-box { background: rgba(234,179,8,0.10); border-color: #eab308; color: #854d0e; }
-        .section-title { font-family: 'Outfit', sans-serif; font-size: 1.4rem; font-weight: 700; margin: 1.4rem 0 0.8rem 0; display: flex; align-items: center; gap: 0.5rem; color: #1a202c; }
-        .section-title::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, rgba(212,175,55,0.4), transparent); margin-left: 0.6rem; }
-        .stButton > button { border-radius: 10px !important; font-weight: 600 !important; border: 1px solid #e2e8f0 !important; background: #ffffff !important; color: #1a202c !important; }
-        .stButton > button[kind="primary"] { background: linear-gradient(135deg, #d4af37 0%, #b8860b 100%) !important; color: #ffffff !important; font-weight: 800 !important; border: none !important; }
-        </style>"""
+# ==========================================
+# LOGIN SCREEN
+# ==========================================
+if not st.session_state['user']:
+    col_l1, col_l2, col_l3 = st.columns([1, 1.4, 1])
+    with col_l2:
+        st.markdown(f"""
+        <div class="hero" style="padding-top: 2.5rem;">
+            <span class="hero-logo">♟️</span>
+            <div class="brand-title">{t['title'] if 't' in globals() else 'Chess Coach Pro'}</div>
+            <p class="brand-sub">Coaching Scacchistico AI ad Altissima Efficienza</p>
+        </div>
+        """, unsafe_allow_html=True)
 
-st.markdown(get_dynamic_css(st.session_state['theme_mode']), unsafe_allow_html=True)
+        scelta_lingua_benvenuto = st.selectbox("Lingua:", options=["Italiano", "English", "Español"], index=0, key="lang_login_select")
+        lang_c = 'it' if scelta_lingua_benvenuto == "Italiano" else ('en' if scelta_lingua_benvenuto == "English" else 'es')
+        if lang_c != st.session_state['lang']:
+            st.session_state['lang'] = lang_c
+            st.rerun()
+
+        TEXTS_MAP = {
+            "it": {"login_header": "🔐 Accedi", "register_header": "📝 Registrati", "email_label": "Email:", "password_label": "Password:", "login_btn": "Accedi", "register_btn": "Crea Account"},
+            "en": {"login_header": "🔐 Login", "register_header": "📝 Register", "email_label": "Email:", "password_label": "Password:", "login_btn": "Login", "register_btn": "Create Account"},
+            "es": {"login_header": "🔐 Iniciar Sesión", "register_header": "📝 Registrarse", "email_label": "Correo:", "password_label": "Contraseña:", "login_btn": "Iniciar Sesión", "register_btn": "Crear Cuenta"}
+        }
+        lt = TEXTS_MAP[st.session_state['lang']]
+
+        tab_log, tab_reg = st.tabs([lt["login_header"], lt["register_header"]])
+        supabase_configurato = supabase is not None
+
+        with tab_log:
+            email_log = st.text_input(lt["email_label"], key="login_email")
+            pass_log = st.text_input(lt["password_label"], type="password", key="login_pass")
+            if st.button(lt["login_btn"], type="primary", use_container_width=True):
+                if supabase_configurato and email_log and pass_log:
+                    try:
+                        res = supabase.auth.sign_in_with_password({"email": email_log, "password": pass_log})
+                        st.session_state['user'] = res.user.email
+                        st.session_state['profile_setup_done'] = False
+                        st.rerun()
+                    except Exception as e: st.error(f"Errore: {e}")
+                else:
+                    st.session_state['user'] = email_log if email_log else "beta_tester@chess.com"
+                    st.session_state['profile_setup_done'] = False
+                    st.rerun()
+
+        with tab_reg:
+            email_reg = st.text_input(lt["email_label"], key="reg_email")
+            pass_reg = st.text_input(lt["password_label"], type="password", key="reg_pass")
+            if st.button(lt["register_btn"], type="primary", use_container_width=True):
+                if supabase_configurato and email_reg and pass_reg:
+                    try:
+                        supabase.auth.sign_up({"email": email_reg, "password": pass_reg})
+                        st.success("Registrazione completata! Effettua il login.")
+                    except Exception as e: st.error(f"Errore: {e}")
+                else:
+                    if email_reg:
+                        st.session_state['user'] = email_reg
+                        st.session_state['profile_setup_done'] = False
+                        st.rerun()
+    st.stop()
+
+# ==========================================
+# ONBOARDING PROFILES
+# ==========================================
+user_email = st.session_state['user']
+user_tier = get_user_tier(user_email)
 
 TEXTS = {
     "it": {
@@ -442,205 +382,6 @@ TEXTS = {
 }
 
 t = TEXTS[st.session_state['lang']]
-
-# --- DATABASE & LOCAL STORAGE HELPERS ---
-def get_user_profiles(email):
-    if supabase:
-        try:
-            res = supabase.table("profili_scacchi").select("*").eq("user_email", email).execute()
-            if res.data: return res.data
-        except Exception: pass
-    return []
-
-def add_user_profile(email, piattaforma, username):
-    tier = get_user_tier(email)
-    limit = 1 if tier == "Free" else (3 if tier == "Pro" else 5)
-    current_profiles = get_user_profiles(email)
-    if len(current_profiles) >= limit:
-        return False, f"Limite raggiunto per il piano {tier} ({limit} profili)."
-    if supabase:
-        try:
-            supabase.table("profili_scacchi").insert({"user_email": email, "piattaforma": piattaforma, "username": username.strip()}).execute()
-            return True, "Profilo aggiunto!"
-        except Exception as e: return False, f"Errore DB: {e}"
-    return False, "Supabase non connesso."
-
-def delete_user_profile(profile_id):
-    if supabase:
-        try:
-            supabase.table("profili_scacchi").delete().eq("id", profile_id).execute()
-            return True
-        except Exception: pass
-    return False
-
-def format_gm_lesson_html(raw_text):
-    """Formatta la spiegazione grezza del GM in un layout visivo pulito ed elegante"""
-    lines = raw_text.strip().split('\n')
-    formatted_parts = []
-    for line in lines:
-        line_clean = line.strip()
-        if not line_clean:
-            continue
-        # Rimuove prefissi numerici o markdown grezzi se presenti
-        if line_clean.startswith("1.") or "**Errore:**" in line_clean:
-            text = line_clean.replace("1.", "").replace("**Errore:**", "").strip()
-            formatted_parts.append(f"<div class='gm-section'><b>❌ Analisi Errore:</b> {text}</div>")
-        elif line_clean.startswith("2.") or "**Idea corretta:**" in line_clean:
-            text = line_clean.replace("2.", "").replace("**Idea corretta:**", "").strip()
-            formatted_parts.append(f"<div class='gm-section'><b>💡 Idea Corretta:</b> {text}</div>")
-        elif line_clean.startswith("3.") or "**Regola pratica:**" in line_clean:
-            text = line_clean.replace("3.", "").replace("**Regola pratica:**", "").strip()
-            formatted_parts.append(f"<div class='gm-section'><b>♟️ Regola Pratica:</b> {text}</div>")
-        else:
-            formatted_parts.append(f"<div class='gm-section'>{line_clean}</div>")
-    
-    if not formatted_parts:
-        formatted_parts = [f"<div class='gm-section'>{raw_text}</div>"]
-
-    content = "".join(formatted_parts)
-    return f"""
-    <div class='gm-card'>
-        <div class='gm-header'>🎓 Lezione del Gran Maestro AI</div>
-        {content}
-    </div>
-    """
-
-def salva_errore_db(user_email, partita_id, categoria, mossa, spiegazione=""):
-    data_ora = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    nuovo_errore = {
-        "user_email": user_email,
-        "partita_id": partita_id if partita_id else "Partita_Sconosciuta",
-        "data": data_ora,
-        "categoria_errore": categoria,
-        "mossa_critica": mossa,
-        "spiegazione": spiegazione
-    }
-    if 'storico_errori_locale' not in st.session_state:
-        st.session_state['storico_errori_locale'] = []
-    
-    esistente = next((e for e in st.session_state['storico_errori_locale'] if e['partita_id'] == partita_id and e['mossa_critica'] == mossa), None)
-    if esistente:
-        esistente['spiegazione'] = spiegazione
-    else:
-        st.session_state['storico_errori_locale'].append(nuovo_errore)
-
-    if supabase:
-        try:
-            supabase.table("errori_utenti").upsert(nuovo_errore, on_conflict="user_email,partita_id,mossa_critica").execute()
-        except Exception: pass
-
-def carica_errori_db(user_email):
-    rows = []
-    if supabase:
-        try:
-            res = supabase.table("errori_utenti").select("*").eq("user_email", user_email).execute()
-            if res.data:
-                rows = res.data
-        except Exception: pass
-    
-    local_rows = st.session_state.get('storico_errori_locale', [])
-    combined = rows + [r for r in local_rows if r not in rows]
-    
-    if combined:
-        return pd.DataFrame(combined)
-    return pd.DataFrame(columns=["data", "partita_id", "categoria_errore", "mossa_critica", "spiegazione"])
-
-def salva_rating_db(user_email, data_partita, rating, partita_id):
-    record = {
-        "user_email": user_email,
-        "data": data_partita,
-        "rating": int(rating),
-        "partita_id": partita_id
-    }
-    if 'storico_rating_locale' not in st.session_state:
-        st.session_state['storico_rating_locale'] = []
-    st.session_state['storico_rating_locale'] = [r for r in st.session_state['storico_rating_locale'] if r['partita_id'] != partita_id]
-    st.session_state['storico_rating_locale'].append(record)
-
-    if supabase:
-        try:
-            supabase.table("storico_rating").upsert(record, on_conflict="user_email,partita_id").execute()
-        except Exception: pass
-
-def carica_rating_db(user_email):
-    rows = []
-    if supabase:
-        try:
-            res = supabase.table("storico_rating").select("*").eq("user_email", user_email).order("data").execute()
-            if res.data:
-                rows = res.data
-        except Exception: pass
-    
-    local_rows = st.session_state.get('storico_rating_locale', [])
-    combined = rows + [r for r in local_rows if r not in rows]
-    
-    if combined:
-        df = pd.DataFrame(combined)
-        df['data'] = pd.to_datetime(df['data'], errors='coerce')
-        df = df.dropna(subset=['data']).sort_values('data').reset_index(drop=True)
-        return df
-    return pd.DataFrame(columns=["data", "rating", "partita_id"])
-
-# ==========================================
-# LOGIN SCREEN
-# ==========================================
-if not st.session_state['user']:
-    col_l1, col_l2, col_l3 = st.columns([1, 1.4, 1])
-    with col_l2:
-        st.markdown(f"""
-        <div class="hero" style="padding-top: 2.5rem;">
-            <span class="hero-logo">♟️</span>
-            <div class="brand-title">{t['title']}</div>
-            <p class="brand-sub">{t['subtitle']}</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-        scelta_lingua_benvenuto = st.selectbox(t["lang_select"], options=["Italiano", "English", "Español"], index=0, key="lang_login_select")
-        lang_c = 'it' if scelta_lingua_benvenuto == "Italiano" else ('en' if scelta_lingua_benvenuto == "English" else 'es')
-        if lang_c != st.session_state['lang']:
-            st.session_state['lang'] = lang_c
-            st.rerun()
-
-        tab_log, tab_reg = st.tabs([t["login_header"], t["register_header"]])
-        supabase_configurato = supabase is not None
-
-        with tab_log:
-            email_log = st.text_input(t["email_label"], key="login_email")
-            pass_log = st.text_input(t["password_label"], type="password", key="login_pass")
-            if st.button(t["login_btn"], type="primary", use_container_width=True):
-                if supabase_configurato and email_log and pass_log:
-                    try:
-                        res = supabase.auth.sign_in_with_password({"email": email_log, "password": pass_log})
-                        st.session_state['user'] = res.user.email
-                        st.session_state['profile_setup_done'] = False
-                        st.rerun()
-                    except Exception as e: st.error(f"Errore: {e}")
-                else:
-                    st.session_state['user'] = email_log if email_log else "beta_tester@chess.com"
-                    st.session_state['profile_setup_done'] = False
-                    st.rerun()
-
-        with tab_reg:
-            email_reg = st.text_input(t["email_label"], key="reg_email")
-            pass_reg = st.text_input(t["password_label"], type="password", key="reg_pass")
-            if st.button(t["register_btn"], type="primary", use_container_width=True):
-                if supabase_configurato and email_reg and pass_reg:
-                    try:
-                        supabase.auth.sign_up({"email": email_reg, "password": pass_reg})
-                        st.success("Registrazione completata! Effettua il login.")
-                    except Exception as e: st.error(f"Errore: {e}")
-                else:
-                    if email_reg:
-                        st.session_state['user'] = email_reg
-                        st.session_state['profile_setup_done'] = False
-                        st.rerun()
-    st.stop()
-
-# ==========================================
-# ONBOARDING PROFILES
-# ==========================================
-user_email = st.session_state['user']
-user_tier = get_user_tier(user_email)
 
 if not st.session_state.get('profile_setup_done', False):
     col_p1, col_p2, col_p3 = st.columns([1, 1.6, 1])
@@ -758,8 +499,45 @@ st.divider()
 current_selection = st.session_state['nav_selection']
 
 # ==========================================
-# MOTORE STOCKFISH & RILEVAMENTO APERTURA
+# MOTORE STOCKFISH & RILEVAMENTO APERTURA REALE
 # ==========================================
+def detect_opening(game_moves_san):
+    if not game_moves_san:
+        return "Apertura Standard"
+    
+    m1 = game_moves_san[0] if len(game_moves_san) > 0 else ""
+    m2 = game_moves_san[1] if len(game_moves_san) > 1 else ""
+    m3 = game_moves_san[2] if len(game_moves_san) > 2 else ""
+    m4 = game_moves_san[3] if len(game_moves_san) > 3 else ""
+
+    if m1 == "e4":
+        if m2 == "e5":
+            if m3 == "Nf3":
+                if m4 == "Nc6": return "Partita Italiana / Spagnola (Ruy Lopez)"
+                elif m4 == "Nf6": return "Difesa Petroff"
+                return "Partita Aperta (1.e4 e5)"
+            return "Gioco Aperto (1.e4 e5)"
+        elif m2 == "c5": return "Difesa Siciliana"
+        elif m2 == "e6": return "Difesa Francese"
+        elif m2 == "c6": return "Difesa Caro-Kann"
+        elif m2 == "Nf6": return "Difesa Alekhine"
+        return "Gioco di Re (1.e4)"
+    elif m1 == "d4":
+        if m2 == "Nf6":
+            if m3 == "c4":
+                if m4 == "e6": return "Difesa Nimzo-Indiana / Regina"
+                elif m4 == "g6": return "Difesa Indiana di Re / Grünfeld"
+                return "Difesa Indiana"
+            return "Difesa Indiana di Donna / Reti"
+        elif m2 == "d5":
+            if m3 == "c4": return "Gambetto di Donna"
+            return "Partita di Donna (1.d4 d5)"
+        return "Gioco di Donna (1.d4)"
+    elif m1 == "Nf3": return "Apertura Reti / Zukertort"
+    elif m1 == "c4": return "Partita Inglese"
+    
+    return f"Apertura ({m1} {m2})"
+
 def fetch_stockfish_eval(session, fen, depth=10):
     try:
         r = session.post("https://chess-api.com/v1", json={"fen": fen, "depth": depth}, timeout=2.5)
@@ -787,13 +565,22 @@ def analizza_partita_stockfish(pgn_text, target_usernames):
     black_elo = headers.get('BlackElo', '1500')
     date_str = headers.get('Date', datetime.datetime.now().strftime("%Y-%m-%d")).replace('.', '-')
     
-    # Estrazione Apertura dai PGN Headers
+    # Rilevamento apertura PGN headers o euristico
     opening_name = headers.get('Opening', '')
     eco_code = headers.get('ECO', '')
+    
+    main_moves_list = list(game.mainline_moves())
+    temp_b = game.board()
+    san_moves = []
+    for mv in main_moves_list:
+        try: san_moves.append(temp_b.san(mv))
+        except: san_moves.append(mv.uci())
+        temp_b.push(mv)
+
     if opening_name:
         opening_display = f"{opening_name} ({eco_code})" if eco_code else opening_name
     else:
-        opening_display = f"ECO: {eco_code}" if eco_code else "Apertura Tradizionale"
+        opening_display = detect_opening(san_moves)
 
     user_is_white, user_is_black = False, False
     user_rating = 1500
@@ -809,11 +596,9 @@ def analizza_partita_stockfish(pgn_text, target_usernames):
                 user_is_black = True; found_match = True
                 if black_elo.isdigit(): user_rating = int(black_elo)
         if not found_match: 
-            # Se nessun profilo coincide con i nomi nel PGN, assumiamo per default il Bianco
             user_is_white, user_is_black = True, False
             if white_elo.isdigit(): user_rating = int(white_elo)
     else:
-        # Nessun profilo collegato: default utente = Bianco
         user_is_white, user_is_black = True, False
         if white_elo.isdigit(): user_rating = int(white_elo)
 
@@ -822,8 +607,7 @@ def analizza_partita_stockfish(pgn_text, target_usernames):
     board = game.board()
     detected_errors, eval_history = [], []
     headers_req = {"User-Agent": "ChessCoachPro/1.0 (support@chesscoachpro.com)", "Content-Type": "application/json"}
-    main_moves = list(game.mainline_moves())
-    total_ply_count = len(main_moves)
+    total_ply_count = len(main_moves_list)
     total_full_moves = (total_ply_count + 1) // 2
 
     progress_bar = st.progress(0, text="♟️ Analisi rapida Stockfish in corso...")
@@ -831,12 +615,9 @@ def analizza_partita_stockfish(pgn_text, target_usernames):
     session.headers.update(headers_req)
     prev_eval = 0.0
 
-    for idx, move in enumerate(main_moves):
+    for idx, move in enumerate(main_moves_list):
         fen_before = board.fen()
-        try: 
-            move_san = board.san(move)
-        except Exception: 
-            move_san = move.uci()
+        move_san = san_moves[idx]
 
         eval_before = fetch_stockfish_eval(session, fen_before, depth=10)
         if eval_before is None: eval_before = prev_eval
@@ -1013,7 +794,7 @@ if current_selection == "📊 Dashboard & Insights":
         st.markdown("<div class='info-box'>Nessun errore registrato nel cloud o in memoria. Analizza qualche partita per popolare la tua Control Room!</div>", unsafe_allow_html=True)
 
 # ==========================================
-# SEZIONE 2: ANALIZZA PARTITA (CON SLIDER E APERTURA)
+# SEZIONE 2: ANALIZZA PARTITA (CON SLIDER + FRECCE & APERTURA REALE)
 # ==========================================
 elif current_selection == "🔍 Analizza Partita":
     st.markdown("<div class='section-title'>📖 Analisi Dettagliata Partita</div>", unsafe_allow_html=True)
@@ -1061,10 +842,9 @@ elif current_selection == "🔍 Analizza Partita":
                         st.success(f"✅ Stockfish: {len(errori)} {t['critique_found']}")
                         for item in errori:
                             salva_errore_db(user_email, p_id, item.get("categoria", "Errore Tattico"),
-                                           item.get("label_mossa", "Mossa"), "")
+                                           item.get("label_mossa", "Mossa"), "", opening_used)
                     else: st.success(f"✅ {t['no_errors']}")
 
-    # Visualizzazione Apertura Rilevata
     if 'current_opening' in st.session_state and st.session_state['current_opening']:
         st.markdown(f"<div class='success-box'>📖 <b>Apertura Rilevata:</b> {st.session_state['current_opening']}</div>", unsafe_allow_html=True)
 
@@ -1077,24 +857,34 @@ elif current_selection == "🔍 Analizza Partita":
         game_moves = st.session_state['active_game_moves']
         max_ply = len(game_moves)
         
-        # --- SLIDER DELLE MOSSE (Richiesta Sviluppo 1) ---
+        # --- SLIDER E FRECCE SINCRONIZZATE ---
+        if 'current_board_ply' not in st.session_state:
+            st.session_state['current_board_ply'] = 0
+
+        c1, c2, c3, c4 = st.columns(4)
+        if c1.button("⏪ Inizio", use_container_width=True): 
+            st.session_state['current_board_ply'] = 0
+            st.rerun()
+        if c2.button("⬅️ Indietro", use_container_width=True) and st.session_state['current_board_ply'] > 0: 
+            st.session_state['current_board_ply'] -= 1
+            st.rerun()
+        if c3.button("➡️ Avanti", use_container_width=True) and st.session_state['current_board_ply'] < max_ply: 
+            st.session_state['current_board_ply'] += 1
+            st.rerun()
+        if c4.button("⏩ Fine", use_container_width=True): 
+            st.session_state['current_board_ply'] = max_ply
+            st.rerun()
+
         current_ply = st.slider(
             "🧭 Navigazione Rapida Mosse", 
             min_value=0, 
             max_value=max_ply, 
-            value=st.session_state.get('current_board_ply', 0),
+            value=st.session_state['current_board_ply'],
             key="board_slider_position"
         )
         if current_ply != st.session_state['current_board_ply']:
             st.session_state['current_board_ply'] = current_ply
             st.rerun()
-
-        # Pulsanti di supporto opzionali per scorrimento fine
-        c1, c2, c3, c4 = st.columns(4)
-        if c1.button("⏪ Inizio", use_container_width=True): st.session_state['current_board_ply'] = 0; st.rerun()
-        if c2.button("⬅️ Indietro", use_container_width=True) and current_ply > 0: st.session_state['current_board_ply'] -= 1; st.rerun()
-        if c3.button("➡️ Avanti", use_container_width=True) and current_ply < max_ply: st.session_state['current_board_ply'] += 1; st.rerun()
-        if c4.button("⏩ Fine", use_container_width=True): st.session_state['current_board_ply'] = max_ply; st.rerun()
 
         temp_board = st.session_state['active_game_board'].board()
         for i in range(st.session_state['current_board_ply']): temp_board.push(game_moves[i])
@@ -1109,7 +899,6 @@ elif current_selection == "🔍 Analizza Partita":
             for idx, err in enumerate(st.session_state['stockfish_errors']):
                 p_id_curr = st.session_state.get('current_game_id', 'Partita_Sconosciuta')
                 
-                # Cerca se la lezione GM è già salvata nel DB o in sessione
                 lezione_esistente = ""
                 if not df_storico_DB.empty and 'partita_id' in df_storico_DB.columns:
                     match_db = df_storico_DB[(df_storico_DB['partita_id'] == p_id_curr) & (df_storico_DB['mossa_critica'] == err['label_mossa'])]
@@ -1118,44 +907,46 @@ elif current_selection == "🔍 Analizza Partita":
                         if spiegazione_db:
                             lezione_esistente = spiegazione_db
 
-                if not lezione_esistente and f"lesson_{idx}" in st.session_state:
-                    lezione_esistente = st.session_state[f"lesson_{idx}"]
-
                 with st.expander(f"{err['tipo_problema']} · {err['label_mossa']} · -{err['perdita_cp']} CP", expanded=False):
                     st.markdown(f"**Mossa:** `{err['label_mossa']}` | **Perdita:** -{err['perdita_cp']} CP", unsafe_allow_html=True)
                     
                     if st.button(t['gm_lesson_btn'], key=f"btn_lesson_{idx}", type="primary"):
-                        with st.spinner("🎓 Il Gran Maestro AI sta preparando la lezione..."):
-                            prompt_lesson = f"""
-                            Sei un GM di scacchi. Spiega questo errore tattico.
-                            FEN: {err['fen_prima']}
-                            Mossa errata: {err['mossa_giocata']}
-                            {t['prompt_lang']}
-                            Rispondi rigorosamente con:
-                            1. [Spiegazione dell'errore commesso]
-                            2. [Idea corretta da giocare]
-                            3. [Regola pratica generale]
-                            """
-                            try:
-                                client = genai.Client(api_key=MASTER_GEMINI_KEY) if "Client" in dir(genai) else None
-                                if client:
-                                    resp = client.models.generate_content(model=GEMINI_MODEL_NAME, contents=prompt_lesson)
-                                    testo_gm = resp.text
-                                else:
-                                    genai.configure(api_key=MASTER_GEMINI_KEY)
-                                    resp = genai.GenerativeModel(GEMINI_MODEL_NAME).generate_content(prompt_lesson)
-                                    testo_gm = resp.text
-                                
-                                formatted_lesson = format_gm_lesson_html(testo_gm)
-                                st.session_state[f"lesson_{idx}"] = formatted_lesson
-                                
-                                # Salvataggio nel DB (Richiesta Sviluppo 3)
-                                salva_errore_db(user_email, p_id_curr, err.get('categoria', 'Errore Tattico'), err['label_mossa'], formatted_lesson)
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"⚠️ Errore API Gemini: {e}")
+                        # Verifica quota mensile piano free
+                        allowed, limit_msg = check_and_consume_gm_quota(user_email, user_tier)
+                        if not allowed:
+                            st.error(limit_msg)
+                        else:
+                            with st.spinner("🎓 Il Gran Maestro AI sta preparando la lezione..."):
+                                prompt_lesson = f"""
+                                Sei un GM di scacchi. Spiega questo errore tattico.
+                                FEN: {err['fen_prima']}
+                                Mossa errata: {err['mossa_giocata']}
+                                {t['prompt_lang']}
+                                Rispondi rigorosamente con:
+                                1. [Spiegazione dell'errore commesso]
+                                2. [Idea corretta da giocare]
+                                3. [Regola pratica generale]
+                                """
+                                try:
+                                    client = genai.Client(api_key=MASTER_GEMINI_KEY) if "Client" in dir(genai) else None
+                                    if client:
+                                        resp = client.models.generate_content(model=GEMINI_MODEL_NAME, contents=prompt_lesson)
+                                        testo_gm = resp.text
+                                    else:
+                                        genai.configure(api_key=MASTER_GEMINI_KEY)
+                                        resp = genai.GenerativeModel(GEMINI_MODEL_NAME).generate_content(prompt_lesson)
+                                        testo_gm = resp.text
+                                    
+                                    formatted_lesson = format_gm_lesson_html(testo_gm)
+                                    st.session_state[f"lesson_{idx}"] = formatted_lesson
+                                    
+                                    # Salvataggio persistente nel DB
+                                    current_op = st.session_state.get('current_opening', 'Standard')
+                                    salva_errore_db(user_email, p_id_curr, err.get('categoria', 'Errore Tattico'), err['label_mossa'], formatted_lesson, current_op)
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"⚠️ Errore API Gemini: {e}")
 
-                    # Mostra la lezione formattata (se presente)
                     if lezione_esistente:
                         st.markdown(lezione_esistente, unsafe_allow_html=True)
         else:
@@ -1231,26 +1022,47 @@ elif current_selection == "🌐 Importa & Sincronizza":
                 st.rerun()
 
 # ==========================================
-# SEZIONE 4: PALESTRA ALLENAMENTO
+# SEZIONE 4: PALESTRA ALLENAMENTO (CON FILTRI MULTIPLI - Sviluppo 3)
 # ==========================================
 elif current_selection == "🎯 Palestra sui Tuoi Errori":
-    st.markdown("<div class='section-title'>🎯 Palestra di Allenamento Personalizzata</div>", unsafe_allow_html=True)
-    st.markdown("<p style='color:#8892a6;'>Riconsulta le lezioni del GM salvate e allenati sulle posizioni critiche.</p>", unsafe_allow_html=True)
+    st.markdown("<div class='section-title'>🎯 Palestra di Allenamento & Lezioni GM</div>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#8892a6;'>Filtra e riconsulta tutte le lezioni e gli errori salvati dalle tue partite.</p>", unsafe_allow_html=True)
 
     df_errori = carica_errori_db(user_email)
 
     if df_errori.empty:
         st.markdown("<div class='info-box'>Nessun errore registrato finora. Analizza qualche partita per sbloccare la tua palestra!</div>", unsafe_allow_html=True)
     else:
-        # Mostra anche le lezioni salvate nel DB
-        lezioni_salvate = df_errori[df_errori['spiegazione'].str.len() > 0]
+        # --- FILTRI MULTIPLI (Richiesta Sviluppo 3) ---
+        st.markdown("##### 🔎 Filtri di Ricerca Avanzata")
+        col_f1, col_f2, col_f3 = st.columns(3)
+        
+        partite_list = ["Tutte"] + list(df_errori['partita_id'].unique())
+        aperture_list = ["Tutte"] + list(df_errori['apertura'].unique()) if 'apertura' in df_errori.columns else ["Tutte"]
+        categorie_list = ["Tutte"] + list(df_errori['categoria_errore'].unique())
+
+        filtro_partita = col_f1.selectbox("Filtra per Partita:", partite_list)
+        filtro_apertura = col_f2.selectbox("Filtra per Apertura:", aperture_list)
+        filtro_categoria = col_f3.selectbox("Filtra per Categoria:", categorie_list)
+
+        df_filtrato = df_errori.copy()
+        if filtro_partita != "Tutte":
+            df_filtrato = df_filtrato[df_filtrato['partita_id'] == filtro_partita]
+        if filtro_apertura != "Tutte":
+            df_filtrato = df_filtrato[df_filtrato['apertura'] == filtro_apertura]
+        if filtro_categoria != "Tutte":
+            df_filtrato = df_filtrato[df_filtrato['categoria_errore'] == filtro_categoria]
+
+        st.divider()
+
+        lezioni_salvate = df_filtrato[df_filtrato['spiegazione'].str.len() > 0]
         if not lezioni_salvate.empty:
-            st.markdown("<div class='section-title'>📚 Lezioni GM Salvate nel DB</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='section-title'>📚 Lezioni GM Trovate ({len(lezioni_salvate)})</div>", unsafe_allow_html=True)
             for _, row in lezioni_salvate.iterrows():
-                with st.expander(f"Partita: {row['partita_id']} · Mossa: {row['mossa_critica']} ({row['data']})"):
+                with st.expander(f"Partita: {row['partita_id']} · Mossa: {row['mossa_critica']} · Apertura: {row.get('apertura', 'Standard')} ({row['data']})"):
                     st.markdown(row['spiegazione'], unsafe_allow_html=True)
         else:
-            st.markdown("<div class='info-box'>Non hai ancora salvato lezioni del GM. Clicca su 'Spiegazione GM AI' durante l'analisi di una partita per salvarle qui!</div>", unsafe_allow_html=True)
+            st.markdown("<div class='info-box'>Nessuna lezione GM corrisponde ai filtri selezionati. Clicca su 'Spiegazione GM AI' durante l'analisi delle partite per popolarla!</div>", unsafe_allow_html=True)
 
 # ==========================================
 # SEZIONE 5: STUDIO DA LIBRI
@@ -1337,7 +1149,7 @@ elif current_selection == "💎 Piani Abbonamento":
     col_pr1, col_pr2, col_pr3 = st.columns(3)
 
     with col_pr1:
-        st.markdown("<div class='pricing-card'><div class='pricing-title'>Free</div><div class='pricing-price'>€0</div><ul class='pricing-features'><li>✅ 1 Profilo</li><li>✅ Analisi Base</li></ul></div>", unsafe_allow_html=True)
+        st.markdown("<div class='pricing-card'><div class='pricing-title'>Free</div><div class='pricing-price'>€0</div><ul class='pricing-features'><li>✅ 1 Profilo</li><li>✅ 5 Analisi GM al mese</li><li>✅ Analisi Motore Base</li></ul></div>", unsafe_allow_html=True)
         if user_tier == "Free":
             st.button("Piano Attuale", disabled=True, use_container_width=True, key="b_f")
         else:
@@ -1347,7 +1159,7 @@ elif current_selection == "💎 Piani Abbonamento":
 
     with col_pr2:
         is_pro = (user_tier == "Pro")
-        st.markdown(f"<div class='pricing-card {'featured' if is_pro else ''}'><div class='tier-badge badge-pro'>Popolare</div><div class='pricing-title'>Pro</div><div class='pricing-price'>€4.99</div><ul class='pricing-features'><li>✅ 3 Profili</li><li>✅ Sincronizzazione Notturna</li><li>✅ Palestra Avanzata</li></ul></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='pricing-card {'featured' if is_pro else ''}'><div class='tier-badge badge-pro'>Popolare</div><div class='pricing-title'>Pro</div><div class='pricing-price'>€4.99</div><ul class='pricing-features'><li>✅ 3 Profili</li><li>✅ Analisi GM Illimitate</li><li>✅ Sincronizzazione Notturna</li></ul></div>", unsafe_allow_html=True)
         
         if is_pro:
             st.markdown("<div class='success-box' style='text-align:center;'>✨ Piano Attivo</div>", unsafe_allow_html=True)
@@ -1374,7 +1186,7 @@ elif current_selection == "💎 Piani Abbonamento":
 
     with col_pr3:
         is_diamond = (user_tier == "Diamond")
-        st.markdown(f"<div class='pricing-card {'featured' if is_diamond else ''}'><div class='tier-badge badge-diamond'>Elite</div><div class='pricing-title'>Diamond</div><div class='pricing-price'>€9.99</div><ul class='pricing-features'><li>✅ 5 Profili</li><li>✅ Sync Prioritario</li><li>✅ Supporto 24/7</li></ul></div>", unsafe_allow_html=True)
+        st.markdown(f"<div class='pricing-card {'featured' if is_diamond else ''}'><div class='tier-badge badge-diamond'>Elite</div><div class='pricing-title'>Diamond</div><div class='pricing-price'>€9.99</div><ul class='pricing-features'><li>✅ 5 Profili</li><li>✅ Analisi GM Illimitate</li><li>✅ Sync Prioritario 24/7</li></ul></div>", unsafe_allow_html=True)
         
         if is_diamond:
             st.markdown("<div class='success-box' style='text-align:center;'>✨ Piano Attivo</div>", unsafe_allow_html=True)
