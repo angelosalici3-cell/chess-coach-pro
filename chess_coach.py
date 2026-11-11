@@ -1,5 +1,5 @@
 import streamlit as st
-import google.generativeai as genai
+import google.genai as genai
 import chess
 import chess.svg
 import chess.pgn
@@ -1035,7 +1035,7 @@ elif current_selection == "🔍 Analizza Partita":
         if 'current_board_ply' not in st.session_state:
             st.session_state['current_board_ply'] = 0
 
-        # --- SLIDER E FRECCE FUNZIONANTI ---
+        # --- SLIDER E FRECCE FUNZIONANTI CON REFRESH FORZATO ---
         c1, c2, c3, c4 = st.columns(4)
         if c1.button("⏪ Inizio", use_container_width=True): 
             st.session_state['current_board_ply'] = 0
@@ -1097,7 +1097,7 @@ elif current_selection == "🔍 Analizza Partita":
                         if not allowed:
                             st.error(limit_msg)
                         else:
-                            with st.spinner("🎓 Il Gran Maestro AI sta preparando la lezione..."):
+                            with st.spinner("🎓 Il Gran Maestro AI sta preparando la lezione in pochi secondi..."):
                                 prompt_lesson = f"""
                                 Sei un GM di scacchi. Spiega questo errore tattico in modo sintetico e chiaro.
                                 FEN: {err['fen_prima']}
@@ -1109,22 +1109,17 @@ elif current_selection == "🔍 Analizza Partita":
                                 3. [Regola pratica generale]
                                 """
                                 try:
-                                    client = genai.Client(api_key=MASTER_GEMINI_KEY) if "Client" in dir(genai) else None
-                                    if client:
-                                        resp = client.models.generate_content(
-                                            model=GEMINI_MODEL_NAME, 
-                                            contents=prompt_lesson,
-                                            config={"temperature": 0.3, "max_output_tokens": 400}
-                                        )
-                                        testo_gm = resp.text
-                                    else:
-                                        genai.configure(api_key=MASTER_GEMINI_KEY)
-                                        model = genai.GenerativeModel(GEMINI_MODEL_NAME)
-                                        resp = model.generate_content(
-                                            prompt_lesson,
-                                            generation_config={"temperature": 0.3, "max_output_tokens": 400}
-                                        )
-                                        testo_gm = resp.text
+                                    # Configurazione client Google GenAI moderna e fulminea
+                                    client = genai.Client(api_key=MASTER_GEMINI_KEY)
+                                    resp = client.models.generate_content(
+                                        model=GEMINI_MODEL_NAME, 
+                                        contents=prompt_lesson,
+                                        config={
+                                            "temperature": 0.3, 
+                                            "max_output_tokens": 300
+                                        }
+                                    )
+                                    testo_gm = resp.text
                                     
                                     formatted_lesson = format_gm_lesson_html(testo_gm)
                                     st.session_state[f"lesson_{idx}"] = formatted_lesson
@@ -1210,7 +1205,7 @@ elif current_selection == "🌐 Importa & Sincronizza":
                 st.rerun()
 
 # ==========================================
-# SEZIONE 4: PALESTRA ALLENAMENTO (CON FILTRI MULTIPLI)
+# SEZIONE 4: PALESTRA ALLENAMENTO
 # ==========================================
 elif current_selection == "🎯 Palestra sui Tuoi Errori":
     st.markdown("<div class='section-title'>🎯 Palestra di Allenamento & Lezioni GM</div>", unsafe_allow_html=True)
@@ -1257,23 +1252,13 @@ elif current_selection == "📚 Studio da Libri":
     if st.button("🚀 Elabora Testo", type="primary"):
         if MASTER_GEMINI_KEY and testo_libro_input:
             try:
-                genai.configure(api_key=MASTER_GEMINI_KEY)
-                client = genai.Client(api_key=MASTER_GEMINI_KEY) if "Client" in dir(genai) else None
-                if client:
-                    resp = client.models.generate_content(
-                        model=GEMINI_MODEL_NAME,
-                        contents=f"Estrai mosse e commenti in JSON: {{\"mosse_san\": [\"e4\"], \"commenti\": {{\"0\": \"Inizio\"}}}}. Testo: {testo_libro_input}",
-                        config={"temperature": 0.2, "max_output_tokens": 800}
-                    )
-                    raw_resp = resp.text
-                else:
-                    resp = genai.GenerativeModel(GEMINI_MODEL_NAME).generate_content(
-                        f"Estrai mosse e commenti in JSON: {{\"mosse_san\": [\"e4\"], \"commenti\": {{\"0\": \"Inizio\"}}}}. Testo: {testo_libro_input}",
-                        generation_config={"temperature": 0.2, "max_output_tokens": 800}
-                    )
-                    raw_resp = resp.text
-
-                dati = json.loads(raw_resp.replace("```json","").replace("```","").strip())
+                client = genai.Client(api_key=MASTER_GEMINI_KEY)
+                resp = client.models.generate_content(
+                    model=GEMINI_MODEL_NAME,
+                    contents=f"Estrai mosse e commenti in JSON: {{\"mosse_san\": [\"e4\"], \"commenti\": {{\"0\": \"Inizio\"}}}}. Testo: {testo_libro_input}",
+                    config={"temperature": 0.2, "max_output_tokens": 800}
+                )
+                dati = json.loads(resp.text.replace("```json","").replace("```","").strip())
                 board = chess.Board()
                 steps = [{"ply": 0, "mossa_giocata": "Inizio", "fen": board.fen(), "commento": dati.get("commenti", {}).get("0", "")}]
                 for idx, san in enumerate(dati.get("mosse_san", [])):
