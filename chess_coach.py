@@ -60,7 +60,8 @@ for key, default in {
     'user': None, 'lang': 'it', 'profile_setup_done': False,
     'nav_selection': "📊 Dashboard & Insights", 'theme_mode': 'Dark',
     'last_analyzed_pgn': None, 'current_board_ply': 0,
-    'eval_history': None, 'storico_errori_locale': [], 'storico_rating_locale': []
+    'eval_history': None, 'storico_errori_locale': [], 'storico_rating_locale': [],
+    'lezioni_gm_salvate': {}
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default
@@ -75,6 +76,35 @@ st.components.v1.html("""
 """, height=0)
 
 # --- DATABASE & LOCAL STORAGE HELPERS ---
+def get_user_profiles(email):
+    if supabase:
+        try:
+            res = supabase.table("profili_scacchi").select("*").eq("user_email", email).execute()
+            if res.data: return res.data
+        except Exception: pass
+    return []
+
+def add_user_profile(email, piattaforma, username):
+    tier = get_user_tier(email)
+    limit = 1 if tier == "Free" else (3 if tier == "Pro" else 5)
+    current_profiles = get_user_profiles(email)
+    if len(current_profiles) >= limit:
+        return False, f"Limite raggiunto per il piano {tier} ({limit} profili)."
+    if supabase:
+        try:
+            supabase.table("profili_scacchi").insert({"user_email": email, "piattaforma": piattaforma, "username": username.strip()}).execute()
+            return True, "Profilo aggiunto!"
+        except Exception as e: return False, f"Errore DB: {e}"
+    return False, "Supabase non connesso."
+
+def delete_user_profile(profile_id):
+    if supabase:
+        try:
+            supabase.table("profili_scacchi").delete().eq("id", profile_id).execute()
+            return True
+        except Exception: pass
+    return False
+
 def get_user_tier(email):
     if not supabase or not email:
         return "Free"
@@ -93,55 +123,92 @@ def get_user_tier(email):
                     supabase.table("config_utenti").update({
                         "tier": "Free", "data_scadenza": None, "updated_at": now.isoformat()
                     }).eq("user_email", email).execute()
-                    supabase.table("storico_abbonamenti").update({"stato": "scaduto"})\
-                        .eq("user_email", email).eq("stato", "attivo").execute()
                     return "Free"
             return current_tier
     except Exception:
         pass
     return "Free"
 
-def registra_nuovo_abbonamento(email, new_tier, giorni_durata=30):
-    if not supabase or not email:
-        return
-    try:
-        now = datetime.datetime.now(datetime.timezone.utc)
-        data_scadenza = now + datetime.timedelta(days=giorni_durata)
-        now_iso = now.isoformat()
-        scadenza_iso = data_scadenza.isoformat()
+def salva_errore_db(user_email, partita_id, categoria, mossa, spiegazione=""):
+    data_ora = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    nuovo_errore = {
+        "user_email": user_email,
+        "partita_id": partita_id if partita_id else "Partita_Sconosciuta",
+        "data": data_ora,
+        "categoria_errore": categoria,
+        "mossa_critica": mossa,
+        "spiegazione": spiegazione
+    }
+    if 'storico_errori_locale' not in st.session_state:
+        st.session_state['storico_errori_locale'] = []
+    
+    # Aggiorna se esiste già o aggiungi
+    esistente = next((e for e in st.session_state['storico_errori_locale'] if e['partita_id'] == partita_id and e['mossa_critica'] == mossa), None)
+    if esistente:
+        esistente['spiegazione'] = spiegazione
+    else:
+        st.session_state['storico_errori_locale'].append(nuovo_errore)
 
-        supabase.table("storico_abbonamenti").update({"stato": "annullato"})\
-            .eq("user_email", email).eq("stato", "attivo").execute()
+    if supabase:
+        try:
+            supabase.table("errori_utenti").upsert(nuovo_errore, on_conflict="user_email,partita_id,mossa_critica").execute()
+        except Exception: pass
 
-        if new_tier != "Free":
-            supabase.table("storico_abbonamenti").insert({
-                "user_email": email, "tier": new_tier, "data_inizio": now_iso,
-                "data_scadenza": scadenza_iso, "stato": "attivo"
-            }).execute()
+def carica_errori_db(user_email):
+    rows = []
+    if supabase:
+        try:
+            res = supabase.table("errori_utenti").select("*").eq("user_email", user_email).execute()
+            if res.data:
+                rows = res.data
+        except Exception: pass
+    
+    local_rows = st.session_state.get('storico_errori_locale', [])
+    combined = rows + [r for r in local_rows if r not in rows]
+    
+    if combined:
+        return pd.DataFrame(combined)
+    return pd.DataFrame(columns=["data", "partita_id", "categoria_errore", "mossa_critica", "spiegazione"])
 
-        res = supabase.table("config_utenti").select("user_email").eq("user_email", email).execute()
-        if res.data and len(res.data) > 0:
-            supabase.table("config_utenti").update({
-                "tier": new_tier, "data_scadenza": scadenza_iso if new_tier != "Free" else None,
-                "updated_at": now_iso
-            }).eq("user_email", email).execute()
-        else:
-            supabase.table("config_utenti").insert({
-                "user_email": email, "tier": new_tier,
-                "data_scadenza": scadenza_iso if new_tier != "Free" else None,
-                "updated_at": now_iso
-            }).execute()
-    except Exception as e:
-        st.error(f"Errore durante l'aggiornamento dell'abbonamento: {e}")
+def salva_rating_db(user_email, data_partita, rating, partita_id):
+    record = {
+        "user_email": user_email,
+        "data": data_partita,
+        "rating": int(rating),
+        "partita_id": partita_id
+    }
+    if 'storico_rating_locale' not in st.session_state:
+        st.session_state['storico_rating_locale'] = []
+    st.session_state['storico_rating_locale'] = [r for r in st.session_state['storico_rating_locale'] if r['partita_id'] != partita_id]
+    st.session_state['storico_rating_locale'].append(record)
 
-query_params = st.query_params
-if "success" in query_params and st.session_state.get('user'):
-    sub_type = query_params.get("success")
-    if sub_type in ["pro", "diamond"]:
-        tier_name = "Pro" if sub_type == "pro" else "Diamond"
-        registra_nuovo_abbonamento(st.session_state['user'], tier_name)
-        st.success(f"🎉 Abbonamento {tier_name} attivato con successo!")
-        st.query_params.clear()
+    if supabase:
+        try:
+            supabase.table("storico_rating").upsert(record, on_conflict="user_email,partita_id").execute()
+        except Exception: pass
+
+def carica_rating_db(user_email):
+    rows = []
+    if supabase:
+        try:
+            res = supabase.table("storico_rating").select("*").eq("user_email", user_email).order("data").execute()
+            if res.data:
+                rows = res.data
+        except Exception: pass
+    
+    local_rows = st.session_state.get('storico_rating_locale', [])
+    combined = rows + [r for r in local_rows if r not in rows]
+    
+    if combined:
+        df = pd.DataFrame(combined)
+        df['data'] = pd.to_datetime(df['data'], errors='coerce')
+        df = df.dropna(subset=['data']).sort_values('data').reset_index(drop=True)
+        return df
+    return pd.DataFrame(columns=["data", "rating", "partita_id"])
+
+def tier_badge_html(tier):
+    cls = "badge-free" if tier == "Free" else ("badge-pro" if tier == "Pro" else "badge-diamond")
+    return f"<span class='tier-badge {cls}'>{tier}</span>"
 
 # --- CSS DINAMICO ---
 def get_dynamic_css(theme):
@@ -236,6 +303,24 @@ def get_dynamic_css(theme):
             border: 1px solid rgba(255,215,0,0.12); box-shadow: 0 20px 50px rgba(0,0,0,0.35);
             max-width: fit-content; margin: 0 auto;
         }
+        .gm-card {
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.85), rgba(15, 23, 42, 0.95));
+            border: 1px solid rgba(255, 215, 0, 0.25);
+            border-radius: 16px;
+            padding: 1.2rem 1.4rem;
+            margin-top: 0.8rem;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+        }
+        .gm-header {
+            display: flex; align-items: center; gap: 0.5rem;
+            color: #FFD700; font-weight: 700; font-size: 1.05rem;
+            margin-bottom: 0.8rem; border-bottom: 1px solid rgba(255,215,0,0.15);
+            padding-bottom: 0.5rem;
+        }
+        .gm-section {
+            margin-bottom: 0.7rem; font-size: 0.93rem; line-height: 1.5; color: #cbd5e1;
+        }
+        .gm-section b { color: #FFD700; }
         .pricing-card {
             background: linear-gradient(135deg, rgba(20,26,42,0.9), rgba(15,20,32,0.9));
             border: 1px solid rgba(255,215,0,0.2); border-radius: 20px;
@@ -279,6 +364,10 @@ def get_dynamic_css(theme):
         .badge-pro { background: rgba(212,175,55,0.15); color: #b8860b; }
         .badge-diamond { background: rgba(59,130,246,0.15); color: #2563eb; }
         .category-tag { background: rgba(212,175,55,0.15); color: #b8860b; padding: 2px 8px; border-radius: 6px; font-weight: 600; font-size: 0.75rem; }
+        .gm-card { background: #ffffff; border: 1px solid rgba(212,175,55,0.3); border-radius: 16px; padding: 1.2rem 1.4rem; margin-top: 0.8rem; box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
+        .gm-header { display: flex; align-items: center; gap: 0.5rem; color: #b8860b; font-weight: 700; font-size: 1.05rem; margin-bottom: 0.8rem; border-bottom: 1px solid rgba(212,175,55,0.15); padding-bottom: 0.5rem; }
+        .gm-section { margin-bottom: 0.7rem; font-size: 0.93rem; line-height: 1.5; color: #334155; }
+        .gm-section b { color: #b8860b; }
         .metric-card { background: #ffffff; border-radius: 16px; padding: 1.2rem 1.1rem; border: 1px solid #e2e8f0; box-shadow: 0 2px 12px rgba(0,0,0,0.05); }
         .metric-value { font-size: 2rem; font-weight: 800; font-family: 'Outfit', sans-serif; color: #1a202c; }
         .metric-label { font-size: 0.8rem; color: #64748b; text-transform: uppercase; }
@@ -303,14 +392,14 @@ st.markdown(get_dynamic_css(st.session_state['theme_mode']), unsafe_allow_html=T
 
 TEXTS = {
     "it": {
-        "title": "Chess Coach Pro", "subtitle": "Coaching Scacchistico AI ed Altissima Efficienza",
+        "title": "Chess Coach Pro", "subtitle": "Coaching Scacchistico AI ad Altissima Efficienza",
         "lang_select": "Lingua:", "theme_select": "Tema:",
         "login_header": "🔐 Accedi", "register_header": "📝 Registrati",
         "email_label": "Email:", "password_label": "Password:",
         "login_btn": "Accedi", "register_btn": "Crea Account", "logout_btn": "🚪 Disconnetti",
         "analyze_btn": "🔍 Avvia Analisi Motore",
-        "critique_found": "errori individuati dal motore!",
-        "no_errors": "Partita eccellente! Nessun errore rilevato dal motore.",
+        "critique_found": "errori tuoi individuati dal motore!",
+        "no_errors": "Partita eccellente! Nessun errore rilevato per te.",
         "gm_lesson_btn": "🎓 Spiegazione GM AI",
         "prompt_lang": "Rispondi in italiano.",
         "profile_setup_title": "Configura i tuoi Profili",
@@ -325,8 +414,8 @@ TEXTS = {
         "email_label": "Email:", "password_label": "Password:",
         "login_btn": "Login", "register_btn": "Create Account", "logout_btn": "🚪 Logout",
         "analyze_btn": "🔍 Start Engine Analysis",
-        "critique_found": "errors found by engine!",
-        "no_errors": "Great game! No major errors found.",
+        "critique_found": "errors of yours found by engine!",
+        "no_errors": "Great game! No major errors found for you.",
         "gm_lesson_btn": "🎓 Quick GM Insight",
         "prompt_lang": "Respond in English.",
         "profile_setup_title": "Setup your Chess Profiles",
@@ -341,8 +430,8 @@ TEXTS = {
         "email_label": "Correo:", "password_label": "Contraseña:",
         "login_btn": "Iniciar Sesión", "register_btn": "Crear Cuenta", "logout_btn": "🚪 Cerrar Sesión",
         "analyze_btn": "🔍 Iniciar Análisis de Motor",
-        "critique_found": "¡errores encontrados por el motor!",
-        "no_errors": "¡Excelente partida! Sin errores graves.",
+        "critique_found": "¡errores tuyos encontrados por el motor!",
+        "no_errors": "¡Excelente partida! Sin errores graves para ti.",
         "gm_lesson_btn": "🎓 Análisis Rápido GM",
         "prompt_lang": "Responde en español.",
         "profile_setup_title": "Configura tus Perfiles",
@@ -384,7 +473,39 @@ def delete_user_profile(profile_id):
         except Exception: pass
     return False
 
-def salva_errore_db(user_email, partita_id, categoria, mossa, spiegazione):
+def format_gm_lesson_html(raw_text):
+    """Formatta la spiegazione grezza del GM in un layout visivo pulito ed elegante"""
+    lines = raw_text.strip().split('\n')
+    formatted_parts = []
+    for line in lines:
+        line_clean = line.strip()
+        if not line_clean:
+            continue
+        # Rimuove prefissi numerici o markdown grezzi se presenti
+        if line_clean.startswith("1.") or "**Errore:**" in line_clean:
+            text = line_clean.replace("1.", "").replace("**Errore:**", "").strip()
+            formatted_parts.append(f"<div class='gm-section'><b>❌ Analisi Errore:</b> {text}</div>")
+        elif line_clean.startswith("2.") or "**Idea corretta:**" in line_clean:
+            text = line_clean.replace("2.", "").replace("**Idea corretta:**", "").strip()
+            formatted_parts.append(f"<div class='gm-section'><b>💡 Idea Corretta:</b> {text}</div>")
+        elif line_clean.startswith("3.") or "**Regola pratica:**" in line_clean:
+            text = line_clean.replace("3.", "").replace("**Regola pratica:**", "").strip()
+            formatted_parts.append(f"<div class='gm-section'><b>♟️ Regola Pratica:</b> {text}</div>")
+        else:
+            formatted_parts.append(f"<div class='gm-section'>{line_clean}</div>")
+    
+    if not formatted_parts:
+        formatted_parts = [f"<div class='gm-section'>{raw_text}</div>"]
+
+    content = "".join(formatted_parts)
+    return f"""
+    <div class='gm-card'>
+        <div class='gm-header'>🎓 Lezione del Gran Maestro AI</div>
+        {content}
+    </div>
+    """
+
+def salva_errore_db(user_email, partita_id, categoria, mossa, spiegazione=""):
     data_ora = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
     nuovo_errore = {
         "user_email": user_email,
@@ -396,12 +517,16 @@ def salva_errore_db(user_email, partita_id, categoria, mossa, spiegazione):
     }
     if 'storico_errori_locale' not in st.session_state:
         st.session_state['storico_errori_locale'] = []
-    if nuovo_errore not in st.session_state['storico_errori_locale']:
+    
+    esistente = next((e for e in st.session_state['storico_errori_locale'] if e['partita_id'] == partita_id and e['mossa_critica'] == mossa), None)
+    if esistente:
+        esistente['spiegazione'] = spiegazione
+    else:
         st.session_state['storico_errori_locale'].append(nuovo_errore)
 
     if supabase:
         try:
-            supabase.table("errori_utenti").insert(nuovo_errore).execute()
+            supabase.table("errori_utenti").upsert(nuovo_errore, on_conflict="user_email,partita_id,mossa_critica").execute()
         except Exception: pass
 
 def carica_errori_db(user_email):
@@ -429,7 +554,6 @@ def salva_rating_db(user_email, data_partita, rating, partita_id):
     }
     if 'storico_rating_locale' not in st.session_state:
         st.session_state['storico_rating_locale'] = []
-    # Evita duplicati per stessa partita
     st.session_state['storico_rating_locale'] = [r for r in st.session_state['storico_rating_locale'] if r['partita_id'] != partita_id]
     st.session_state['storico_rating_locale'].append(record)
 
@@ -452,14 +576,10 @@ def carica_rating_db(user_email):
     
     if combined:
         df = pd.DataFrame(combined)
-        df['data'] = pd.to_datetime(df['data'])
-        df = df.sort_values('data').reset_index(drop=True)
+        df['data'] = pd.to_datetime(df['data'], errors='coerce')
+        df = df.dropna(subset=['data']).sort_values('data').reset_index(drop=True)
         return df
     return pd.DataFrame(columns=["data", "rating", "partita_id"])
-
-def tier_badge_html(tier):
-    cls = "badge-free" if tier == "Free" else ("badge-pro" if tier == "Pro" else "badge-diamond")
-    return f"<span class='tier-badge {cls}'>{tier}</span>"
 
 # ==========================================
 # LOGIN SCREEN
@@ -638,7 +758,7 @@ st.divider()
 current_selection = st.session_state['nav_selection']
 
 # ==========================================
-# MOTORE STOCKFISH VELOCE (SENZA CLUSTER BLOCK)
+# MOTORE STOCKFISH & RILEVAMENTO APERTURA
 # ==========================================
 def fetch_stockfish_eval(session, fen, depth=10):
     try:
@@ -658,7 +778,7 @@ def fetch_stockfish_eval(session, fen, depth=10):
 
 def analizza_partita_stockfish(pgn_text, target_usernames):
     game = chess.pgn.read_game(io.StringIO(pgn_text))
-    if not game: return [], None, "Impossibile leggere il PGN fornito.", []
+    if not game: return [], None, "Impossibile leggere il PGN fornito.", [], 1500, datetime.datetime.now().strftime("%Y-%m-%d"), "Apertura Standard"
 
     headers = game.headers
     white_player = headers.get('White', 'Unknown').strip().lower()
@@ -666,14 +786,21 @@ def analizza_partita_stockfish(pgn_text, target_usernames):
     white_elo = headers.get('WhiteElo', '1500')
     black_elo = headers.get('BlackElo', '1500')
     date_str = headers.get('Date', datetime.datetime.now().strftime("%Y-%m-%d")).replace('.', '-')
+    
+    # Estrazione Apertura dai PGN Headers
+    opening_name = headers.get('Opening', '')
+    eco_code = headers.get('ECO', '')
+    if opening_name:
+        opening_display = f"{opening_name} ({eco_code})" if eco_code else opening_name
+    else:
+        opening_display = f"ECO: {eco_code}" if eco_code else "Apertura Tradizionale"
 
-    user_is_white, user_is_black = True, True
+    user_is_white, user_is_black = False, False
     user_rating = 1500
 
     if target_usernames:
         user_list = [u.strip().lower() for u in target_usernames]
         found_match = False
-        user_is_white, user_is_black = False, False
         for u in user_list:
             if u in white_player: 
                 user_is_white = True; found_match = True
@@ -682,8 +809,13 @@ def analizza_partita_stockfish(pgn_text, target_usernames):
                 user_is_black = True; found_match = True
                 if black_elo.isdigit(): user_rating = int(black_elo)
         if not found_match: 
-            user_is_white, user_is_black = True, True
+            # Se nessun profilo coincide con i nomi nel PGN, assumiamo per default il Bianco
+            user_is_white, user_is_black = True, False
             if white_elo.isdigit(): user_rating = int(white_elo)
+    else:
+        # Nessun profilo collegato: default utente = Bianco
+        user_is_white, user_is_black = True, False
+        if white_elo.isdigit(): user_rating = int(white_elo)
 
     partita_id = f"{headers.get('White', 'Unknown')}_vs_{headers.get('Black', 'Unknown')}_{date_str}"
     
@@ -736,7 +868,7 @@ def analizza_partita_stockfish(pgn_text, target_usernames):
         prev_eval = eval_after
 
     progress_bar.empty()
-    return detected_errors, partita_id, None, eval_history, user_rating, date_str
+    return detected_errors, partita_id, None, eval_history, user_rating, date_str, opening_display
 
 def salva_immagine_scacchiera_png(board, path_temp):
     svg_data = chess.svg.board(board=board, size=400)
@@ -815,7 +947,7 @@ def render_eval_graph(eval_history, errors):
     st.plotly_chart(fig, use_container_width=True)
 
 # ==========================================
-# SEZIONE 1: DASHBOARD & INSIGHTS (CON GRAFICI RATING)
+# SEZIONE 1: DASHBOARD & INSIGHTS
 # ==========================================
 if current_selection == "📊 Dashboard & Insights":
     st.markdown("<div class='section-title'>📊 Control Room & Rating in Tempo Reale</div>", unsafe_allow_html=True)
@@ -827,10 +959,8 @@ if current_selection == "📊 Dashboard & Insights":
     else:
         st.markdown(f"<div class='info-box'>⚪ Piano Free attivo. Passa a Pro o Diamond per attivare lo scaricamento automatico notturno delle partite.</div>", unsafe_allow_html=True)
 
-    # --- Sezione Grafici Rating ---
     st.markdown("<div class='section-title'>📈 Andamento Rating e Variazione Giornaliera</div>", unsafe_allow_html=True)
     if not df_rating.empty and HAS_PLOTLY:
-        # Calcolo differenza giorno per giorno
         df_rating['diff'] = df_rating['rating'].diff().fillna(0)
 
         col_r1, col_r2 = st.columns(2)
@@ -883,7 +1013,7 @@ if current_selection == "📊 Dashboard & Insights":
         st.markdown("<div class='info-box'>Nessun errore registrato nel cloud o in memoria. Analizza qualche partita per popolare la tua Control Room!</div>", unsafe_allow_html=True)
 
 # ==========================================
-# SEZIONE 2: ANALIZZA PARTITA (VELOCE & PULITA)
+# SEZIONE 2: ANALIZZA PARTITA (CON SLIDER E APERTURA)
 # ==========================================
 elif current_selection == "🔍 Analizza Partita":
     st.markdown("<div class='section-title'>📖 Analisi Dettagliata Partita</div>", unsafe_allow_html=True)
@@ -912,13 +1042,13 @@ elif current_selection == "🔍 Analizza Partita":
                 with st.spinner("🔍 Analisi rapida Stockfish in corso..."):
                     user_profs = get_user_profiles(user_email)
                     user_usernames = [p['username'] for p in user_profs]
-                    errori, p_id, err_msg, eval_hist, rating_partita, data_partita = analizza_partita_stockfish(current_pgn_text, user_usernames)
+                    errori, p_id, err_msg, eval_hist, rating_partita, data_partita, opening_used = analizza_partita_stockfish(current_pgn_text, user_usernames)
                     
                     st.session_state['stockfish_errors'] = errori
                     st.session_state['current_game_id'] = p_id
                     st.session_state['eval_history'] = eval_hist
+                    st.session_state['current_opening'] = opening_used
 
-                    # Salva rating rilevato
                     salva_rating_db(user_email, data_partita, rating_partita, p_id)
 
                     game_obj = chess.pgn.read_game(io.StringIO(current_pgn_text))
@@ -931,8 +1061,12 @@ elif current_selection == "🔍 Analizza Partita":
                         st.success(f"✅ Stockfish: {len(errori)} {t['critique_found']}")
                         for item in errori:
                             salva_errore_db(user_email, p_id, item.get("categoria", "Errore Tattico"),
-                                           item.get("label_mossa", "Mossa"), f"Perdita {item.get('perdita_cp')} CP")
+                                           item.get("label_mossa", "Mossa"), "")
                     else: st.success(f"✅ {t['no_errors']}")
+
+    # Visualizzazione Apertura Rilevata
+    if 'current_opening' in st.session_state and st.session_state['current_opening']:
+        st.markdown(f"<div class='success-box'>📖 <b>Apertura Rilevata:</b> {st.session_state['current_opening']}</div>", unsafe_allow_html=True)
 
     if st.session_state.get('eval_history'):
         st.markdown("<div class='section-title'>📈 Grafico di Valutazione</div>", unsafe_allow_html=True)
@@ -942,8 +1076,20 @@ elif current_selection == "🔍 Analizza Partita":
         st.divider()
         game_moves = st.session_state['active_game_moves']
         max_ply = len(game_moves)
-        current_ply = st.session_state['current_board_ply']
+        
+        # --- SLIDER DELLE MOSSE (Richiesta Sviluppo 1) ---
+        current_ply = st.slider(
+            "🧭 Navigazione Rapida Mosse", 
+            min_value=0, 
+            max_value=max_ply, 
+            value=st.session_state.get('current_board_ply', 0),
+            key="board_slider_position"
+        )
+        if current_ply != st.session_state['current_board_ply']:
+            st.session_state['current_board_ply'] = current_ply
+            st.rerun()
 
+        # Pulsanti di supporto opzionali per scorrimento fine
         c1, c2, c3, c4 = st.columns(4)
         if c1.button("⏪ Inizio", use_container_width=True): st.session_state['current_board_ply'] = 0; st.rerun()
         if c2.button("⬅️ Indietro", use_container_width=True) and current_ply > 0: st.session_state['current_board_ply'] -= 1; st.rerun()
@@ -958,33 +1104,60 @@ elif current_selection == "🔍 Analizza Partita":
 
         st.markdown("<div class='section-title'>📋 Errori Rilevati dal Motore</div>", unsafe_allow_html=True)
         if st.session_state.get('stockfish_errors'):
+            df_storico_DB = carica_errori_db(user_email)
+
             for idx, err in enumerate(st.session_state['stockfish_errors']):
+                p_id_curr = st.session_state.get('current_game_id', 'Partita_Sconosciuta')
+                
+                # Cerca se la lezione GM è già salvata nel DB o in sessione
+                lezione_esistente = ""
+                if not df_storico_DB.empty and 'partita_id' in df_storico_DB.columns:
+                    match_db = df_storico_DB[(df_storico_DB['partita_id'] == p_id_curr) & (df_storico_DB['mossa_critica'] == err['label_mossa'])]
+                    if not match_db.empty:
+                        spiegazione_db = match_db.iloc[0].get('spiegazione', '')
+                        if spiegazione_db:
+                            lezione_esistente = spiegazione_db
+
+                if not lezione_esistente and f"lesson_{idx}" in st.session_state:
+                    lezione_esistente = st.session_state[f"lesson_{idx}"]
+
                 with st.expander(f"{err['tipo_problema']} · {err['label_mossa']} · -{err['perdita_cp']} CP", expanded=False):
                     st.markdown(f"**Mossa:** `{err['label_mossa']}` | **Perdita:** -{err['perdita_cp']} CP", unsafe_allow_html=True)
                     
                     if st.button(t['gm_lesson_btn'], key=f"btn_lesson_{idx}", type="primary"):
-                        with st.spinner("🎓 Il Grandemaster AI sta spiegando..."):
+                        with st.spinner("🎓 Il Gran Maestro AI sta preparando la lezione..."):
                             prompt_lesson = f"""
                             Sei un GM di scacchi. Spiega questo errore tattico.
                             FEN: {err['fen_prima']}
                             Mossa errata: {err['mossa_giocata']}
                             {t['prompt_lang']}
-                            Rispondi in massimo 3 righe con: 1. Errore; 2. Idea corretta; 3. Regola pratica.
+                            Rispondi rigorosamente con:
+                            1. [Spiegazione dell'errore commesso]
+                            2. [Idea corretta da giocare]
+                            3. [Regola pratica generale]
                             """
                             try:
                                 client = genai.Client(api_key=MASTER_GEMINI_KEY) if "Client" in dir(genai) else None
                                 if client:
                                     resp = client.models.generate_content(model=GEMINI_MODEL_NAME, contents=prompt_lesson)
-                                    st.session_state[f"lesson_{idx}"] = resp.text
+                                    testo_gm = resp.text
                                 else:
                                     genai.configure(api_key=MASTER_GEMINI_KEY)
                                     resp = genai.GenerativeModel(GEMINI_MODEL_NAME).generate_content(prompt_lesson)
-                                    st.session_state[f"lesson_{idx}"] = resp.text
+                                    testo_gm = resp.text
+                                
+                                formatted_lesson = format_gm_lesson_html(testo_gm)
+                                st.session_state[f"lesson_{idx}"] = formatted_lesson
+                                
+                                # Salvataggio nel DB (Richiesta Sviluppo 3)
+                                salva_errore_db(user_email, p_id_curr, err.get('categoria', 'Errore Tattico'), err['label_mossa'], formatted_lesson)
+                                st.rerun()
                             except Exception as e:
-                                st.session_state[f"lesson_{idx}"] = "⚠️ Limite richieste API raggiunto. Riprova tra qualche istante."
+                                st.error(f"⚠️ Errore API Gemini: {e}")
 
-                    if f"lesson_{idx}" in st.session_state:
-                        st.markdown(f"<div class='info-box'>💡 {st.session_state[f'lesson_{idx}']}</div>", unsafe_allow_html=True)
+                    # Mostra la lezione formattata (se presente)
+                    if lezione_esistente:
+                        st.markdown(lezione_esistente, unsafe_allow_html=True)
         else:
             st.markdown("<div class='info-box'>Nessun errore registrato in questa partita.</div>", unsafe_allow_html=True)
 
@@ -1062,27 +1235,22 @@ elif current_selection == "🌐 Importa & Sincronizza":
 # ==========================================
 elif current_selection == "🎯 Palestra sui Tuoi Errori":
     st.markdown("<div class='section-title'>🎯 Palestra di Allenamento Personalizzata</div>", unsafe_allow_html=True)
-    st.markdown("<p style='color:#8892a6;'>Allenati sugli errori estratti dalle tue partite.</p>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#8892a6;'>Riconsulta le lezioni del GM salvate e allenati sulle posizioni critiche.</p>", unsafe_allow_html=True)
 
     df_errori = carica_errori_db(user_email)
 
     if df_errori.empty:
         st.markdown("<div class='info-box'>Nessun errore registrato finora. Analizza qualche partita per sbloccare la tua palestra!</div>", unsafe_allow_html=True)
     else:
-        cat_counts = df_errori['categoria_errore'].value_counts()
-        punti_deboli = cat_counts.index.tolist()
-        principale_debolezza = punti_deboli[0] if punti_deboli else "Errore Tattico"
-
-        c_w1, c_w2 = st.columns([1, 2])
-        c_w1.markdown(f"<div class='metric-card purple'><div class='metric-icon'>⚠️</div><div class='metric-value' style='font-size:1.3rem;'>{principale_debolezza}</div><div class='metric-label'>Tipologia Frequente</div></div>", unsafe_allow_html=True)
-        c_w2.markdown(f"<div class='info-box'>💡 <b>Coach Tip:</b> Esercitati regolarmente sulle posizioni critiche riscontrate nelle tue partite per migliorare la precisione.</div>", unsafe_allow_html=True)
-
-        st.divider()
-        st.markdown("<div class='section-title'>🧩 Allenamento Mirato</div>", unsafe_allow_html=True)
-
-        row_es = df_errori.sample(1).iloc[0]
-        st.markdown(f"**Partita:** `{row_es.get('partita_id')}` | **Categoria:** <span class='category-tag'>{row_es.get('categoria_errore')}</span>", unsafe_allow_html=True)
-        st.markdown(f"<div class='warning-box'>In questa posizione hai sbagliato giocando <b>{row_es.get('mossa_critica')}</b>. Studia la posizione e trova la continuazione corretta!</div>", unsafe_allow_html=True)
+        # Mostra anche le lezioni salvate nel DB
+        lezioni_salvate = df_errori[df_errori['spiegazione'].str.len() > 0]
+        if not lezioni_salvate.empty:
+            st.markdown("<div class='section-title'>📚 Lezioni GM Salvate nel DB</div>", unsafe_allow_html=True)
+            for _, row in lezioni_salvate.iterrows():
+                with st.expander(f"Partita: {row['partita_id']} · Mossa: {row['mossa_critica']} ({row['data']})"):
+                    st.markdown(row['spiegazione'], unsafe_allow_html=True)
+        else:
+            st.markdown("<div class='info-box'>Non hai ancora salvato lezioni del GM. Clicca su 'Spiegazione GM AI' durante l'analisi di una partita per salvarle qui!</div>", unsafe_allow_html=True)
 
 # ==========================================
 # SEZIONE 5: STUDIO DA LIBRI
