@@ -31,7 +31,6 @@ MASTER_GEMINI_KEY = st.secrets.get("GEMINI_API_KEY", "")
 SUPABASE_URL = st.secrets.get("SUPABASE_URL", "")
 SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "")
 
-# Configurazione Stripe
 STRIPE_SECRET_KEY = st.secrets.get("STRIPE_SECRET_KEY", "")
 STRIPE_PRO_PRICE_ID = st.secrets.get("STRIPE_PRO_PRICE_ID", "")
 STRIPE_DIAMOND_PRICE_ID = st.secrets.get("STRIPE_DIAMOND_PRICE_ID", "")
@@ -55,16 +54,22 @@ supabase = init_supabase()
 
 st.set_page_config(page_title="Chess Coach Pro", layout="wide", page_icon="⚡", initial_sidebar_state="expanded")
 
-# --- GESTIONE STATO INIZIALE ---
+# --- GESTIONE PERSISTENZA UTENTE (ANTI-LOGOUT MOBILE) ---
+query_params = st.query_params
+persisted_user = query_params.get("user_email", None)
+
 for key, default in {
-    'user': None, 'lang': 'it', 'profile_setup_done': False,
+    'user': persisted_user, 'lang': 'it', 'profile_setup_done': bool(persisted_user),
     'nav_selection': "📊 Dashboard & Insights", 'theme_mode': 'Dark',
     'last_analyzed_pgn': None, 'current_board_ply': 0,
     'eval_history': None, 'storico_errori_locale': [], 'storico_rating_locale': [],
     'lezioni_gm_salvate': {}
 }.items():
-    if key not in st.session_state:
+    if key not in st.session_state or st.session_state[key] is None:
         st.session_state[key] = default
+
+if st.session_state.get('user') and query_params.get("user_email") != st.session_state['user']:
+    st.query_params["user_email"] = st.session_state['user']
 
 if 'goto_tab' in st.session_state and st.session_state['goto_tab']:
     st.session_state['nav_selection'] = st.session_state['goto_tab']
@@ -145,13 +150,20 @@ def check_and_consume_gm_quota(email, tier):
     st.session_state[key_quota] += 1
     return True, ""
 
+def get_current_gm_usage(email, tier):
+    if tier in ["Pro", "Diamond"]:
+        return "Illimitate (Pro/Diamond)"
+    current_month = datetime.datetime.now().strftime("%Y-%m")
+    key_quota = f"gm_quota_{email}_{current_month}"
+    used = st.session_state.get(key_quota, 0)
+    return f"{used} / 5 usate questo mese"
+
 def format_gm_lesson_html(raw_text):
     lines = raw_text.strip().split('\n')
     formatted_parts = []
     for line in lines:
         line_clean = line.strip()
-        if not line_clean:
-            continue
+        if not line_clean: continue
         if line_clean.startswith("1.") or "**Errore:**" in line_clean:
             text = line_clean.replace("1.", "").replace("**Errore:**", "").strip()
             formatted_parts.append(f"<div class='gm-section'><b>❌ Analisi Errore:</b> {text}</div>")
@@ -191,10 +203,8 @@ def salva_errore_db(user_email, partita_id, categoria, mossa, spiegazione="", ap
     
     esistente = next((e for e in st.session_state['storico_errori_locale'] if e['partita_id'] == partita_id and e['mossa_critica'] == mossa), None)
     if esistente:
-        if spiegazione:
-            esistente['spiegazione'] = spiegazione
-        if apertura:
-            esistente['apertura'] = apertura
+        if spiegazione: esistente['spiegazione'] = spiegazione
+        if apertura: esistente['apertura'] = apertura
     else:
         st.session_state['storico_errori_locale'].append(nuovo_errore)
 
@@ -208,8 +218,7 @@ def carica_errori_db(user_email):
     if supabase:
         try:
             res = supabase.table("errori_utenti").select("*").eq("user_email", user_email).execute()
-            if res.data:
-                rows = res.data
+            if res.data: rows = res.data
         except Exception: pass
     
     local_rows = st.session_state.get('storico_errori_locale', [])
@@ -217,17 +226,14 @@ def carica_errori_db(user_email):
     
     if combined:
         df = pd.DataFrame(combined)
-        if 'apertura' not in df.columns:
-            df['apertura'] = "Standard"
+        if 'apertura' not in df.columns: df['apertura'] = "Standard"
         return df
     return pd.DataFrame(columns=["data", "partita_id", "categoria_errore", "mossa_critica", "spiegazione", "apertura"])
 
 def salva_rating_db(user_email, data_partita, rating, partita_id):
     record = {
-        "user_email": user_email,
-        "data": data_partita,
-        "rating": int(rating),
-        "partita_id": partita_id
+        "user_email": user_email, "data": data_partita,
+        "rating": int(rating), "partita_id": partita_id
     }
     if 'storico_rating_locale' not in st.session_state:
         st.session_state['storico_rating_locale'] = []
@@ -244,8 +250,7 @@ def carica_rating_db(user_email):
     if supabase:
         try:
             res = supabase.table("storico_rating").select("*").eq("user_email", user_email).order("data").execute()
-            if res.data:
-                rows = res.data
+            if res.data: rows = res.data
         except Exception: pass
     
     local_rows = st.session_state.get('storico_rating_locale', [])
@@ -262,73 +267,185 @@ def tier_badge_html(tier):
     cls = "badge-free" if tier == "Free" else ("badge-pro" if tier == "Pro" else "badge-diamond")
     return f"<span class='tier-badge {cls}'>{tier}</span>"
 
-# ==========================================
-# LOGIN SCREEN
-# ==========================================
-if not st.session_state['user']:
-    col_l1, col_l2, col_l3 = st.columns([1, 1.4, 1])
-    with col_l2:
-        st.markdown(f"""
-        <div class="hero" style="padding-top: 2.5rem;">
-            <span class="hero-logo">♟️</span>
-            <div class="brand-title">{t['title'] if 't' in globals() else 'Chess Coach Pro'}</div>
-            <p class="brand-sub">Coaching Scacchistico AI ad Altissima Efficienza</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-        scelta_lingua_benvenuto = st.selectbox("Lingua:", options=["Italiano", "English", "Español"], index=0, key="lang_login_select")
-        lang_c = 'it' if scelta_lingua_benvenuto == "Italiano" else ('en' if scelta_lingua_benvenuto == "English" else 'es')
-        if lang_c != st.session_state['lang']:
-            st.session_state['lang'] = lang_c
-            st.rerun()
-
-        TEXTS_MAP = {
-            "it": {"login_header": "🔐 Accedi", "register_header": "📝 Registrati", "email_label": "Email:", "password_label": "Password:", "login_btn": "Accedi", "register_btn": "Crea Account"},
-            "en": {"login_header": "🔐 Login", "register_header": "📝 Register", "email_label": "Email:", "password_label": "Password:", "login_btn": "Login", "register_btn": "Create Account"},
-            "es": {"login_header": "🔐 Iniciar Sesión", "register_header": "📝 Registrarse", "email_label": "Correo:", "password_label": "Contraseña:", "login_btn": "Iniciar Sesión", "register_btn": "Crear Cuenta"}
+# --- CSS DINAMICO ---
+def get_dynamic_css(theme):
+    common_fix = """
+        #MainMenu { visibility: hidden !important; }
+        footer { visibility: hidden !important; }
+        [data-testid="stDecoration"] { visibility: hidden !important; }
+    """
+    if theme == 'Dark':
+        return "<style>" + common_fix + """
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap');
+        html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+        h1, h2, h3, h4, h5, h6, .brand-title { font-family: 'Outfit', sans-serif; }
+        .stApp {
+            background:
+                radial-gradient(1200px 800px at 10% -10%, rgba(255, 215, 0, 0.08), transparent 50%),
+                radial-gradient(1000px 600px at 90% 110%, rgba(124, 58, 237, 0.10), transparent 50%),
+                linear-gradient(135deg, #070b14 0%, #0d1220 50%, #0a0e1a 100%);
+            color: #e8eaf0;
         }
-        lt = TEXTS_MAP[st.session_state['lang']]
+        .main .block-container { padding-top: 1.2rem; padding-bottom: 3rem; max-width: 1200px; }
+        h1, h2, h3, h4, h5, h6, p, span, label, div { color: #e8eaf0; }
+        .hero { text-align: center; padding: 1rem 0 0.5rem 0; }
+        .brand-title {
+            background: linear-gradient(90deg, #FFD700 0%, #FFA500 50%, #FFB347 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            font-size: 2.6rem; font-weight: 900; text-align: center; letter-spacing: -0.5px; margin-bottom: 0;
+        }
+        .brand-sub {
+            text-align: center; color: #8892a6 !important;
+            font-size: 0.95rem; margin: 0.2rem 0 1rem 0; letter-spacing: 1.5px; text-transform: uppercase; font-weight: 500;
+        }
+        .hero-logo { font-size: 3.5rem; display: block; text-align: center; margin-bottom: -0.4rem; }
+        section[data-testid="stSidebar"] {
+            background: linear-gradient(180deg, #0b101c 0%, #080c15 100%) !important;
+            border-right: 1px solid rgba(255, 215, 0, 0.08);
+        }
+        .user-card {
+            display: flex; align-items: center; gap: 0.9rem;
+            padding: 0.9rem; border-radius: 14px;
+            background: linear-gradient(135deg, rgba(255,215,0,0.10), rgba(255,165,0,0.03));
+            border: 1px solid rgba(255, 215, 0, 0.18); margin-bottom: 1rem;
+        }
+        .avatar {
+            width: 46px; height: 46px; border-radius: 50%;
+            background: linear-gradient(135deg, #FFD700, #FFA500);
+            display: flex; align-items: center; justify-content: center;
+            color: #0a0e1a; font-weight: 800; font-size: 1.05rem;
+            box-shadow: 0 4px 14px rgba(255, 215, 0, 0.35); flex-shrink: 0;
+        }
+        .user-info { flex: 1; min-width: 0; }
+        .user-name { font-size: 0.82rem; font-weight: 600; color: #e8eaf0;
+                     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .tier-badge {
+            display: inline-block; padding: 3px 10px; border-radius: 20px;
+            font-weight: 700; font-size: 0.68rem; text-transform: uppercase;
+            letter-spacing: 0.5px; margin-top: 2px;
+        }
+        .badge-free    { background: rgba(136,146,166,0.15); color: #8892a6; border: 1px solid rgba(136,146,166,0.3); }
+        .badge-pro     { background: rgba(255,215,0,0.15); color: #FFD700; border: 1px solid rgba(255,215,0,0.4); }
+        .badge-diamond { background: rgba(0,210,255,0.15); color: #00d2ff; border: 1px solid rgba(0,210,255,0.4); }
+        .category-tag {
+            background: rgba(255, 215, 0, 0.1); color: #FFD700;
+            padding: 2px 8px; border-radius: 6px; font-weight: 600; font-size: 0.75rem;
+            border: 1px solid rgba(255,215,0,0.2);
+        }
+        div[data-testid="stExpander"] {
+            background: linear-gradient(135deg, rgba(20,26,42,0.75) 0%, rgba(15,20,32,0.75) 100%) !important;
+            border: 1px solid rgba(255, 215, 0, 0.12) !important;
+            border-radius: 14px !important; color: #e8eaf0 !important;
+            margin-bottom: 0.6rem; backdrop-filter: blur(6px);
+        }
+        .metric-card {
+            background: linear-gradient(135deg, rgba(20,26,42,0.9), rgba(15,20,32,0.9));
+            border-radius: 16px; padding: 1.2rem 1.1rem;
+            border: 1px solid rgba(255,255,255,0.06);
+            position: relative; overflow: hidden;
+        }
+        .metric-card::before {
+            content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+            background: linear-gradient(90deg, #FFD700, #FFA500);
+        }
+        .metric-card.blue::before   { background: linear-gradient(90deg, #3b82f6, #6366f1); }
+        .metric-card.purple::before { background: linear-gradient(90deg, #a855f7, #ec4899); }
+        .metric-card.green::before  { background: linear-gradient(90deg, #10b981, #34d399); }
+        .metric-value { font-size: 2rem; font-weight: 800; font-family: 'Outfit', sans-serif; color: #fff; line-height: 1.1; }
+        .metric-label { font-size: 0.8rem; color: #8892a6; text-transform: uppercase; letter-spacing: 0.8px; }
+        .board-wrapper {
+            display: flex; justify-content: center; align-items: center;
+            padding: 1.2rem; border-radius: 20px;
+            background: linear-gradient(135deg, rgba(255,215,0,0.05), rgba(255,165,0,0.02));
+            border: 1px solid rgba(255,215,0,0.12); box-shadow: 0 20px 50px rgba(0,0,0,0.35);
+            max-width: fit-content; margin: 0 auto;
+        }
+        .gm-card {
+            background: linear-gradient(135deg, rgba(30, 41, 59, 0.85), rgba(15, 23, 42, 0.95));
+            border: 1px solid rgba(255, 215, 0, 0.25);
+            border-radius: 16px;
+            padding: 1.2rem 1.4rem;
+            margin-top: 0.8rem;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+        }
+        .gm-header {
+            display: flex; align-items: center; gap: 0.5rem;
+            color: #FFD700; font-weight: 700; font-size: 1.05rem;
+            margin-bottom: 0.8rem; border-bottom: 1px solid rgba(255,215,0,0.15);
+            padding-bottom: 0.5rem;
+        }
+        .gm-section {
+            margin-bottom: 0.7rem; font-size: 0.93rem; line-height: 1.5; color: #cbd5e1;
+        }
+        .gm-section b { color: #FFD700; }
+        .pricing-card {
+            background: linear-gradient(135deg, rgba(20,26,42,0.9), rgba(15,20,32,0.9));
+            border: 1px solid rgba(255,215,0,0.2); border-radius: 20px;
+            padding: 2rem 1.5rem; text-align: center; height: 100%;
+        }
+        .pricing-card.featured { border: 2px solid #FFD700; background: linear-gradient(135deg, rgba(30,38,60,0.95), rgba(20,26,42,0.95)); }
+        .pricing-title { font-size: 1.5rem; font-weight: 800; color: #FFD700; margin-bottom: 0.5rem; }
+        .pricing-price { font-size: 2.5rem; font-weight: 900; color: #fff; margin-bottom: 1rem; }
+        .pricing-features { text-align: left; margin: 1.5rem 0; font-size: 0.9rem; color: #cbd5e1; list-style: none; padding: 0; }
+        .pricing-features li { margin-bottom: 0.6rem; display: flex; align-items: center; gap: 0.5rem; }
+        .info-box, .success-box, .warning-box { border-radius: 12px; padding: 0.9rem 1.1rem; margin: 0.5rem 0; border-left: 3px solid; font-size: 0.92rem; }
+        .info-box    { background: rgba(59,130,246,0.08); border-color: #3b82f6; color: #93c5fd; }
+        .success-box { background: rgba(16,185,129,0.08); border-color: #10b981; color: #6ee7b7; }
+        .warning-box { background: rgba(234,179,8,0.08);  border-color: #eab308; color: #fde047; }
+        .section-title {
+            font-family: 'Outfit', sans-serif; font-size: 1.4rem; font-weight: 700;
+            margin: 1.4rem 0 0.8rem 0; display: flex; align-items: center; gap: 0.5rem; color: #fff;
+        }
+        .section-title::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, rgba(255,215,0,0.35), transparent); margin-left: 0.6rem; }
+        .stButton > button { border-radius: 10px !important; font-weight: 600 !important; border: 1px solid rgba(255,215,0,0.25) !important; background: rgba(20,26,42,0.6) !important; color: #e8eaf0 !important; }
+        .stButton > button[kind="primary"] { background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%) !important; color: #0a0e1a !important; font-weight: 800 !important; border: none !important; }
+        input, textarea { color: #e8eaf0 !important; background-color: rgba(10,14,26,0.7) !important; border-radius: 10px !important; }
+        </style>"""
+    else:
+        return "<style>" + common_fix + """
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Inter:wght@300;400;500;600;700&display=swap');
+        html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+        h1, h2, h3, h4, h5, h6, .brand-title { font-family: 'Outfit', sans-serif; }
+        .stApp { background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); color: #1a202c; }
+        .main .block-container { padding-top: 1.2rem; padding-bottom: 3rem; max-width: 1200px; }
+        h1, h2, h3, h4, h5, h6, p, span, label, div { color: #1a202c; }
+        .hero { text-align: center; padding: 1rem 0 0.5rem 0; }
+        .brand-title { background: linear-gradient(90deg, #b8860b 0%, #d4af37 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-size: 2.6rem; font-weight: 900; text-align: center; }
+        .brand-sub { text-align: center; color: #64748b !important; font-size: 0.95rem; text-transform: uppercase; font-weight: 500; }
+        section[data-testid="stSidebar"] { background: #ffffff !important; border-right: 1px solid rgba(0,0,0,0.06); }
+        .user-card { display: flex; align-items: center; gap: 0.9rem; padding: 0.9rem; border-radius: 14px; background: rgba(212,175,55,0.10); border: 1px solid rgba(212,175,55,0.25); margin-bottom: 1rem; }
+        .avatar { width: 46px; height: 46px; border-radius: 50%; background: linear-gradient(135deg, #d4af37, #b8860b); display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; }
+        .user-name { font-size: 0.82rem; font-weight: 600; color: #1a202c; }
+        .tier-badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-weight: 700; font-size: 0.68rem; text-transform: uppercase; }
+        .badge-free { background: #e2e8f0; color: #64748b; }
+        .badge-pro { background: rgba(212,175,55,0.15); color: #b8860b; }
+        .badge-diamond { background: rgba(59,130,246,0.15); color: #2563eb; }
+        .category-tag { background: rgba(212,175,55,0.15); color: #b8860b; padding: 2px 8px; border-radius: 6px; font-weight: 600; font-size: 0.75rem; }
+        .gm-card { background: #ffffff; border: 1px solid rgba(212,175,55,0.3); border-radius: 16px; padding: 1.2rem 1.4rem; margin-top: 0.8rem; box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
+        .gm-header { display: flex; align-items: center; gap: 0.5rem; color: #b8860b; font-weight: 700; font-size: 1.05rem; margin-bottom: 0.8rem; border-bottom: 1px solid rgba(212,175,55,0.15); padding-bottom: 0.5rem; }
+        .gm-section { margin-bottom: 0.7rem; font-size: 0.93rem; line-height: 1.5; color: #334155; }
+        .gm-section b { color: #b8860b; }
+        .metric-card { background: #ffffff; border-radius: 16px; padding: 1.2rem 1.1rem; border: 1px solid #e2e8f0; box-shadow: 0 2px 12px rgba(0,0,0,0.05); }
+        .metric-value { font-size: 2rem; font-weight: 800; font-family: 'Outfit', sans-serif; color: #1a202c; }
+        .metric-label { font-size: 0.8rem; color: #64748b; text-transform: uppercase; }
+        .board-wrapper { display: flex; justify-content: center; align-items: center; padding: 1.2rem; border-radius: 20px; background: #ffffff; border: 1px solid #e2e8f0; box-shadow: 0 8px 30px rgba(0,0,0,0.08); max-width: fit-content; margin: 0 auto; }
+        .pricing-card { background: #ffffff; border: 1px solid #cbd5e1; border-radius: 20px; padding: 2.1rem 1.5rem; text-align: center; height: 100%; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
+        .pricing-card.featured { border: 2px solid #d4af37; box-shadow: 0 10px 30px rgba(212,175,55,0.15); }
+        .pricing-title { font-size: 1.5rem; font-weight: 800; color: #b8860b; margin-bottom: 0.5rem; }
+        .pricing-price { font-size: 2.5rem; font-weight: 900; color: #1a202c; margin-bottom: 1rem; }
+        .pricing-features { text-align: left; margin: 1.5rem 0; font-size: 0.9rem; color: #475569; list-style: none; padding: 0; }
+        .pricing-features li { margin-bottom: 0.6rem; display: flex; align-items: center; gap: 0.5rem; }
+        .info-box, .success-box, .warning-box { border-radius: 12px; padding: 0.9rem 1.1rem; margin: 0.5rem 0; border-left: 3px solid; font-size: 0.92rem; }
+        .info-box { background: rgba(59,130,246,0.08); border-color: #3b82f6; color: #1e40af; }
+        .success-box { background: rgba(16,185,129,0.08); border-color: #10b981; color: #047857; }
+        .warning-box { background: rgba(234,179,8,0.10); border-color: #eab308; color: #854d0e; }
+        .section-title { font-family: 'Outfit', sans-serif; font-size: 1.4rem; font-weight: 700; margin: 1.4rem 0 0.8rem 0; display: flex; align-items: center; gap: 0.5rem; color: #1a202c; }
+        .section-title::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, rgba(212,175,55,0.4), transparent); margin-left: 0.6rem; }
+        .stButton > button { border-radius: 10px !important; font-weight: 600 !important; border: 1px solid #e2e8f0 !important; background: #ffffff !important; color: #1a202c !important; }
+        .stButton > button[kind="primary"] { background: linear-gradient(135deg, #d4af37 0%, #b8860b 100%) !important; color: #ffffff !important; font-weight: 800 !important; border: none !important; }
+        </style>"""
 
-        tab_log, tab_reg = st.tabs([lt["login_header"], lt["register_header"]])
-        supabase_configurato = supabase is not None
-
-        with tab_log:
-            email_log = st.text_input(lt["email_label"], key="login_email")
-            pass_log = st.text_input(lt["password_label"], type="password", key="login_pass")
-            if st.button(lt["login_btn"], type="primary", use_container_width=True):
-                if supabase_configurato and email_log and pass_log:
-                    try:
-                        res = supabase.auth.sign_in_with_password({"email": email_log, "password": pass_log})
-                        st.session_state['user'] = res.user.email
-                        st.session_state['profile_setup_done'] = False
-                        st.rerun()
-                    except Exception as e: st.error(f"Errore: {e}")
-                else:
-                    st.session_state['user'] = email_log if email_log else "beta_tester@chess.com"
-                    st.session_state['profile_setup_done'] = False
-                    st.rerun()
-
-        with tab_reg:
-            email_reg = st.text_input(lt["email_label"], key="reg_email")
-            pass_reg = st.text_input(lt["password_label"], type="password", key="reg_pass")
-            if st.button(lt["register_btn"], type="primary", use_container_width=True):
-                if supabase_configurato and email_reg and pass_reg:
-                    try:
-                        supabase.auth.sign_up({"email": email_reg, "password": pass_reg})
-                        st.success("Registrazione completata! Effettua il login.")
-                    except Exception as e: st.error(f"Errore: {e}")
-                else:
-                    if email_reg:
-                        st.session_state['user'] = email_reg
-                        st.session_state['profile_setup_done'] = False
-                        st.rerun()
-    st.stop()
-
-# ==========================================
-# ONBOARDING PROFILES
-# ==========================================
-user_email = st.session_state['user']
-user_tier = get_user_tier(user_email)
+st.markdown(get_dynamic_css(st.session_state['theme_mode']), unsafe_allow_html=True)
 
 TEXTS = {
     "it": {
@@ -383,6 +500,63 @@ TEXTS = {
 
 t = TEXTS[st.session_state['lang']]
 
+# ==========================================
+# LOGIN SCREEN
+# ==========================================
+if not st.session_state['user']:
+    col_l1, col_l2, col_l3 = st.columns([1, 1.4, 1])
+    with col_l2:
+        st.markdown(f"""
+        <div class="hero" style="padding-top: 2.5rem;">
+            <span class="hero-logo">♟️</span>
+            <div class="brand-title">{t['title']}</div>
+            <p class="brand-sub">Coaching Scacchistico AI ad Altissima Efficienza</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        scelta_lingua_benvenuto = st.selectbox("Lingua:", options=["Italiano", "English", "Español"], index=0, key="lang_login_select")
+        lang_c = 'it' if scelta_lingua_benvenuto == "Italiano" else ('en' if scelta_lingua_benvenuto == "English" else 'es')
+        if lang_c != st.session_state['lang']:
+            st.session_state['lang'] = lang_c
+            st.rerun()
+
+        TEXTS_MAP = {
+            "it": {"login_header": "🔐 Accedi", "register_header": "📝 Registrati", "email_label": "Email:", "password_label": "Password:", "login_btn": "Accedi", "register_btn": "Crea Account"},
+            "en": {"login_header": "🔐 Login", "register_header": "📝 Register", "email_label": "Email:", "password_label": "Password:", "login_btn": "Login", "register_btn": "Create Account"},
+            "es": {"login_header": "🔐 Iniciar Sesión", "register_header": "📝 Registrarse", "email_label": "Correo:", "password_label": "Contraseña:", "login_btn": "Iniciar Sesión", "register_btn": "Crear Cuenta"}
+        }
+        lt = TEXTS_MAP[st.session_state['lang']]
+
+        tab_log, tab_reg = st.tabs([lt["login_header"], lt["register_header"]])
+        supabase_configurato = supabase is not None
+
+        with tab_log:
+            email_log = st.text_input(lt["email_label"], key="login_email")
+            pass_log = st.text_input(lt["password_label"], type="password", key="login_pass")
+            if st.button(lt["login_btn"], type="primary", use_container_width=True):
+                if email_log:
+                    st.session_state['user'] = email_log
+                    st.query_params["user_email"] = email_log
+                    st.session_state['profile_setup_done'] = False
+                    st.rerun()
+
+        with tab_reg:
+            email_reg = st.text_input(lt["email_label"], key="reg_email")
+            pass_reg = st.text_input(lt["password_label"], type="password", key="reg_pass")
+            if st.button(lt["register_btn"], type="primary", use_container_width=True):
+                if email_reg:
+                    st.session_state['user'] = email_reg
+                    st.query_params["user_email"] = email_reg
+                    st.session_state['profile_setup_done'] = False
+                    st.rerun()
+    st.stop()
+
+# ==========================================
+# ONBOARDING PROFILES
+# ==========================================
+user_email = st.session_state['user']
+user_tier = get_user_tier(user_email)
+
 if not st.session_state.get('profile_setup_done', False):
     col_p1, col_p2, col_p3 = st.columns([1, 1.6, 1])
     with col_p2:
@@ -433,12 +607,15 @@ if not st.session_state.get('profile_setup_done', False):
 # ==========================================
 with st.sidebar:
     initials = (user_email[:2] if user_email else "U").upper()
+    gm_usage_str = get_current_gm_usage(user_email, user_tier)
+    
     st.markdown(f"""
     <div class="user-card">
         <div class="avatar">{initials}</div>
         <div class="user-info">
             <div class="user-name">{user_email}</div>
             {tier_badge_html(user_tier)}
+            <div style="font-size:0.75rem; color:#FFD700; margin-top:4px;">🎯 GM Free: {gm_usage_str}</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -483,6 +660,7 @@ with st.sidebar:
             try: supabase.auth.sign_out()
             except Exception: pass
         st.session_state['user'] = None
+        if "user_email" in st.query_params: del st.query_params["user_email"]
         st.session_state['profile_setup_done'] = False
         st.rerun()
 
@@ -502,9 +680,7 @@ current_selection = st.session_state['nav_selection']
 # MOTORE STOCKFISH & RILEVAMENTO APERTURA REALE
 # ==========================================
 def detect_opening(game_moves_san):
-    if not game_moves_san:
-        return "Apertura Standard"
-    
+    if not game_moves_san: return "Apertura Standard"
     m1 = game_moves_san[0] if len(game_moves_san) > 0 else ""
     m2 = game_moves_san[1] if len(game_moves_san) > 1 else ""
     m3 = game_moves_san[2] if len(game_moves_san) > 2 else ""
@@ -535,7 +711,6 @@ def detect_opening(game_moves_san):
         return "Gioco di Donna (1.d4)"
     elif m1 == "Nf3": return "Apertura Reti / Zukertort"
     elif m1 == "c4": return "Partita Inglese"
-    
     return f"Apertura ({m1} {m2})"
 
 def fetch_stockfish_eval(session, fen, depth=10):
@@ -565,7 +740,6 @@ def analizza_partita_stockfish(pgn_text, target_usernames):
     black_elo = headers.get('BlackElo', '1500')
     date_str = headers.get('Date', datetime.datetime.now().strftime("%Y-%m-%d")).replace('.', '-')
     
-    # Rilevamento apertura PGN headers o euristico
     opening_name = headers.get('Opening', '')
     eco_code = headers.get('ECO', '')
     
@@ -794,7 +968,7 @@ if current_selection == "📊 Dashboard & Insights":
         st.markdown("<div class='info-box'>Nessun errore registrato nel cloud o in memoria. Analizza qualche partita per popolare la tua Control Room!</div>", unsafe_allow_html=True)
 
 # ==========================================
-# SEZIONE 2: ANALIZZA PARTITA (CON SLIDER + FRECCE & APERTURA REALE)
+# SEZIONE 2: ANALIZZA PARTITA (CON SLIDER + FRECCE & POSIZIONAMENTO ERRORE)
 # ==========================================
 elif current_selection == "🔍 Analizza Partita":
     st.markdown("<div class='section-title'>📖 Analisi Dettagliata Partita</div>", unsafe_allow_html=True)
@@ -857,10 +1031,10 @@ elif current_selection == "🔍 Analizza Partita":
         game_moves = st.session_state['active_game_moves']
         max_ply = len(game_moves)
         
-        # --- SLIDER E FRECCE SINCRONIZZATE ---
         if 'current_board_ply' not in st.session_state:
             st.session_state['current_board_ply'] = 0
 
+        # --- SLIDER E FRECCE FUNZIONANTI ---
         c1, c2, c3, c4 = st.columns(4)
         if c1.button("⏪ Inizio", use_container_width=True): 
             st.session_state['current_board_ply'] = 0
@@ -904,14 +1078,21 @@ elif current_selection == "🔍 Analizza Partita":
                     match_db = df_storico_DB[(df_storico_DB['partita_id'] == p_id_curr) & (df_storico_DB['mossa_critica'] == err['label_mossa'])]
                     if not match_db.empty:
                         spiegazione_db = match_db.iloc[0].get('spiegazione', '')
-                        if spiegazione_db:
-                            lezione_esistente = spiegazione_db
+                        if spiegazione_db: lezione_esistente = spiegazione_db
 
-                with st.expander(f"{err['tipo_problema']} · {err['label_mossa']} · -{err['perdita_cp']} CP", expanded=False):
+                # Pulsante per saltare direttamente alla posizione dell'errore sulla scacchiera
+                cols_err = st.columns([3, 1])
+                with cols_err[0]:
+                    exp_title = f"{err['tipo_problema']} · {err['label_mossa']} · -{err['perdita_cp']} CP"
+                with cols_err[1]:
+                    if st.button("♟️ Vedi", key=f"jump_err_{idx}", use_container_width=True):
+                        st.session_state['current_board_ply'] = err['mossa_num']
+                        st.rerun()
+
+                with st.expander(exp_title, expanded=False):
                     st.markdown(f"**Mossa:** `{err['label_mossa']}` | **Perdita:** -{err['perdita_cp']} CP", unsafe_allow_html=True)
                     
                     if st.button(t['gm_lesson_btn'], key=f"btn_lesson_{idx}", type="primary"):
-                        # Verifica quota mensile piano free
                         allowed, limit_msg = check_and_consume_gm_quota(user_email, user_tier)
                         if not allowed:
                             st.error(limit_msg)
@@ -940,7 +1121,6 @@ elif current_selection == "🔍 Analizza Partita":
                                     formatted_lesson = format_gm_lesson_html(testo_gm)
                                     st.session_state[f"lesson_{idx}"] = formatted_lesson
                                     
-                                    # Salvataggio persistente nel DB
                                     current_op = st.session_state.get('current_opening', 'Standard')
                                     salva_errore_db(user_email, p_id_curr, err.get('categoria', 'Errore Tattico'), err['label_mossa'], formatted_lesson, current_op)
                                     st.rerun()
@@ -1022,7 +1202,7 @@ elif current_selection == "🌐 Importa & Sincronizza":
                 st.rerun()
 
 # ==========================================
-# SEZIONE 4: PALESTRA ALLENAMENTO (CON FILTRI MULTIPLI - Sviluppo 3)
+# SEZIONE 4: PALESTRA ALLENAMENTO (CON FILTRI MULTIPLI)
 # ==========================================
 elif current_selection == "🎯 Palestra sui Tuoi Errori":
     st.markdown("<div class='section-title'>🎯 Palestra di Allenamento & Lezioni GM</div>", unsafe_allow_html=True)
@@ -1033,7 +1213,6 @@ elif current_selection == "🎯 Palestra sui Tuoi Errori":
     if df_errori.empty:
         st.markdown("<div class='info-box'>Nessun errore registrato finora. Analizza qualche partita per sbloccare la tua palestra!</div>", unsafe_allow_html=True)
     else:
-        # --- FILTRI MULTIPLI (Richiesta Sviluppo 3) ---
         st.markdown("##### 🔎 Filtri di Ricerca Avanzata")
         col_f1, col_f2, col_f3 = st.columns(3)
         
@@ -1046,12 +1225,9 @@ elif current_selection == "🎯 Palestra sui Tuoi Errori":
         filtro_categoria = col_f3.selectbox("Filtra per Categoria:", categorie_list)
 
         df_filtrato = df_errori.copy()
-        if filtro_partita != "Tutte":
-            df_filtrato = df_filtrato[df_filtrato['partita_id'] == filtro_partita]
-        if filtro_apertura != "Tutte":
-            df_filtrato = df_filtrato[df_filtrato['apertura'] == filtro_apertura]
-        if filtro_categoria != "Tutte":
-            df_filtrato = df_filtrato[df_filtrato['categoria_errore'] == filtro_categoria]
+        if filtro_partita != "Tutte": df_filtrato = df_filtrato[df_filtrato['partita_id'] == filtro_partita]
+        if filtro_apertura != "Tutte": df_filtrato = df_filtrato[df_filtrato['apertura'] == filtro_apertura]
+        if filtro_categoria != "Tutte": df_filtrato = df_filtrato[df_filtrato['categoria_errore'] == filtro_categoria]
 
         st.divider()
 
@@ -1229,7 +1405,7 @@ elif current_selection == "📞 Contatti & Supporto":
         st.markdown("<div class='info-box'>Hai riscontrato un bug o hai suggerimenti? Scrivici a <b>support@chesscoachpro.com</b>.</div>", unsafe_allow_html=True)
     with col_c2:
         with st.form("contact_form"):
-            c_name = st.text_input("Il tuo nome o username:")
+            c_name = st.text_input("Testo nome o username:")
             c_msg = st.text_area("Messaggio / Segnalazione:")
             if st.form_submit_button("Invia Messaggio", type="primary", use_container_width=True):
                 if c_name.strip() and c_msg.strip(): st.success("Messaggio inviato con successo!")
