@@ -60,7 +60,7 @@ for key, default in {
     'user': None, 'lang': 'it', 'profile_setup_done': False,
     'nav_selection': "📊 Dashboard & Insights", 'theme_mode': 'Dark',
     'last_analyzed_pgn': None, 'current_board_ply': 0,
-    'eval_history': None
+    'eval_history': None, 'storico_errori_locale': [], 'storico_rating_locale': []
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default
@@ -74,7 +74,7 @@ st.components.v1.html("""
     <script>setInterval(function(){fetch(window.location.href);},25000);</script>
 """, height=0)
 
-# --- DATABASE & SUBSCRIPTION ENGINE ---
+# --- DATABASE & LOCAL STORAGE HELPERS ---
 def get_user_tier(email):
     if not supabase or not email:
         return "Free"
@@ -303,14 +303,14 @@ st.markdown(get_dynamic_css(st.session_state['theme_mode']), unsafe_allow_html=T
 
 TEXTS = {
     "it": {
-        "title": "Chess Coach Pro", "subtitle": "Coaching Scacchistico AI ad Altissima Efficienza",
+        "title": "Chess Coach Pro", "subtitle": "Coaching Scacchistico AI ed Altissima Efficienza",
         "lang_select": "Lingua:", "theme_select": "Tema:",
         "login_header": "🔐 Accedi", "register_header": "📝 Registrati",
         "email_label": "Email:", "password_label": "Password:",
         "login_btn": "Accedi", "register_btn": "Crea Account", "logout_btn": "🚪 Disconnetti",
-        "analyze_btn": "🔍 Avvia Analisi Affidabile",
-        "critique_found": "criticità identificate sulle tue mosse!",
-        "no_errors": "Partita eccellente! Nessun errore grave rilevato.",
+        "analyze_btn": "🔍 Avvia Analisi Motore",
+        "critique_found": "errori individuati dal motore!",
+        "no_errors": "Partita eccellente! Nessun errore rilevato dal motore.",
         "gm_lesson_btn": "🎓 Spiegazione GM AI",
         "prompt_lang": "Rispondi in italiano.",
         "profile_setup_title": "Configura i tuoi Profili",
@@ -324,9 +324,9 @@ TEXTS = {
         "login_header": "🔐 Login", "register_header": "📝 Register",
         "email_label": "Email:", "password_label": "Password:",
         "login_btn": "Login", "register_btn": "Create Account", "logout_btn": "🚪 Logout",
-        "analyze_btn": "🔍 Start Reliable Analysis",
-        "critique_found": "critical issues on your moves!",
-        "no_errors": "Great game! No major blunders found.",
+        "analyze_btn": "🔍 Start Engine Analysis",
+        "critique_found": "errors found by engine!",
+        "no_errors": "Great game! No major errors found.",
         "gm_lesson_btn": "🎓 Quick GM Insight",
         "prompt_lang": "Respond in English.",
         "profile_setup_title": "Setup your Chess Profiles",
@@ -340,8 +340,8 @@ TEXTS = {
         "login_header": "🔐 Iniciar Sesión", "register_header": "📝 Registrarse",
         "email_label": "Correo:", "password_label": "Contraseña:",
         "login_btn": "Iniciar Sesión", "register_btn": "Crear Cuenta", "logout_btn": "🚪 Cerrar Sesión",
-        "analyze_btn": "🔍 Iniciar Análisis Fiable",
-        "critique_found": "¡críticas identificadas en tus jugadas!",
+        "analyze_btn": "🔍 Iniciar Análisis de Motor",
+        "critique_found": "¡errores encontrados por el motor!",
         "no_errors": "¡Excelente partida! Sin errores graves.",
         "gm_lesson_btn": "🎓 Análisis Rápido GM",
         "prompt_lang": "Responde en español.",
@@ -354,7 +354,7 @@ TEXTS = {
 
 t = TEXTS[st.session_state['lang']]
 
-# --- DATABASE HELPERS & NATIVE JSON AI CLASSIFICATION ---
+# --- DATABASE & LOCAL STORAGE HELPERS ---
 def get_user_profiles(email):
     if supabase:
         try:
@@ -384,100 +384,78 @@ def delete_user_profile(profile_id):
         except Exception: pass
     return False
 
-def classifica_errore_con_ai(fen_prima, mossa_san):
-    prompt = f"""
-    Sei un Gran Maestro ed esperto di tattica negli scacchi.
-    Analizza la seguente posizione e la mossa errata giocata:
-    
-    FEN: {fen_prima}
-    Mossa errata (SAN): {mossa_san}
-    
-    Classifica l'errore scegliendo ESATTAMENTE UNA categoria tra queste:
-    - Fork
-    - Pin
-    - Skewer
-    - Hanging Piece
-    - Discovered Attack
-    - Double Check
-    - Interference
-    - Clearance
-    - Zugzwang
-    - Mate in 1
-    - Mate in 2
-    - Mate in 3+
-    - Back Rank Mate
-    - Smothered Mate
-    - Endgame
-    - Quiet Move
-    - Defensive Move
-    - Opening Mistake
-    - Positional Weakness
-
-    Rispondi rigorosamente in formato JSON puro:
-    {{"categoria": "NOME_CATEGORIA"}}
-    """
-
-    valid_tags = [
-        "Fork", "Pin", "Skewer", "Hanging Piece", "Discovered Attack", 
-        "Double Check", "Interference", "Clearance", "Zugzwang", 
-        "Mate in 1", "Mate in 2", "Mate in 3+", "Back Rank Mate", 
-        "Smothered Mate", "Endgame", "Quiet Move", "Defensive Move", 
-        "Opening Mistake", "Positional Weakness"
-    ]
-
-    try:
-        if "genai" in globals() and hasattr(genai, "GenerativeModel"):
-            genai.configure(api_key=MASTER_GEMINI_KEY)
-            model = genai.GenerativeModel(
-                GEMINI_MODEL_NAME,
-                generation_config={"response_mime_type": "application/json", "temperature": 0.0}
-            )
-            resp = model.generate_content(prompt)
-            raw_text = resp.text.strip()
-        else:
-            from google import genai as new_genai
-            from google.genai import types
-            client = new_genai.Client(api_key=MASTER_GEMINI_KEY)
-            resp = client.models.generate_content(
-                model=GEMINI_MODEL_NAME,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    response_mime_type="application/json",
-                    temperature=0.0
-                )
-            )
-            raw_text = resp.text.strip()
-
-        data = json.loads(raw_text)
-        cat_estratta = data.get("categoria", "").strip()
-
-        for vt in valid_tags:
-            if vt.lower() == cat_estratta.lower() or vt.lower() in cat_estratta.lower():
-                return vt
-
-        return "Positional Weakness"
-
-    except Exception as e:
-        print(f"⚠️ [DEBUG] Errore Chiamata Gemini Cluster: {e}")
-        return "Positional Weakness"
-
 def salva_errore_db(user_email, partita_id, categoria, mossa, spiegazione):
+    data_ora = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    nuovo_errore = {
+        "user_email": user_email,
+        "partita_id": partita_id if partita_id else "Partita_Sconosciuta",
+        "data": data_ora,
+        "categoria_errore": categoria,
+        "mossa_critica": mossa,
+        "spiegazione": spiegazione
+    }
+    if 'storico_errori_locale' not in st.session_state:
+        st.session_state['storico_errori_locale'] = []
+    if nuovo_errore not in st.session_state['storico_errori_locale']:
+        st.session_state['storico_errori_locale'].append(nuovo_errore)
+
     if supabase:
         try:
-            data_ora = datetime.datetime.now().strftime("%Y-%m-%d")
-            supabase.table("errori_utenti").insert({
-                "user_email": user_email, "partita_id": partita_id if partita_id else "Partita_Sconosciuta",
-                "data": data_ora, "categoria_errore": categoria, "mossa_critica": mossa, "spiegazione": spiegazione
-            }).execute()
+            supabase.table("errori_utenti").insert(nuovo_errore).execute()
         except Exception: pass
 
 def carica_errori_db(user_email):
+    rows = []
     if supabase:
         try:
             res = supabase.table("errori_utenti").select("*").eq("user_email", user_email).execute()
-            if res.data: return pd.DataFrame(res.data)
+            if res.data:
+                rows = res.data
         except Exception: pass
+    
+    local_rows = st.session_state.get('storico_errori_locale', [])
+    combined = rows + [r for r in local_rows if r not in rows]
+    
+    if combined:
+        return pd.DataFrame(combined)
     return pd.DataFrame(columns=["data", "partita_id", "categoria_errore", "mossa_critica", "spiegazione"])
+
+def salva_rating_db(user_email, data_partita, rating, partita_id):
+    record = {
+        "user_email": user_email,
+        "data": data_partita,
+        "rating": int(rating),
+        "partita_id": partita_id
+    }
+    if 'storico_rating_locale' not in st.session_state:
+        st.session_state['storico_rating_locale'] = []
+    # Evita duplicati per stessa partita
+    st.session_state['storico_rating_locale'] = [r for r in st.session_state['storico_rating_locale'] if r['partita_id'] != partita_id]
+    st.session_state['storico_rating_locale'].append(record)
+
+    if supabase:
+        try:
+            supabase.table("storico_rating").upsert(record, on_conflict="user_email,partita_id").execute()
+        except Exception: pass
+
+def carica_rating_db(user_email):
+    rows = []
+    if supabase:
+        try:
+            res = supabase.table("storico_rating").select("*").eq("user_email", user_email).order("data").execute()
+            if res.data:
+                rows = res.data
+        except Exception: pass
+    
+    local_rows = st.session_state.get('storico_rating_locale', [])
+    combined = rows + [r for r in local_rows if r not in rows]
+    
+    if combined:
+        df = pd.DataFrame(combined)
+        df['data'] = pd.to_datetime(df['data'])
+        df = df.sort_values('data').reset_index(drop=True)
+        return df
+    return pd.DataFrame(columns=["data", "rating", "partita_id"])
 
 def tier_badge_html(tier):
     cls = "badge-free" if tier == "Free" else ("badge-pro" if tier == "Pro" else "badge-diamond")
@@ -660,51 +638,63 @@ st.divider()
 current_selection = st.session_state['nav_selection']
 
 # ==========================================
-# MOTORE STOCKFISH & HELPER DI ANALISI
+# MOTORE STOCKFISH VELOCE (SENZA CLUSTER BLOCK)
 # ==========================================
 def fetch_stockfish_eval(session, fen, depth=10):
-    for attempt in range(2):
-        try:
-            r = session.post("https://chess-api.com/v1", json={"fen": fen, "depth": depth}, timeout=5)
-            if r.status_code == 200:
-                data = r.json()
-                if data.get("eval") is not None: return float(data.get("eval"))
-                elif data.get("centipawns") is not None: return float(data.get("centipawns")) / 100.0
-                elif data.get("cp") is not None: return float(data.get("cp")) / 100.0
-                elif data.get("value") is not None: return float(data.get("value")) / 100.0
-                elif data.get("mate") is not None:
-                    m = int(data.get("mate"))
-                    return 100.0 if m > 0 else -100.0
-        except Exception: time.sleep(0.3)
-    return 0.0
+    try:
+        r = session.post("https://chess-api.com/v1", json={"fen": fen, "depth": depth}, timeout=2.5)
+        if r.status_code == 200:
+            data = r.json()
+            if data.get("eval") is not None: return float(data.get("eval"))
+            elif data.get("centipawns") is not None: return float(data.get("centipawns")) / 100.0
+            elif data.get("cp") is not None: return float(data.get("cp")) / 100.0
+            elif data.get("value") is not None: return float(data.get("value")) / 100.0
+            elif data.get("mate") is not None:
+                m = int(data.get("mate"))
+                return 100.0 if m > 0 else -100.0
+    except Exception:
+        pass
+    return None
 
-def analizza_partita_chess_api(pgn_text, target_usernames):
+def analizza_partita_stockfish(pgn_text, target_usernames):
     game = chess.pgn.read_game(io.StringIO(pgn_text))
     if not game: return [], None, "Impossibile leggere il PGN fornito.", []
 
     headers = game.headers
     white_player = headers.get('White', 'Unknown').strip().lower()
     black_player = headers.get('Black', 'Unknown').strip().lower()
+    white_elo = headers.get('WhiteElo', '1500')
+    black_elo = headers.get('BlackElo', '1500')
+    date_str = headers.get('Date', datetime.datetime.now().strftime("%Y-%m-%d")).replace('.', '-')
+
     user_is_white, user_is_black = True, True
+    user_rating = 1500
 
     if target_usernames:
         user_list = [u.strip().lower() for u in target_usernames]
         found_match = False
         user_is_white, user_is_black = False, False
         for u in user_list:
-            if u in white_player: user_is_white = True; found_match = True
-            if u in black_player: user_is_black = True; found_match = True
-        if not found_match: user_is_white, user_is_black = True, True
+            if u in white_player: 
+                user_is_white = True; found_match = True
+                if white_elo.isdigit(): user_rating = int(white_elo)
+            if u in black_player: 
+                user_is_black = True; found_match = True
+                if black_elo.isdigit(): user_rating = int(black_elo)
+        if not found_match: 
+            user_is_white, user_is_black = True, True
+            if white_elo.isdigit(): user_rating = int(white_elo)
 
-    partita_id = f"{headers.get('White', 'Unknown')}_vs_{headers.get('Black', 'Unknown')}_{headers.get('Date', 'Live')}"
+    partita_id = f"{headers.get('White', 'Unknown')}_vs_{headers.get('Black', 'Unknown')}_{date_str}"
+    
     board = game.board()
-    evaluations, eval_history = [], []
+    detected_errors, eval_history = [], []
     headers_req = {"User-Agent": "ChessCoachPro/1.0 (support@chesscoachpro.com)", "Content-Type": "application/json"}
     main_moves = list(game.mainline_moves())
     total_ply_count = len(main_moves)
     total_full_moves = (total_ply_count + 1) // 2
 
-    progress_bar = st.progress(0, text="♟️ Analisi Stockfish in corso...")
+    progress_bar = st.progress(0, text="♟️ Analisi rapida Stockfish in corso...")
     session = requests.Session()
     session.headers.update(headers_req)
     prev_eval = 0.0
@@ -734,20 +724,19 @@ def analizza_partita_chess_api(pgn_text, target_usernames):
         is_user_move = (is_white_move and user_is_white) or (not is_white_move and user_is_black)
         if is_user_move:
             delta = (eval_before - eval_after) if is_white_move else (eval_after - eval_before)
+            
             tipo_problema = "🔴 Blunder" if delta >= 2.0 else ("🟠 Mistake" if delta >= 1.0 else ("🟡 Inaccuracy" if delta >= 0.5 else None))
             if tipo_problema:
                 label_mossa = f"{num_mossa}. {move_san}" if is_white_move else f"{num_mossa}... {move_san}"
-                cat_mossa = classifica_errore_con_ai(fen_before, move_san)
-                evaluations.append({
+                detected_errors.append({
                     "mossa_num": idx + 1, "label_mossa": label_mossa, "fen_prima": fen_before,
                     "fen_dopo": fen_after, "mossa_giocata": move.uci(), "perdita_cp": round(delta, 2),
-                    "eval_dopo": eval_after, "tipo_problema": tipo_problema, "categoria": cat_mossa
+                    "eval_dopo": eval_after, "tipo_problema": tipo_problema, "categoria": "Errore Tattico"
                 })
         prev_eval = eval_after
-        time.sleep(0.01)
 
     progress_bar.empty()
-    return evaluations, partita_id, None, eval_history
+    return detected_errors, partita_id, None, eval_history, user_rating, date_str
 
 def salva_immagine_scacchiera_png(board, path_temp):
     svg_data = chess.svg.board(board=board, size=400)
@@ -826,16 +815,59 @@ def render_eval_graph(eval_history, errors):
     st.plotly_chart(fig, use_container_width=True)
 
 # ==========================================
-# SEZIONE 1: DASHBOARD & INSIGHTS
+# SEZIONE 1: DASHBOARD & INSIGHTS (CON GRAFICI RATING)
 # ==========================================
 if current_selection == "📊 Dashboard & Insights":
-    st.markdown("<div class='section-title'>📊 Control Room & Insights Personali</div>", unsafe_allow_html=True)
+    st.markdown("<div class='section-title'>📊 Control Room & Rating in Tempo Reale</div>", unsafe_allow_html=True)
     df_err = carica_errori_db(user_email)
+    df_rating = carica_rating_db(user_email)
 
     if user_tier in ["Pro", "Diamond"]:
         st.markdown(f"<div class='success-box'>🟢 Sincronizzazione automatica notturna attiva per il piano <b>{user_tier}</b>. Le tue partite vengono sincronizzate e censite in background.</div>", unsafe_allow_html=True)
     else:
         st.markdown(f"<div class='info-box'>⚪ Piano Free attivo. Passa a Pro o Diamond per attivare lo scaricamento automatico notturno delle partite.</div>", unsafe_allow_html=True)
+
+    # --- Sezione Grafici Rating ---
+    st.markdown("<div class='section-title'>📈 Andamento Rating e Variazione Giornaliera</div>", unsafe_allow_html=True)
+    if not df_rating.empty and HAS_PLOTLY:
+        # Calcolo differenza giorno per giorno
+        df_rating['diff'] = df_rating['rating'].diff().fillna(0)
+
+        col_r1, col_r2 = st.columns(2)
+        
+        with col_r1:
+            st.markdown("##### 📉 Trend Rating in Tempo Reale")
+            fig_rating = go.Figure()
+            fig_rating.add_trace(go.Scatter(
+                x=df_rating['data'], y=df_rating['rating'],
+                mode='lines+markers', line=dict(color='#3b82f6', width=3),
+                marker=dict(size=8), name="Rating"
+            ))
+            fig_rating.update_layout(
+                template='plotly_dark' if st.session_state['theme_mode'] == 'Dark' else 'plotly_white',
+                height=280, margin=dict(l=10, r=10, t=20, b=10),
+                xaxis_title="Data", yaxis_title="Rating Elo"
+            )
+            st.plotly_chart(fig_rating, use_container_width=True)
+
+        with col_r2:
+            st.markdown("##### 📊 Differenza Rating (Day-over-Day)")
+            colors = ['#10b981' if val >= 0 else '#ef4444' for val in df_rating['diff']]
+            fig_diff = go.Figure()
+            fig_diff.add_trace(go.Bar(
+                x=df_rating['data'], y=df_rating['diff'],
+                marker_color=colors, name="Variazione Elo"
+            ))
+            fig_diff.update_layout(
+                template='plotly_dark' if st.session_state['theme_mode'] == 'Dark' else 'plotly_white',
+                height=280, margin=dict(l=10, r=10, t=20, b=10),
+                xaxis_title="Data", yaxis_title="Delta Elo"
+            )
+            st.plotly_chart(fig_diff, use_container_width=True)
+    else:
+        st.markdown("<div class='info-box'>Analizza almeno una partita con Elo valido per visualizzare i grafici del rating in tempo reale.</div>", unsafe_allow_html=True)
+
+    st.divider()
 
     if not df_err.empty:
         n_errors = len(df_err)
@@ -847,18 +879,11 @@ if current_selection == "📊 Dashboard & Insights":
         kpi1.markdown(f"<div class='metric-card blue'><div class='metric-icon'>🎯</div><div class='metric-value'>{n_errors}</div><div class='metric-label'>Totale Errori Censiti</div></div>", unsafe_allow_html=True)
         kpi2.markdown(f"<div class='metric-card purple'><div class='metric-icon'>♟️</div><div class='metric-value'>{n_games}</div><div class='metric-label'>Partite Analizzate</div></div>", unsafe_allow_html=True)
         kpi3.markdown(f"<div class='metric-card green'><div class='metric-icon'>✨</div><div class='metric-value'>{precision}%</div><div class='metric-label'>Indice Precisione</div></div>", unsafe_allow_html=True)
-
-        st.markdown("<div class='section-title'>🎯 Distribuzione Cluster di Errore</div>", unsafe_allow_html=True)
-        if HAS_PLOTLY:
-            counts_cat = df_err['categoria_errore'].value_counts()
-            fig_pie = go.Figure(go.Pie(labels=counts_cat.index.tolist(), values=counts_cat.values.tolist(), hole=0.58))
-            fig_pie.update_layout(template='plotly_dark' if st.session_state['theme_mode'] == 'Dark' else 'plotly_white', height=340, margin=dict(l=10, r=10, t=20, b=20))
-            st.plotly_chart(fig_pie, use_container_width=True)
     else:
-        st.markdown("<div class='info-box'>Nessun errore registrato nel cloud. Analizza qualche partita per popolare la tua Control Room!</div>", unsafe_allow_html=True)
+        st.markdown("<div class='info-box'>Nessun errore registrato nel cloud o in memoria. Analizza qualche partita per popolare la tua Control Room!</div>", unsafe_allow_html=True)
 
 # ==========================================
-# SEZIONE 2: ANALIZZA PARTITA
+# SEZIONE 2: ANALIZZA PARTITA (VELOCE & PULITA)
 # ==========================================
 elif current_selection == "🔍 Analizza Partita":
     st.markdown("<div class='section-title'>📖 Analisi Dettagliata Partita</div>", unsafe_allow_html=True)
@@ -876,21 +901,25 @@ elif current_selection == "🔍 Analizza Partita":
             if game_check:
                 h_check = game_check.headers
                 p_id_check = f"{h_check.get('White', 'Unknown')}_vs_{h_check.get('Black', 'Unknown')}_vs_{h_check.get('Date', 'Live')}"
-                if supabase:
-                    res_dup = supabase.table("errori_utenti").select("id").eq("user_email", user_email).eq("partita_id", p_id_check).execute()
-                    if res_dup.data and len(res_dup.data) > 0:
+                df_check = carica_errori_db(user_email)
+                if not df_check.empty and 'partita_id' in df_check.columns:
+                    if p_id_check in df_check['partita_id'].values:
                         already_exists = True
 
             if already_exists:
                 st.warning(t['already_analyzed'])
             else:
-                with st.spinner("🔍 Scansione Stockfish & Classificazione AI Cluster in corso..."):
+                with st.spinner("🔍 Analisi rapida Stockfish in corso..."):
                     user_profs = get_user_profiles(user_email)
                     user_usernames = [p['username'] for p in user_profs]
-                    errori, p_id, err_msg, eval_hist = analizza_partita_chess_api(current_pgn_text, user_usernames)
+                    errori, p_id, err_msg, eval_hist, rating_partita, data_partita = analizza_partita_stockfish(current_pgn_text, user_usernames)
+                    
                     st.session_state['stockfish_errors'] = errori
                     st.session_state['current_game_id'] = p_id
                     st.session_state['eval_history'] = eval_hist
+
+                    # Salva rating rilevato
+                    salva_rating_db(user_email, data_partita, rating_partita, p_id)
 
                     game_obj = chess.pgn.read_game(io.StringIO(current_pgn_text))
                     if game_obj:
@@ -899,9 +928,9 @@ elif current_selection == "🔍 Analizza Partita":
                         st.session_state['current_board_ply'] = 0
 
                     if errori:
-                        st.success(f"✅ Stockfish & AI: {len(errori)} {t['critique_found']}")
+                        st.success(f"✅ Stockfish: {len(errori)} {t['critique_found']}")
                         for item in errori:
-                            salva_errore_db(user_email, p_id, item.get("categoria", "Positional Weakness"),
+                            salva_errore_db(user_email, p_id, item.get("categoria", "Errore Tattico"),
                                            item.get("label_mossa", "Mossa"), f"Perdita {item.get('perdita_cp')} CP")
                     else: st.success(f"✅ {t['no_errors']}")
 
@@ -927,29 +956,32 @@ elif current_selection == "🔍 Analizza Partita":
         svg_board = chess.svg.board(board=temp_board, size=430, colors={'square light': '#ebecd0', 'square dark': '#739552'})
         st.markdown(f'<div class="board-wrapper">{svg_board}</div>', unsafe_allow_html=True)
 
-        st.markdown("<div class='section-title'>📋 Errori Rilevati e Cluster</div>", unsafe_allow_html=True)
+        st.markdown("<div class='section-title'>📋 Errori Rilevati dal Motore</div>", unsafe_allow_html=True)
         if st.session_state.get('stockfish_errors'):
             for idx, err in enumerate(st.session_state['stockfish_errors']):
-                with st.expander(f"{err['tipo_problema']} · {err['label_mossa']} · Cluster: {err['categoria']} · -{err['perdita_cp']} CP", expanded=False):
-                    st.markdown(f"**Mossa:** `{err['label_mossa']}` | **Cluster Tattico:** <span class='category-tag'>{err['categoria']}</span> | **Perdita:** -{err['perdita_cp']} CP", unsafe_allow_html=True)
+                with st.expander(f"{err['tipo_problema']} · {err['label_mossa']} · -{err['perdita_cp']} CP", expanded=False):
+                    st.markdown(f"**Mossa:** `{err['label_mossa']}` | **Perdita:** -{err['perdita_cp']} CP", unsafe_allow_html=True)
                     
                     if st.button(t['gm_lesson_btn'], key=f"btn_lesson_{idx}", type="primary"):
                         with st.spinner("🎓 Il Grandemaster AI sta spiegando..."):
                             prompt_lesson = f"""
-                            Sei un GM di scacchi. Spiega questo errore classificato come {err['categoria']}.
+                            Sei un GM di scacchi. Spiega questo errore tattico.
                             FEN: {err['fen_prima']}
                             Mossa errata: {err['mossa_giocata']}
                             {t['prompt_lang']}
                             Rispondi in massimo 3 righe con: 1. Errore; 2. Idea corretta; 3. Regola pratica.
                             """
-                            client = genai.Client(api_key=MASTER_GEMINI_KEY) if "Client" in dir(genai) else None
-                            if client:
-                                resp = client.models.generate_content(model=GEMINI_MODEL_NAME, contents=prompt_lesson)
-                                st.session_state[f"lesson_{idx}"] = resp.text
-                            else:
-                                genai.configure(api_key=MASTER_GEMINI_KEY)
-                                resp = genai.GenerativeModel(GEMINI_MODEL_NAME).generate_content(prompt_lesson)
-                                st.session_state[f"lesson_{idx}"] = resp.text
+                            try:
+                                client = genai.Client(api_key=MASTER_GEMINI_KEY) if "Client" in dir(genai) else None
+                                if client:
+                                    resp = client.models.generate_content(model=GEMINI_MODEL_NAME, contents=prompt_lesson)
+                                    st.session_state[f"lesson_{idx}"] = resp.text
+                                else:
+                                    genai.configure(api_key=MASTER_GEMINI_KEY)
+                                    resp = genai.GenerativeModel(GEMINI_MODEL_NAME).generate_content(prompt_lesson)
+                                    st.session_state[f"lesson_{idx}"] = resp.text
+                            except Exception as e:
+                                st.session_state[f"lesson_{idx}"] = "⚠️ Limite richieste API raggiunto. Riprova tra qualche istante."
 
                     if f"lesson_{idx}" in st.session_state:
                         st.markdown(f"<div class='info-box'>💡 {st.session_state[f'lesson_{idx}']}</div>", unsafe_allow_html=True)
@@ -1020,7 +1052,7 @@ elif current_selection == "🌐 Importa & Sincronizza":
         if parsed_games:
             sel_g = st.selectbox("Seleziona partita:", [g['summary'] for g in parsed_games])
             chosen_pgn = next(g['pgn'] for g in parsed_games if g['summary'] == sel_g)
-            if st.button("🚀 Invia ad Analisi Stockfish", type="primary", use_container_width=True):
+            if st.button("🚀 Invia ad Analisi Motore", type="primary", use_container_width=True):
                 st.session_state['pgn_manual_input'] = chosen_pgn
                 st.session_state['goto_tab'] = "🔍 Analizza Partita"
                 st.rerun()
@@ -1030,7 +1062,7 @@ elif current_selection == "🌐 Importa & Sincronizza":
 # ==========================================
 elif current_selection == "🎯 Palestra sui Tuoi Errori":
     st.markdown("<div class='section-title'>🎯 Palestra di Allenamento Personalizzata</div>", unsafe_allow_html=True)
-    st.markdown("<p style='color:#8892a6;'>Allenati sui cluster tattici e di matto estratti dai tuoi errori reali.</p>", unsafe_allow_html=True)
+    st.markdown("<p style='color:#8892a6;'>Allenati sugli errori estratti dalle tue partite.</p>", unsafe_allow_html=True)
 
     df_errori = carica_errori_db(user_email)
 
@@ -1039,29 +1071,18 @@ elif current_selection == "🎯 Palestra sui Tuoi Errori":
     else:
         cat_counts = df_errori['categoria_errore'].value_counts()
         punti_deboli = cat_counts.index.tolist()
-        principale_debolezza = punti_deboli[0] if punti_deboli else "Fork"
+        principale_debolezza = punti_deboli[0] if punti_deboli else "Errore Tattico"
 
         c_w1, c_w2 = st.columns([1, 2])
-        c_w1.markdown(f"<div class='metric-card purple'><div class='metric-icon'>⚠️</div><div class='metric-value' style='font-size:1.3rem;'>{principale_debolezza}</div><div class='metric-label'>Punto Debole Principale</div></div>", unsafe_allow_html=True)
-        c_w2.markdown(f"<div class='info-box'>💡 <b>Coach Tip:</b> Il cluster in cui commetti più errori è <b>{principale_debolezza}</b> ({cat_counts.iloc[0]} volte). Esercitati miratamente su questa tematica!</div>", unsafe_allow_html=True)
+        c_w1.markdown(f"<div class='metric-card purple'><div class='metric-icon'>⚠️</div><div class='metric-value' style='font-size:1.3rem;'>{principale_debolezza}</div><div class='metric-label'>Tipologia Frequente</div></div>", unsafe_allow_html=True)
+        c_w2.markdown(f"<div class='info-box'>💡 <b>Coach Tip:</b> Esercitati regolarmente sulle posizioni critiche riscontrate nelle tue partite per migliorare la precisione.</div>", unsafe_allow_html=True)
 
         st.divider()
-        st.markdown("<div class='section-title'>🧩 Allenati sui Tuoi Errori per Cluster</div>", unsafe_allow_html=True)
+        st.markdown("<div class='section-title'>🧩 Allenamento Mirato</div>", unsafe_allow_html=True)
 
-        tema_scelto = st.selectbox("Filtra per Cluster Tematico:", ["Tutti i cluster"] + punti_deboli)
-        df_es = df_errori.copy()
-        if tema_scelto != "Tutti i cluster":
-            df_es = df_es[df_es['categoria_errore'] == tema_scelto]
-
-        if not df_es.empty:
-            row_es = df_es.sample(1).iloc[0]
-            st.markdown(f"**Partita:** `{row_es.get('partita_id')}` | **Cluster:** <span class='category-tag'>{row_es.get('categoria_errore')}</span>", unsafe_allow_html=True)
-            st.markdown(f"<div class='warning-box'>In questa posizione hai sbagliato giocando <b>{row_es.get('mossa_critica')}</b>. Riconosci il tema tattico e trova la continuazione corretta!</div>", unsafe_allow_html=True)
-
-            if st.button("💡 Mostra Aiuto GM", type="primary"):
-                st.markdown(f"<div class='info-box'><b>Suggerimento sul tema {row_es.get('categoria_errore')}:</b> Fai attenzione alle diagonali aperte e alla protezione dei pezzi non difesi.</div>", unsafe_allow_html=True)
-        else:
-            st.markdown("<div class='info-box'>Nessun esercizio disponibile per questo cluster.</div>", unsafe_allow_html=True)
+        row_es = df_errori.sample(1).iloc[0]
+        st.markdown(f"**Partita:** `{row_es.get('partita_id')}` | **Categoria:** <span class='category-tag'>{row_es.get('categoria_errore')}</span>", unsafe_allow_html=True)
+        st.markdown(f"<div class='warning-box'>In questa posizione hai sbagliato giocando <b>{row_es.get('mossa_critica')}</b>. Studia la posizione e trova la continuazione corretta!</div>", unsafe_allow_html=True)
 
 # ==========================================
 # SEZIONE 5: STUDIO DA LIBRI
