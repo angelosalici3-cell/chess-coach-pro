@@ -38,6 +38,7 @@ STRIPE_DIAMOND_PRICE_ID = st.secrets.get("STRIPE_DIAMOND_PRICE_ID", "")
 if HAS_STRIPE and STRIPE_SECRET_KEY:
     stripe.api_key = STRIPE_SECRET_KEY
 
+# Modello Gemini ufficiale e ultra-rapido
 GEMINI_MODEL_NAME = "gemini-3.8-flash"
 
 @st.cache_resource
@@ -713,9 +714,9 @@ def detect_opening(game_moves_san):
     elif m1 == "c4": return "Partita Inglese"
     return f"Apertura ({m1} {m2})"
 
-def fetch_stockfish_eval(session, fen, depth=10):
+def fetch_stockfish_eval(session, fen, depth=8):
     try:
-        r = session.post("https://chess-api.com/v1", json={"fen": fen, "depth": depth}, timeout=2.5)
+        r = session.post("https://chess-api.com/v1", json={"fen": fen, "depth": depth}, timeout=1.5)
         if r.status_code == 200:
             data = r.json()
             if data.get("eval") is not None: return float(data.get("eval"))
@@ -793,7 +794,7 @@ def analizza_partita_stockfish(pgn_text, target_usernames):
         fen_before = board.fen()
         move_san = san_moves[idx]
 
-        eval_before = fetch_stockfish_eval(session, fen_before, depth=10)
+        eval_before = fetch_stockfish_eval(session, fen_before, depth=8)
         if eval_before is None: eval_before = prev_eval
 
         board.push(move)
@@ -802,7 +803,7 @@ def analizza_partita_stockfish(pgn_text, target_usernames):
         is_white_move = (idx % 2 == 0)
         progress_bar.progress((idx + 1) / max(total_ply_count, 1), text=f"♟️ Analisi mossa {num_mossa} di {total_full_moves}...")
 
-        eval_after = fetch_stockfish_eval(session, fen_after, depth=10)
+        eval_after = fetch_stockfish_eval(session, fen_after, depth=8)
         if eval_after is None: eval_after = eval_before
 
         clamped = max(min(eval_after, 10.0), -10.0)
@@ -1080,7 +1081,6 @@ elif current_selection == "🔍 Analizza Partita":
                         spiegazione_db = match_db.iloc[0].get('spiegazione', '')
                         if spiegazione_db: lezione_esistente = spiegazione_db
 
-                # Pulsante per saltare direttamente alla posizione dell'errore sulla scacchiera
                 cols_err = st.columns([3, 1])
                 with cols_err[0]:
                     exp_title = f"{err['tipo_problema']} · {err['label_mossa']} · -{err['perdita_cp']} CP"
@@ -1099,7 +1099,7 @@ elif current_selection == "🔍 Analizza Partita":
                         else:
                             with st.spinner("🎓 Il Gran Maestro AI sta preparando la lezione..."):
                                 prompt_lesson = f"""
-                                Sei un GM di scacchi. Spiega questo errore tattico.
+                                Sei un GM di scacchi. Spiega questo errore tattico in modo sintetico e chiaro.
                                 FEN: {err['fen_prima']}
                                 Mossa errata: {err['mossa_giocata']}
                                 {t['prompt_lang']}
@@ -1111,11 +1111,19 @@ elif current_selection == "🔍 Analizza Partita":
                                 try:
                                     client = genai.Client(api_key=MASTER_GEMINI_KEY) if "Client" in dir(genai) else None
                                     if client:
-                                        resp = client.models.generate_content(model=GEMINI_MODEL_NAME, contents=prompt_lesson)
+                                        resp = client.models.generate_content(
+                                            model=GEMINI_MODEL_NAME, 
+                                            contents=prompt_lesson,
+                                            config={"temperature": 0.3, "max_output_tokens": 400}
+                                        )
                                         testo_gm = resp.text
                                     else:
                                         genai.configure(api_key=MASTER_GEMINI_KEY)
-                                        resp = genai.GenerativeModel(GEMINI_MODEL_NAME).generate_content(prompt_lesson)
+                                        model = genai.GenerativeModel(GEMINI_MODEL_NAME)
+                                        resp = model.generate_content(
+                                            prompt_lesson,
+                                            generation_config={"temperature": 0.3, "max_output_tokens": 400}
+                                        )
                                         testo_gm = resp.text
                                     
                                     formatted_lesson = format_gm_lesson_html(testo_gm)
@@ -1250,8 +1258,22 @@ elif current_selection == "📚 Studio da Libri":
         if MASTER_GEMINI_KEY and testo_libro_input:
             try:
                 genai.configure(api_key=MASTER_GEMINI_KEY)
-                resp = genai.GenerativeModel(GEMINI_MODEL_NAME).generate_content(f"Estrai mosse e commenti in JSON: {{\"mosse_san\": [\"e4\"], \"commenti\": {{\"0\": \"Inizio\"}}}}. Testo: {testo_libro_input}")
-                dati = json.loads(resp.text.replace("```json","").replace("```","").strip())
+                client = genai.Client(api_key=MASTER_GEMINI_KEY) if "Client" in dir(genai) else None
+                if client:
+                    resp = client.models.generate_content(
+                        model=GEMINI_MODEL_NAME,
+                        contents=f"Estrai mosse e commenti in JSON: {{\"mosse_san\": [\"e4\"], \"commenti\": {{\"0\": \"Inizio\"}}}}. Testo: {testo_libro_input}",
+                        config={"temperature": 0.2, "max_output_tokens": 800}
+                    )
+                    raw_resp = resp.text
+                else:
+                    resp = genai.GenerativeModel(GEMINI_MODEL_NAME).generate_content(
+                        f"Estrai mosse e commenti in JSON: {{\"mosse_san\": [\"e4\"], \"commenti\": {{\"0\": \"Inizio\"}}}}. Testo: {testo_libro_input}",
+                        generation_config={"temperature": 0.2, "max_output_tokens": 800}
+                    )
+                    raw_resp = resp.text
+
+                dati = json.loads(raw_resp.replace("```json","").replace("```","").strip())
                 board = chess.Board()
                 steps = [{"ply": 0, "mossa_giocata": "Inizio", "fen": board.fen(), "commento": dati.get("commenti", {}).get("0", "")}]
                 for idx, san in enumerate(dati.get("mosse_san", [])):
@@ -1330,7 +1352,8 @@ elif current_selection == "💎 Piani Abbonamento":
             st.button("Piano Attuale", disabled=True, use_container_width=True, key="b_f")
         else:
             if st.button("Passa a Free", use_container_width=True, key="b_tf"):
-                registra_nuovo_abbonamento(user_email, "Free")
+                if supabase:
+                    supabase.table("config_utenti").upsert({"user_email": user_email, "tier": "Free", "data_scadenza": None}).execute()
                 st.rerun()
 
     with col_pr2:
@@ -1355,7 +1378,9 @@ elif current_selection == "💎 Piani Abbonamento":
                         st.link_button("👉 Clicca qui se non vieni reindirizzato", checkout_session.url, use_container_width=True)
                     except Exception as e: st.error(f"Errore Stripe: {e}")
                 else:
-                    registra_nuovo_abbonamento(user_email, "Pro")
+                    if supabase:
+                        scadenza = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=30)).isoformat()
+                        supabase.table("config_utenti").upsert({"user_email": user_email, "tier": "Pro", "data_scadenza": scadenza}).execute()
                     st.success("Abbonamento Pro attivato (Test)!")
                     time.sleep(1)
                     st.rerun()
@@ -1380,7 +1405,9 @@ elif current_selection == "💎 Piani Abbonamento":
                         st.link_button("👉 Clicca qui se non vieni reindirizzato", checkout_session.url, use_container_width=True)
                     except Exception as e: st.error(f"Errore Stripe: {e}")
                 else:
-                    registra_nuovo_abbonamento(user_email, "Diamond")
+                    if supabase:
+                        scadenza = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=30)).isoformat()
+                        supabase.table("config_utenti").upsert({"user_email": user_email, "tier": "Diamond", "data_scadenza": scadenza}).execute()
                     st.success("Abbonamento Diamond attivato (Test)!")
                     time.sleep(1)
                     st.rerun()
@@ -1405,7 +1432,7 @@ elif current_selection == "📞 Contatti & Supporto":
         st.markdown("<div class='info-box'>Hai riscontrato un bug o hai suggerimenti? Scrivici a <b>support@chesscoachpro.com</b>.</div>", unsafe_allow_html=True)
     with col_c2:
         with st.form("contact_form"):
-            c_name = st.text_input("Testo nome o username:")
+            c_name = st.text_input("Il tuo nome o username:")
             c_msg = st.text_area("Messaggio / Segnalazione:")
             if st.form_submit_button("Invia Messaggio", type="primary", use_container_width=True):
                 if c_name.strip() and c_msg.strip(): st.success("Messaggio inviato con successo!")
