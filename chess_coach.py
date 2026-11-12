@@ -38,19 +38,23 @@ STRIPE_DIAMOND_PRICE_ID = st.secrets.get("STRIPE_DIAMOND_PRICE_ID", "")
 if HAS_STRIPE and STRIPE_SECRET_KEY:
     stripe.api_key = STRIPE_SECRET_KEY
 
-GEMINI_MODEL_NAME = "gemini-3.5-flash"
+GEMINI_MODEL_NAME = "gemini-3.8-flash"
 
-@st.cache_resource
-def init_supabase():
+# --- SUPABASE CLIENT CON RIPRISTINO SESSIONE TOKEN ---
+def get_supabase_client():
     if not SUPABASE_URL or not SUPABASE_KEY or "INSERISCI" in SUPABASE_URL:
         return None
     try:
         from supabase import create_client
-        return create_client(SUPABASE_URL.strip(), SUPABASE_KEY.strip())
+        client = create_client(SUPABASE_URL.strip(), SUPABASE_KEY.strip())
+        # Ripristina la sessione autenticata per superare le policy RLS dopo il refresh
+        if "sb_access_token" in st.session_state and "sb_refresh_token" in st.session_state:
+            client.auth.set_session(st.session_state["sb_access_token"], st.session_state["sb_refresh_token"])
+        return client
     except Exception:
         return None
 
-supabase = init_supabase()
+supabase = get_supabase_client()
 
 st.set_page_config(page_title="Chess Coach Pro", layout="wide", page_icon="⚡", initial_sidebar_state="expanded")
 
@@ -80,7 +84,7 @@ st.components.v1.html("""
     <script>setInterval(function(){fetch(window.location.href);},25000);</script>
 """, height=0)
 
-# --- DATABASE & QUOTA HELPERS (PERSISTENTI SU SUPABASE) ---
+# --- DATABASE & QUOTA HELPERS ---
 def get_user_profiles(email):
     if supabase:
         try:
@@ -163,17 +167,15 @@ def check_and_consume_gm_quota(email, tier):
                 if row.get("quota_month") == current_month:
                     used = row.get("gm_quota_used", 0)
                 else:
-                    # Reset mensile automatico nel DB
-                    supabase.table("config_utenti").upsert({"user_email": email, "gm_quota_used": 0, "quota_month": current_month}).execute()
+                    supabase.table("config_utenti").upsert({"user_email": email, "gm_quota_used": 0, "quota_month": current_month}, on_conflict="user_email").execute()
             else:
-                supabase.table("config_utenti").upsert({"user_email": email, "tier": "Free", "gm_quota_used": 0, "quota_month": current_month}).execute()
+                supabase.table("config_utenti").upsert({"user_email": email, "tier": "Free", "gm_quota_used": 0, "quota_month": current_month}, on_conflict="user_email").execute()
         except Exception:
             pass
 
     if used >= 5:
         return False, "⚠️ Hai esaurito le 5 analisi GM gratuite di questo mese per il piano Free. Passa a Pro o Diamond per analisi illimitate!"
     
-    # Incrementa quota nel DB
     new_used = used + 1
     if supabase:
         try:
@@ -182,8 +184,8 @@ def check_and_consume_gm_quota(email, tier):
                 "gm_quota_used": new_used, 
                 "quota_month": current_month
             }, on_conflict="user_email").execute()
-        except Exception:
-            pass
+        except Exception as e:
+            st.error(f"Errore aggiornamento quota DB: {e}")
 
     return True, ""
 
@@ -240,7 +242,8 @@ def salva_errore_db(user_email, partita_id, categoria, mossa, spiegazione="", ap
     if supabase:
         try:
             supabase.table("errori_utenti").upsert(nuovo_errore, on_conflict="user_email,partita_id,mossa_critica").execute()
-        except Exception: pass
+        except Exception as e:
+            st.error(f"Errore salvataggio DB: {e}")
 
 def carica_errori_db(user_email):
     rows = []
@@ -481,7 +484,6 @@ TEXTS = {
         "critique_found": "errori tuoi individuati dal motore!",
         "no_errors": "Partita eccellente! Nessun errore rilevato per te.",
         "gm_lesson_btn": "🎓 Spiegazione GM AI",
-        "prompt_lang": "Rispondi in italiano in modo chiaro e strutturato.",
         "profile_setup_title": "Configura i tuoi Profili",
         "profile_setup_desc": "Collega i tuoi account Lichess o Chess.com per la sincronizzazione.",
         "continue_btn": "🚀 Entra nell'App",
@@ -491,7 +493,7 @@ TEXTS = {
 t = TEXTS['it']
 
 # ==========================================
-# LOGIN SCREEN CON SUPABASE AUTH
+# LOGIN SCREEN CON SUPABASE AUTH SICURO
 # ==========================================
 if not st.session_state['user']:
     col_l1, col_l2, col_l3 = st.columns([1, 1.4, 1])
@@ -514,6 +516,8 @@ if not st.session_state['user']:
                     if supabase:
                         try:
                             res = supabase.auth.sign_in_with_password({"email": email_log.strip(), "password": pass_log})
+                            st.session_state['sb_access_token'] = res.session.access_token
+                            st.session_state['sb_refresh_token'] = res.session.refresh_token
                             st.session_state['user'] = email_log.strip()
                             st.query_params["user_email"] = email_log.strip()
                             st.session_state['profile_setup_done'] = False
@@ -521,7 +525,7 @@ if not st.session_state['user']:
                             time.sleep(0.5)
                             st.rerun()
                         except Exception as e:
-                            st.error(f"Credenziali non valide o errore di accesso.")
+                            st.error(f"Errore di accesso: credenziali non valide o utente inesistente.")
                     else:
                         st.session_state['user'] = email_log.strip()
                         st.query_params["user_email"] = email_log.strip()
@@ -537,6 +541,9 @@ if not st.session_state['user']:
                     if supabase:
                         try:
                             res = supabase.auth.sign_up({"email": email_reg.strip(), "password": pass_reg})
+                            if res.session:
+                                st.session_state['sb_access_token'] = res.session.access_token
+                                st.session_state['sb_refresh_token'] = res.session.refresh_token
                             st.session_state['user'] = email_reg.strip()
                             st.query_params["user_email"] = email_reg.strip()
                             st.session_state['profile_setup_done'] = False
@@ -656,6 +663,8 @@ with st.sidebar:
             except Exception: pass
         st.session_state['user'] = None
         if "user_email" in st.query_params: del st.query_params["user_email"]
+        if "sb_access_token" in st.session_state: del st.session_state["sb_access_token"]
+        if "sb_refresh_token" in st.session_state: del st.session_state["sb_refresh_token"]
         st.session_state['profile_setup_done'] = False
         st.rerun()
 
@@ -874,7 +883,9 @@ if current_selection == "📊 Dashboard & Insights":
 
     st.divider()
     if not df_err.empty:
-        n_errors = len(df_err)
+        # Conta gli errori reali escludendo i segnaposto di partite perfette
+        df_real_err = df_err[df_err['categoria_errore'] != 'Partita Perfetta']
+        n_errors = len(df_real_err)
         n_games = df_err['partita_id'].nunique() if 'partita_id' in df_err else 0
         avg_err_per_game = n_errors / max(n_games, 1)
         precision = max(0, min(100, int(100 - avg_err_per_game * 6)))
@@ -884,10 +895,10 @@ if current_selection == "📊 Dashboard & Insights":
         kpi2.markdown(f"<div class='metric-card purple'><div class='metric-value'>{n_games}</div><div class='metric-label'>Partite Analizzate</div></div>", unsafe_allow_html=True)
         kpi3.markdown(f"<div class='metric-card green'><div class='metric-value'>{precision}%</div><div class='metric-label'>Indice Precisione</div></div>", unsafe_allow_html=True)
     else:
-        st.markdown("<div class='info-box'>Nessun errore registrato. Analizza una partita per popolare la dashboard!</div>", unsafe_allow_html=True)
+        st.markdown("<div class='info-box'>Nessuna partita registrata. Analizza una partita per popolare la dashboard!</div>", unsafe_allow_html=True)
 
 # ==========================================
-# SEZIONE 2: ANALIZZA PARTITA (CON SCACCHIERA PERFETTAMENTE SINCRONIZZATA)
+# SEZIONE 2: ANALIZZA PARTITA
 # ==========================================
 elif current_selection == "🔍 Analizza Partita":
     st.markdown("<div class='section-title'>📖 Analisi Dettagliata Partita</div>", unsafe_allow_html=True)
@@ -935,7 +946,9 @@ elif current_selection == "🔍 Analizza Partita":
                         for item in errori:
                             salva_errore_db(user_email, p_id, item.get("categoria", "Errore Tattico"),
                                            item.get("label_mossa", "Mossa"), "", opening_used)
-                    else: st.success(f"✅ {t['no_errors']}")
+                    else: 
+                        st.success(f"✅ {t['no_errors']}")
+                        salva_errore_db(user_email, p_id, "Partita Perfetta", "Nessun errore", "", opening_used)
 
     if 'current_opening' in st.session_state and st.session_state['current_opening']:
         st.markdown(f"<div class='success-box'>📖 <b>Apertura Rilevata:</b> {st.session_state['current_opening']}</div>", unsafe_allow_html=True)
@@ -967,7 +980,6 @@ elif current_selection == "🔍 Analizza Partita":
             st.session_state['current_board_ply'] = max_ply
             st.rerun()
 
-        # Slider collegato direttamente alla session state ply
         current_ply = st.slider(
             "🧭 Navigazione Rapida Mosse", 
             min_value=0, 
@@ -1011,7 +1023,6 @@ elif current_selection == "🔍 Analizza Partita":
                     st.markdown(f"**Mossa:** `{err['label_mossa']}` | **Perdita:** -{err['perdita_cp']} CP", unsafe_allow_html=True)
                     
                     if st.button(t['gm_lesson_btn'], key=f"btn_lesson_{idx}", type="primary"):
-                        # Verifica quota PRIMA di consumarla, consumandola SOLO se l'utente è idoneo
                         allowed, limit_msg = check_and_consume_gm_quota(user_email, user_tier)
                         if not allowed:
                             st.error(limit_msg)
@@ -1022,7 +1033,7 @@ elif current_selection == "🔍 Analizza Partita":
                                 FEN prima della mossa: {err['fen_prima']}
                                 Mossa errata giocata: {err['mossa_giocata']} ({err['label_mossa']})
                                 
-                                Fornisci la risposta in italiano seguendo rigorosamente questa struttura e senza aggiungere nessun tipo di altro commento:
+                                Rispondi in italiano seguendo rigorosamente questa struttura:
                                 1. **Analisi dell'errore:** Spiega perché questa mossa è debole.
                                 2. **Idea corretta:** Indica quale principio o mossa andava seguita.
                                 3. **Regola pratica:** Dai una regola generale da ricordare.
@@ -1033,8 +1044,8 @@ elif current_selection == "🔍 Analizza Partita":
                                         model=GEMINI_MODEL_NAME, 
                                         contents=prompt_lesson,
                                         config={
-                                            "temperature": 0.3 
-                                            # "max_output_tokens": 400
+                                            "temperature": 0.3, 
+                                            "max_output_tokens": 800
                                         }
                                     )
                                     testo_gm = resp.text
@@ -1154,7 +1165,7 @@ elif current_selection == "🎯 Palestra sui Tuoi Errori":
             st.markdown("<div class='info-box'>Nessuna lezione GM corrisponde ai filtri selezionati. Clicca su 'Spiegazione GM AI' durante l'analisi delle partite per popolarla!</div>", unsafe_allow_html=True)
 
 # ==========================================
-# ALTRE SEZIONI (Studio, Diario, Abbonamenti, Contatti)
+# ALTRE SEZIONI
 # ==========================================
 elif current_selection == "📚 Studio da Libri":
     st.markdown("<div class='section-title'>📚 Studio da Libri con AI</div>", unsafe_allow_html=True)
@@ -1225,7 +1236,7 @@ elif current_selection == "💎 Piani Abbonamento":
         if user_tier == "Free": st.button("Piano Attuale", disabled=True, use_container_width=True, key="b_f")
         else:
             if st.button("Passa a Free", use_container_width=True, key="b_tf"):
-                if supabase: supabase.table("config_utenti").upsert({"user_email": user_email, "tier": "Free", "data_scadenza": None}).execute()
+                if supabase: supabase.table("config_utenti").upsert({"user_email": user_email, "tier": "Free", "data_scadenza": None}, on_conflict="user_email").execute()
                 st.rerun()
 
     with col_pr2:
@@ -1236,7 +1247,7 @@ elif current_selection == "💎 Piani Abbonamento":
             if st.button("Sottoscrivi Pro 🚀", type="primary", use_container_width=True, key="b_tp"):
                 if supabase:
                     scadenza = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=30)).isoformat()
-                    supabase.table("config_utenti").upsert({"user_email": user_email, "tier": "Pro", "data_scadenza": scadenza}).execute()
+                    supabase.table("config_utenti").upsert({"user_email": user_email, "tier": "Pro", "data_scadenza": scadenza}, on_conflict="user_email").execute()
                 st.success("Abbonamento Pro attivato!")
                 time.sleep(1)
                 st.rerun()
@@ -1249,7 +1260,7 @@ elif current_selection == "💎 Piani Abbonamento":
             if st.button("Sottoscrivi Diamond 💎", type="primary", use_container_width=True, key="b_td"):
                 if supabase:
                     scadenza = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=30)).isoformat()
-                    supabase.table("config_utenti").upsert({"user_email": user_email, "tier": "Diamond", "data_scadenza": scadenza}).execute()
+                    supabase.table("config_utenti").upsert({"user_email": user_email, "tier": "Diamond", "data_scadenza": scadenza}, on_conflict="user_email").execute()
                 st.success("Abbonamento Diamond attivato!")
                 time.sleep(1)
                 st.rerun()
