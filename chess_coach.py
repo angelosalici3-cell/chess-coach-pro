@@ -1022,7 +1022,7 @@ elif current_selection == "🔍 Analizza Partita":
                                 FEN prima della mossa: {err['fen_prima']}
                                 Mossa errata giocata: {err['mossa_giocata']} ({err['label_mossa']})
                                 
-                                Fornisci la risposta in italiano seguendo rigorosamente questa struttura:
+                                Fornisci la risposta in italiano seguendo rigorosamente questa struttura e senza aggiungere nessun tipo di altro commento:
                                 1. **Analisi dell'errore:** Spiega perché questa mossa è debole.
                                 2. **Idea corretta:** Indica quale principio o mossa andava seguita.
                                 3. **Regola pratica:** Dai una regola generale da ricordare.
@@ -1033,8 +1033,8 @@ elif current_selection == "🔍 Analizza Partita":
                                         model=GEMINI_MODEL_NAME, 
                                         contents=prompt_lesson,
                                         config={
-                                            "temperature": 0.3, 
-                                            "max_output_tokens": 400
+                                            "temperature": 0.3 
+                                            # "max_output_tokens": 400
                                         }
                                     )
                                     testo_gm = resp.text
