@@ -99,7 +99,7 @@ def add_user_profile(email, piattaforma, username):
     if supabase:
         try:
             supabase.table("profili_scacchi").insert({"user_email": email, "piattaforma": piattaforma, "username": username.strip()}).execute()
-            return True, "Profilo aggiunto!"
+            return True, "Profilo aggiunto con successo!"
         except Exception as e: return False, f"Errore DB: {e}"
     return False, "Supabase non connesso."
 
@@ -502,7 +502,7 @@ TEXTS = {
 t = TEXTS[st.session_state['lang']]
 
 # ==========================================
-# LOGIN SCREEN
+# LOGIN SCREEN CON SUPABASE AUTH SICURO
 # ==========================================
 if not st.session_state['user']:
     col_l1, col_l2, col_l3 = st.columns([1, 1.4, 1])
@@ -529,27 +529,54 @@ if not st.session_state['user']:
         lt = TEXTS_MAP[st.session_state['lang']]
 
         tab_log, tab_reg = st.tabs([lt["login_header"], lt["register_header"]])
-        supabase_configurato = supabase is not None
 
         with tab_log:
             email_log = st.text_input(lt["email_label"], key="login_email")
             pass_log = st.text_input(lt["password_label"], type="password", key="login_pass")
             if st.button(lt["login_btn"], type="primary", use_container_width=True):
-                if email_log:
-                    st.session_state['user'] = email_log
-                    st.query_params["user_email"] = email_log
-                    st.session_state['profile_setup_done'] = False
-                    st.rerun()
+                if email_log and pass_log:
+                    if supabase:
+                        try:
+                            # Autenticazione reale con Supabase Auth (Risolve errore 42501)
+                            res = supabase.auth.sign_in_with_password({"email": email_log.strip(), "password": pass_log})
+                            st.session_state['user'] = email_log.strip()
+                            st.query_params["user_email"] = email_log.strip()
+                            st.session_state['profile_setup_done'] = False
+                            st.success("Login effettuato con successo!")
+                            time.sleep(0.5)
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Errore di accesso: Credenziali non valide o utente inesistente.")
+                    else:
+                        st.session_state['user'] = email_log.strip()
+                        st.query_params["user_email"] = email_log.strip()
+                        st.rerun()
+                else:
+                    st.warning("Inserisci email e password.")
 
         with tab_reg:
             email_reg = st.text_input(lt["email_label"], key="reg_email")
             pass_reg = st.text_input(lt["password_label"], type="password", key="reg_pass")
             if st.button(lt["register_btn"], type="primary", use_container_width=True):
-                if email_reg:
-                    st.session_state['user'] = email_reg
-                    st.query_params["user_email"] = email_reg
-                    st.session_state['profile_setup_done'] = False
-                    st.rerun()
+                if email_reg and pass_reg:
+                    if supabase:
+                        try:
+                            # Registrazione reale con Supabase Auth
+                            res = supabase.auth.sign_up({"email": email_reg.strip(), "password": pass_reg})
+                            st.session_state['user'] = email_reg.strip()
+                            st.query_params["user_email"] = email_reg.strip()
+                            st.session_state['profile_setup_done'] = False
+                            st.success("Registrazione completata con successo!")
+                            time.sleep(0.5)
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Errore di registrazione: {e}")
+                    else:
+                        st.session_state['user'] = email_reg.strip()
+                        st.query_params["user_email"] = email_reg.strip()
+                        st.rerun()
+                else:
+                    st.warning("Inserisci email e password per registrarti.")
     st.stop()
 
 # ==========================================
@@ -1109,7 +1136,6 @@ elif current_selection == "🔍 Analizza Partita":
                                 3. [Regola pratica generale]
                                 """
                                 try:
-                                    # Configurazione client Google GenAI moderna e fulminea
                                     client = genai.Client(api_key=MASTER_GEMINI_KEY)
                                     resp = client.models.generate_content(
                                         model=GEMINI_MODEL_NAME, 
