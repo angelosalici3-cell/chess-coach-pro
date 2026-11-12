@@ -1034,7 +1034,7 @@ elif current_selection == "🔍 Analizza Partita":
                                         contents=prompt_lesson,
                                         config={
                                             "temperature": 0.3, 
-                                            "max_output_tokens": 600
+                                            "max_output_tokens": 400
                                         }
                                     )
                                     testo_gm = resp.text
