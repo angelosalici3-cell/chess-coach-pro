@@ -30,7 +30,7 @@ SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "")
 STRIPE_SECRET_KEY = st.secrets.get("STRIPE_SECRET_KEY", "")
 if HAS_STRIPE and STRIPE_SECRET_KEY:
     stripe.api_key = STRIPE_SECRET_KEY
-GEMINI_MODEL_NAME = "gemini-3.8-flash"
+GEMINI_MODEL_NAME = "gemini-2.5-flash"
 
 # ==========================================
 # HELPERS: NORMALIZZAZIONE (fix constraint violations)
