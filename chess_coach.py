@@ -8,11 +8,8 @@ import json
 import datetime
 import io
 import os
-import tempfile
 import time
 import requests
-from fpdf import FPDF
-from PIL import Image
 
 try:
     import stripe
@@ -32,9 +29,6 @@ SUPABASE_URL = st.secrets.get("SUPABASE_URL", "")
 SUPABASE_KEY = st.secrets.get("SUPABASE_KEY", "")
 
 STRIPE_SECRET_KEY = st.secrets.get("STRIPE_SECRET_KEY", "")
-STRIPE_PRO_PRICE_ID = st.secrets.get("STRIPE_PRO_PRICE_ID", "")
-STRIPE_DIAMOND_PRICE_ID = st.secrets.get("STRIPE_DIAMOND_PRICE_ID", "")
-
 if HAS_STRIPE and STRIPE_SECRET_KEY:
     stripe.api_key = STRIPE_SECRET_KEY
 
@@ -83,7 +77,9 @@ st.components.v1.html("""
     <script>setInterval(function(){fetch(window.location.href);},25000);</script>
 """, height=0)
 
-# --- DATABASE & QUOTA HELPERS ---
+# ==========================================
+# DATABASE & SUBSCRIPTION HELPERS (Nuova Schema)
+# ==========================================
 def get_user_profiles(email):
     if supabase:
         try:
@@ -94,7 +90,7 @@ def get_user_profiles(email):
 
 def add_user_profile(email, piattaforma, username):
     tier = get_user_tier(email)
-    limit = 1 if tier == "Free" else (3 if tier == "Pro" else 5)
+    limit = 1 if tier == "Free" else (2 if tier == "Plus" else (3 if tier == "Pro" else 5))
     current_profiles = get_user_profiles(email)
     if len(current_profiles) >= limit:
         return False, f"Limite raggiunto per il piano {tier} ({limit} profili)."
@@ -123,14 +119,14 @@ def get_user_tier(email):
             current_tier = user_data.get("tier", "Free")
             data_scadenza_str = user_data.get("data_scadenza")
 
-            if current_tier in ["Pro", "Diamond"] and data_scadenza_str:
-                data_scadenza = datetime.datetime.fromisoformat(data_scadenza_str.replace("Z", "+00:00"))
-                now = datetime.datetime.now(datetime.timezone.utc)
+            if current_tier in ["Plus", "Pro", "Elite"] and data_scadenza_str:
+                data_scadenza = datetime.date.fromisoformat(data_scadenza_str) if isinstance(data_scadenza_str, str) else data_scadenza_str
+                now = datetime.date.today()
                 if now > data_scadenza:
                     supabase.table("config_utenti").update({
-                        "tier": "Free", "data_scadenza": None, "updated_at": now.isoformat()
+                        "tier": "Free", "data_scadenza": None, "subscription_status": "inactive", "updated_at": datetime.datetime.now().isoformat()
                     }).eq("user_email", email).execute()
-                    registra_movimento_abbonamento(email, current_tier, "Free", "scadenza", 0.0, None)
+                    registra_movimento_abbonamento(email, current_tier, "Free", "scadenza", 0.0)
                     return "Free"
             return current_tier
     except Exception:
@@ -138,58 +134,50 @@ def get_user_tier(email):
     return "Free"
 
 def get_current_gm_usage(email, tier):
-    if tier in ["Pro", "Diamond"]:
-        return "Illimitate (Pro/Diamond)"
+    if tier in ["Pro", "Elite"]:
+        return "Illimitate (Pro/Elite)"
     current_month = datetime.datetime.now().strftime("%Y-%m")
     if supabase:
         try:
-            res = supabase.table("config_utenti").select("gm_quota_used, quota_month").eq("user_email", email).execute()
+            res = supabase.table("quota_usage").select("ai_analyses_used").eq("user_email", email).eq("quota_month", current_month).execute()
             if res.data:
-                row = res.data[0]
-                if row.get("quota_month") == current_month:
-                    used = row.get("gm_quota_used", 0)
-                    return f"{used} / 5 usate questo mese"
+                used = res.data[0].get("ai_analyses_used", 0)
+                limit = 5 if tier == "Free" else 20
+                return f"{used} / {limit} usate questo mese"
         except Exception:
             pass
-    return "0 / 5 usate questo mese"
+    limit = 5 if tier == "Free" else 20
+    return f"0 / {limit} usate questo mese"
 
 def check_and_consume_gm_quota(email, tier):
-    if tier in ["Pro", "Diamond"]:
+    if tier in ["Pro", "Elite"]:
         return True, ""
     
     current_month = datetime.datetime.now().strftime("%Y-%m")
+    limit = 5 if tier == "Free" else 20
+    
     used = 0
     if supabase:
         try:
-            res = supabase.table("config_utenti").select("gm_quota_used, quota_month").eq("user_email", email).execute()
+            res = supabase.table("quota_usage").select("ai_analyses_used").eq("user_email", email).eq("quota_month", current_month).execute()
             if res.data:
-                row = res.data[0]
-                if row.get("quota_month") == current_month:
-                    used = row.get("gm_quota_used", 0)
-                else:
-                    supabase.table("config_utenti").upsert({"user_email": email, "gm_quota_used": 0, "quota_month": current_month}, on_conflict="user_email").execute()
-            else:
-                supabase.table("config_utenti").upsert({"user_email": email, "tier": "Free", "gm_quota_used": 0, "quota_month": current_month}, on_conflict="user_email").execute()
+                used = res.data[0].get("ai_analyses_used", 0)
         except Exception:
             pass
 
-    if used >= 5:
-        return False, "⚠️ Hai esaurito le 5 analisi GM gratuite di questo mese per il piano Free. Passa a Pro o Diamond per analisi illimitate!"
+    if used >= limit:
+        return False, f"⚠️ Hai esaurito le {limit} analisi GM di questo mese per il piano {tier}. Passa a Pro o Elite per analisi illimitate!"
     
-    new_used = used + 1
     if supabase:
         try:
-            supabase.table("config_utenti").upsert({
-                "user_email": email, 
-                "gm_quota_used": new_used, 
-                "quota_month": current_month
-            }, on_conflict="user_email").execute()
+            # Sfruttiamo la funzione atomica SQL 'consume_quota'
+            supabase.rpc("consume_quota", {"p_user": email, "p_month": current_month, "p_analyses": 1, "p_tokens": 0}).execute()
         except Exception as e:
             st.error(f"Errore aggiornamento quota DB: {e}")
 
     return True, ""
 
-def registra_movimento_abbonamento(user_email, tier_precedente, tier_nuovo, azione, importo=0.0, data_fine=None, stripe_id=None):
+def registra_movimento_abbonamento(user_email, tier_precedente, tier_nuovo, azione, importo=0.0, stripe_id=None):
     if supabase:
         try:
             record = {
@@ -198,7 +186,6 @@ def registra_movimento_abbonamento(user_email, tier_precedente, tier_nuovo, azio
                 "tier_nuovo": tier_nuovo,
                 "azione": azione,
                 "importo": importo,
-                "data_fine": data_fine,
                 "stripe_session_id": stripe_id
             }
             supabase.table("storico_abbonamenti").insert(record).execute()
@@ -234,39 +221,93 @@ def format_gm_lesson_html(raw_text):
     </div>
     """
 
-def salva_errore_db(user_email, partita_id, categoria, mossa, spiegazione="", apertura=""):
-    data_ora = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-    nuovo_errore = {
-        "user_email": user_email,
-        "partita_id": partita_id if partita_id else "Partita_Sconosciuta",
-        "data": data_ora,
-        "categoria_errore": categoria,
-        "mossa_critica": mossa,
-        "spiegazione": spiegazione,
-        "apertura": apertura
-    }
-    if 'storico_errori_locale' not in st.session_state:
-        st.session_state['storico_errori_locale'] = []
-    
-    esistente = next((e for e in st.session_state['storico_errori_locale'] if e['partita_id'] == partita_id and e['mossa_critica'] == mossa), None)
-    if esistente:
-        if spiegazione: esistente['spiegazione'] = spiegazione
-        if apertura: esistente['apertura'] = apertura
-    else:
-        st.session_state['storico_errori_locale'].append(nuovo_errore)
+def salva_partita_e_errori_db(user_email, pgn_text, source, source_game_id, headers, errori, eval_history, rating_partita, data_partita, opening_name, opening_eco, user_color, result, time_control):
+    if not supabase:
+        # Fallback locale in session state
+        if 'storico_errori_locale' not in st.session_state: st.session_state['storico_errori_locale'] = []
+        for err in errori:
+            st.session_state['storico_errori_locale'].append({
+                "user_email": user_email, "partita_id": source_game_id, "data": data_partita,
+                "categoria_errore": err.get("categoria", "tactical"), "mossa_critica": err["label_mossa"],
+                "spiegazione": err.get("spiegazione", ""), "apertura": opening_name
+            })
+        return None
 
-    if supabase:
+    try:
+        # 1. Inserisci o recupera la partita nella tabella 'games'
+        game_data = {
+            "user_email": user_email,
+            "source": source,
+            "source_game_id": source_game_id,
+            "pgn": pgn_text,
+            "white": headers.get("White", "Unknown"),
+            "black": headers.get("Black", "Unknown"),
+            "user_color": user_color,
+            "result": result,
+            "time_control": time_control,
+            "opening_eco": opening_eco,
+            "opening_name": opening_name,
+            "played_at": datetime.datetime.now().isoformat(),
+            "analyzed_at": datetime.datetime.now().isoformat(),
+            "analysis_depth": 12
+        }
+        
+        res_game = supabase.table("games").upsert(game_data, on_conflict="user_email,source,source_game_id").execute()
+        if res_game.data:
+            game_id = res_game.data[0]["id"]
+        else:
+            # Recupera ID se già esistente
+            res_get = supabase.table("games").select("id").eq("user_email", user_email).eq("source", source).eq("source_game_id", source_game_id).execute()
+            game_id = res_get.data[0]["id"] if res_get.data else None
+
+        # 2. Salva rating nella tabella 'storico_rating'
+        if rating_partita:
+            supabase.table("storico_rating").upsert({
+                "user_email": user_email,
+                "data": data_partita,
+                "rating": int(rating_partita),
+                "partita_id": source_game_id
+            }, on_conflict="user_email,partita_id").execute()
+
+        # 3. Salva errori nella tabella 'errori_utenti'
+        for err in errori:
+            err_record = {
+                "user_email": user_email,
+                "game_id": game_id,
+                "ply": err.get("mossa_num", 1),
+                "fen": err.get("fen_prima", ""),
+                "mossa_critica": err["label_mossa"],
+                "best_move": err.get("best_move", ""),
+                "categoria_errore": err.get("categoria", "tactical"),
+                "eval_loss_cp": int(err.get("perdita_cp", 0) * 100),
+                "spiegazione": err.get("spiegazione", ""),
+                "apertura": opening_name,
+                "data": datetime.datetime.now().isoformat()
+            }
+            supabase.table("errori_utenti").upsert(err_record, on_conflict="user_email,game_id,ply").execute()
+        
+        return game_id
+    except Exception as e:
+        st.error(f"Errore salvataggio DB completo: {e}")
+        return None
+
+def aggiorna_spiegazione_errore_db(user_email, game_id, mossa_critica, spiegazione_html):
+    if supabase and game_id:
         try:
-            supabase.table("errori_utenti").upsert(nuovo_errore, on_conflict="user_email,partita_id,mossa_critica").execute()
-        except Exception as e:
-            st.error(f"Errore salvataggio DB: {e}")
+            supabase.table("errori_utenti").update({"spiegazione": spiegazione_html}).eq("user_email", user_email).eq("game_id", game_id).eq("mossa_critica", mossa_critica).execute()
+        except Exception:
+            pass
 
 def carica_errori_db(user_email):
     rows = []
     if supabase:
         try:
-            res = supabase.table("errori_utenti").select("*").eq("user_email", user_email).execute()
-            if res.data: rows = res.data
+            res = supabase.table("errori_utenti").select("*, games(source_game_id, opening_name)").eq("user_email", user_email).execute()
+            if res.data:
+                for r in res.data:
+                    r["partita_id"] = r.get("games", {}).get("source_game_id", "Partita_Sconosciuta")
+                    r["apertura"] = r.get("apertura") or r.get("games", {}).get("opening_name", "Standard")
+                    rows.append(r)
         except Exception: pass
     
     local_rows = st.session_state.get('storico_errori_locale', [])
@@ -276,22 +317,7 @@ def carica_errori_db(user_email):
         df = pd.DataFrame(combined)
         if 'apertura' not in df.columns: df['apertura'] = "Standard"
         return df
-    return pd.DataFrame(columns=["data", "partita_id", "categoria_errore", "mossa_critica", "spiegazione", "apertura"])
-
-def salva_rating_db(user_email, data_partita, rating, partita_id):
-    record = {
-        "user_email": user_email, "data": data_partita,
-        "rating": int(rating), "partita_id": partita_id
-    }
-    if 'storico_rating_locale' not in st.session_state:
-        st.session_state['storico_rating_locale'] = []
-    st.session_state['storico_rating_locale'] = [r for r in st.session_state['storico_rating_locale'] if r['partita_id'] != partita_id]
-    st.session_state['storico_rating_locale'].append(record)
-
-    if supabase:
-        try:
-            supabase.table("storico_rating").upsert(record, on_conflict="user_email,partita_id").execute()
-        except Exception: pass
+    return pd.DataFrame(columns=["data", "partita_id", "categoria_errore", "mossa_critica", "spiegazione", "apertura", "game_id"])
 
 def carica_rating_db(user_email):
     rows = []
@@ -312,7 +338,7 @@ def carica_rating_db(user_email):
     return pd.DataFrame(columns=["data", "rating", "partita_id"])
 
 def tier_badge_html(tier):
-    cls = "badge-free" if tier == "Free" else ("badge-pro" if tier == "Pro" else "badge-diamond")
+    cls = f"badge-{tier.lower()}"
     return f"<span class='tier-badge {cls}'>{tier}</span>"
 
 # --- CSS DINAMICO ---
@@ -372,9 +398,10 @@ def get_dynamic_css(theme):
             font-weight: 700; font-size: 0.68rem; text-transform: uppercase;
             letter-spacing: 0.5px; margin-top: 2px;
         }
-        .badge-free    { background: rgba(136,146,166,0.15); color: #8892a6; border: 1px solid rgba(136,146,166,0.3); }
-        .badge-pro     { background: rgba(255,215,0,0.15); color: #FFD700; border: 1px solid rgba(255,215,0,0.4); }
-        .badge-diamond { background: rgba(0,210,255,0.15); color: #00d2ff; border: 1px solid rgba(0,210,255,0.4); }
+        .badge-free   { background: rgba(136,146,166,0.15); color: #8892a6; border: 1px solid rgba(136,146,166,0.3); }
+        .badge-plus   { background: rgba(59,130,246,0.15); color: #3b82f6; border: 1px solid rgba(59,130,246,0.4); }
+        .badge-pro    { background: rgba(255,215,0,0.15); color: #FFD700; border: 1px solid rgba(255,215,0,0.4); }
+        .badge-elite  { background: rgba(0,210,255,0.15); color: #00d2ff; border: 1px solid rgba(0,210,255,0.4); }
         div[data-testid="stExpander"] {
             background: linear-gradient(135deg, rgba(20,26,42,0.75) 0%, rgba(15,20,32,0.75) 100%) !important;
             border: 1px solid rgba(255, 215, 0, 0.12) !important;
@@ -461,8 +488,9 @@ def get_dynamic_css(theme):
         .user-name { font-size: 0.82rem; font-weight: 600; color: #1a202c; }
         .tier-badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-weight: 700; font-size: 0.68rem; text-transform: uppercase; }
         .badge-free { background: #e2e8f0; color: #64748b; }
+        .badge-plus { background: rgba(59,130,246,0.15); color: #2563eb; }
         .badge-pro { background: rgba(212,175,55,0.15); color: #b8860b; }
-        .badge-diamond { background: rgba(59,130,246,0.15); color: #2563eb; }
+        .badge-elite { background: rgba(0,210,255,0.15); color: #00d2ff; }
         .gm-card { background: #ffffff; border: 1px solid rgba(212,175,55,0.3); border-radius: 16px; padding: 1.2rem 1.4rem; margin-top: 0.8rem; box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
         .gm-header { display: flex; align-items: center; gap: 0.5rem; color: #b8860b; font-weight: 700; font-size: 1.05rem; margin-bottom: 0.8rem; border-bottom: 1px solid rgba(212,175,55,0.15); padding-bottom: 0.5rem; }
         .gm-section { margin-bottom: 0.7rem; font-size: 0.93rem; line-height: 1.5; color: #334155; }
@@ -492,9 +520,7 @@ st.markdown(get_dynamic_css(st.session_state['theme_mode']), unsafe_allow_html=T
 TEXTS = {
     "it": {
         "title": "Chess Coach Pro", "subtitle": "Coaching Scacchistico AI ad Altissima Efficienza",
-        "lang_select": "Lingua:", "theme_select": "Tema:",
         "login_header": "🔐 Accedi", "register_header": "📝 Registrati",
-        "email_label": "Email:", "password_label": "Password:",
         "login_btn": "Accedi", "register_btn": "Crea Account", "logout_btn": "🚪 Disconnetti",
         "analyze_btn": "🔍 Avvia Analisi Motore (Depth 12)",
         "critique_found": "errori tuoi individuati dal motore!",
@@ -564,8 +590,9 @@ if not st.session_state['user']:
                             st.query_params["user_email"] = email_reg.strip()
                             st.session_state['profile_setup_done'] = False
                             
-                            # Registra evento attivazione piano Free iniziale nello storico abbonamenti
-                            registra_movimento_abbonamento(email_reg.strip(), None, "Free", "attivazione", 0.0, None)
+                            # Inizializza config_utenti se non gestito da trigger
+                            supabase.table("config_utenti").upsert({"user_email": email_reg.strip(), "tier": "Free"}, on_conflict="user_email").execute()
+                            registra_movimento_abbonamento(email_reg.strip(), None, "Free", "attivazione", 0.0)
                             
                             st.success("Registrazione completata!")
                             time.sleep(0.5)
@@ -600,7 +627,7 @@ if not st.session_state.get('profile_setup_done', False):
 
         st.markdown("<div class='section-title'>➕ Aggiungi Account</div>", unsafe_allow_html=True)
         with st.form("form_add_profile"):
-            piattaforma_in = st.selectbox("Piattaforma:", ["Lichess", "Chess.com"])
+            piattaforma_in = st.selectbox("Piattaforma:", ["lichess", "chesscom", "fide"])
             username_in = st.text_input("Username:", placeholder="es. Chene91")
             submit_prof = st.form_submit_button("Salva Profilo", type="primary", use_container_width=True)
             if submit_prof:
@@ -618,7 +645,7 @@ if not st.session_state.get('profile_setup_done', False):
         if profiles_attuali:
             for p in profiles_attuali:
                 cols_pr = st.columns([3, 1])
-                cols_pr[0].markdown(f"<div class='info-box'><b>{p['piattaforma']}</b>: <code>{p['username']}</code></div>", unsafe_allow_html=True)
+                cols_pr[0].markdown(f"<div class='info-box'><b>{p['piattaforma'].upper()}</b>: <code>{p['username']}</code></div>", unsafe_allow_html=True)
                 if cols_pr[1].button("🗑️", key=f"del_prof_{p['id']}", use_container_width=True):
                     delete_user_profile(p['id'])
                     st.rerun()
@@ -644,7 +671,7 @@ with st.sidebar:
         <div class="user-info">
             <div class="user-name">{user_email}</div>
             {tier_badge_html(user_tier)}
-            <div style="font-size:0.75rem; color:#FFD700; margin-top:4px;">🎯 GM Free: {gm_usage_str}</div>
+            <div style="font-size:0.75rem; color:#FFD700; margin-top:4px;">🎯 Quota GM: {gm_usage_str}</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -692,7 +719,7 @@ st.markdown(f"""
 <div class="hero">
     <span class="hero-logo">♟️</span>
     <div class="brand-title">{t['title']}</div>
-    <p class="brand-sub">{t['subtitle']}</p>
+    <p class="brand-sub">{TEXTS['it']['subtitle']}</p>
 </div>
 """, unsafe_allow_html=True)
 st.divider()
@@ -700,11 +727,11 @@ st.divider()
 current_selection = st.session_state['nav_selection']
 
 # ==========================================
-# RILEVAMENTO APERTURA UFFICIALE (API LICHESS + PGN) E MOTORE DEPTH 12
+# RILEVAMENTO APERTURA UFFICIALE & MOTORE DEPTH 12
 # ==========================================
 def detect_opening_from_api(main_moves_list):
     if not main_moves_list:
-        return "Apertura Standard"
+        return "Apertura Standard", ""
     
     uci_moves = ",".join([m.uci() for m in main_moves_list[:12]])
     try:
@@ -720,10 +747,11 @@ def detect_opening_from_api(main_moves_list):
             if opening and opening.get("name"):
                 eco = opening.get("eco", "")
                 name = opening.get("name", "")
-                return f"{name} ({eco})" if eco else name
+                full_name = f"{name} ({eco})" if eco else name
+                return full_name, eco
     except Exception:
         pass
-    return "Apertura Personalizzata / Fuori Libro"
+    return "Apertura Personalizzata / Fuori Libro", ""
 
 def fetch_stockfish_eval(session, fen, depth=12):
     try:
@@ -743,7 +771,7 @@ def fetch_stockfish_eval(session, fen, depth=12):
 
 def analizza_partita_stockfish(pgn_text, target_usernames):
     game = chess.pgn.read_game(io.StringIO(pgn_text))
-    if not game: return [], None, "Impossibile leggere il PGN fornito.", [], 1500, datetime.datetime.now().strftime("%Y-%m-%d"), "Apertura Standard"
+    if not game: return [], None, "Impossibile leggere il PGN fornito.", [], 1500, datetime.datetime.now().strftime("%Y-%m-%d"), "Apertura Standard", "", "white", "1/2-1/2", "unknown"
 
     headers = game.headers
     white_player = headers.get('White', 'Unknown').strip().lower()
@@ -751,6 +779,8 @@ def analizza_partita_stockfish(pgn_text, target_usernames):
     white_elo = headers.get('WhiteElo', '1500')
     black_elo = headers.get('BlackElo', '1500')
     date_str = headers.get('Date', datetime.datetime.now().strftime("%Y-%m-%d")).replace('.', '-')
+    result = headers.get('Result', '*')
+    time_control = headers.get('TimeControl', 'unknown')
     
     opening_name = headers.get('Opening', '').strip()
     eco_code = headers.get('ECO', '').strip()
@@ -766,7 +796,7 @@ def analizza_partita_stockfish(pgn_text, target_usernames):
     if opening_name and opening_name != "?":
         opening_display = f"{opening_name} ({eco_code})" if eco_code and eco_code != "?" else opening_name
     else:
-        opening_display = detect_opening_from_api(main_moves_list)
+        opening_display, eco_code = detect_opening_from_api(main_moves_list)
 
     user_is_white, user_is_black = False, False
     user_rating = 1500
@@ -788,6 +818,7 @@ def analizza_partita_stockfish(pgn_text, target_usernames):
         user_is_white, user_is_black = True, False
         if white_elo.isdigit(): user_rating = int(white_elo)
 
+    user_color = "white" if user_is_white and not user_is_black else ("black" if user_is_black and not user_is_white else "white")
     partita_id = f"{headers.get('White', 'Unknown')}_vs_{headers.get('Black', 'Unknown')}_{date_str}"
     
     board = game.board()
@@ -826,15 +857,16 @@ def analizza_partita_stockfish(pgn_text, target_usernames):
             tipo_problema = "🔴 Blunder" if delta >= 2.0 else ("🟠 Mistake" if delta >= 1.0 else ("🟡 Inaccuracy" if delta >= 0.5 else None))
             if tipo_problema:
                 label_mossa = f"{num_mossa}. {move_san}" if is_white_move else f"{num_mossa}... {move_san}"
+                cat_enum = "tactical" if delta >= 1.5 else "positional"
                 detected_errors.append({
                     "mossa_num": idx + 1, "label_mossa": label_mossa, "fen_prima": fen_before,
                     "fen_dopo": fen_after, "mossa_giocata": move.uci(), "perdita_cp": round(delta, 2),
-                    "eval_dopo": eval_after, "tipo_problema": tipo_problema, "categoria": "Errore Tattico"
+                    "eval_dopo": eval_after, "tipo_problema": tipo_problema, "categoria": cat_enum
                 })
         prev_eval = eval_after
 
     progress_bar.empty()
-    return detected_errors, partita_id, None, eval_history, user_rating, date_str, opening_display
+    return detected_errors, partita_id, None, eval_history, user_rating, date_str, opening_display, eco_code, user_color, result, time_control
 
 def render_eval_graph(eval_history, errors):
     if not HAS_PLOTLY or not eval_history: return
@@ -871,7 +903,7 @@ if current_selection == "📊 Dashboard & Insights":
     df_err = carica_errori_db(user_email)
     df_rating = carica_rating_db(user_email)
 
-    if user_tier in ["Pro", "Diamond"]:
+    if user_tier in ["Plus", "Pro", "Elite"]:
         st.markdown(f"<div class='success-box'>🟢 Sincronizzazione automatica attiva per il piano <b>{user_tier}</b>.</div>", unsafe_allow_html=True)
     else:
         st.markdown(f"<div class='info-box'>⚪ Piano Free attivo.</div>", unsafe_allow_html=True)
@@ -938,16 +970,24 @@ elif current_selection == "🔍 Analizza Partita":
                 with st.spinner("🔍 Analisi approfondita Stockfish (Depth 12) in corso..."):
                     user_profs = get_user_profiles(user_email)
                     user_usernames = [p['username'] for p in user_profs]
-                    errori, p_id, err_msg, eval_hist, rating_partita, data_partita, opening_used = analizza_partita_stockfish(current_pgn_text, user_usernames)
+                    errori, p_id, err_msg, eval_hist, rating_partita, data_partita, opening_used, eco_code, user_color, result, time_control = analizza_partita_stockfish(current_pgn_text, user_usernames)
                     
                     st.session_state['stockfish_errors'] = errori
                     st.session_state['current_game_id'] = p_id
                     st.session_state['eval_history'] = eval_hist
                     st.session_state['current_opening'] = opening_used
 
-                    salva_rating_db(user_email, data_partita, rating_partita, p_id)
-
                     game_obj = chess.pgn.read_game(io.StringIO(current_pgn_text))
+                    headers_dict = game_obj.headers if game_obj else {}
+
+                    # Salvataggio relazionale completo nel DB
+                    game_uuid = salva_partita_e_errori_db(
+                        user_email, current_pgn_text, "manual", p_id, headers_dict,
+                        errori if errori else [{"categoria": "tactical", "label_mossa": "Partita Perfetta", "perdita_cp": 0}],
+                        eval_hist, rating_partita, data_partita, opening_used, eco_code, user_color, result, time_control
+                    )
+                    st.session_state['current_game_uuid'] = game_uuid
+
                     if game_obj:
                         st.session_state['active_game_board'] = game_obj
                         st.session_state['active_game_moves'] = list(game_obj.mainline_moves())
@@ -955,12 +995,8 @@ elif current_selection == "🔍 Analizza Partita":
 
                     if errori:
                         st.success(f"✅ Stockfish: {len(errori)} {t['critique_found']}")
-                        for item in errori:
-                            salva_errore_db(user_email, p_id, item.get("categoria", "Errore Tattico"),
-                                           item.get("label_mossa", "Mossa"), "", opening_used)
                     else: 
                         st.success(f"✅ {t['no_errors']}")
-                        salva_errore_db(user_email, p_id, "Partita Perfetta", "Nessun errore", "", opening_used)
 
     if 'current_opening' in st.session_state and st.session_state['current_opening']:
         st.markdown(f"<div class='success-box'>📖 <b>Apertura Rilevata:</b> {st.session_state['current_opening']}</div>", unsafe_allow_html=True)
@@ -1066,7 +1102,10 @@ elif current_selection == "🔍 Analizza Partita":
                                     formatted_lesson = format_gm_lesson_html(testo_gm)
                                     
                                     current_op = st.session_state.get('current_opening', 'Standard')
-                                    salva_errore_db(user_email, p_id_curr, err.get('categoria', 'Errore Tattico'), err['label_mossa'], formatted_lesson, current_op)
+                                    # Aggiorna nel DB
+                                    game_uuid = st.session_state.get('current_game_uuid')
+                                    aggiorna_spiegazione_errore_db(user_email, game_uuid, err['label_mossa'], formatted_lesson)
+                                    
                                     st.success("Lezione generata con successo!")
                                     time.sleep(0.5)
                                     st.rerun()
@@ -1088,12 +1127,12 @@ elif current_selection == "🌐 Importa & Sincronizza":
     col_i1, col_i2 = st.columns([2, 1])
     with col_i1:
         if saved_profiles:
-            profile_options = [f"{p['piattaforma']}: {p['username']}" for p in saved_profiles]
+            profile_options = [f"{p['piattaforma'].upper()}: {p['username']}" for p in saved_profiles]
             scelta_profilo = st.selectbox("Seleziona account:", profile_options)
             idx_sel = profile_options.index(scelta_profilo)
             plat, usr = saved_profiles[idx_sel]['piattaforma'], saved_profiles[idx_sel]['username']
         else:
-            plat = st.radio("Piattaforma:", ["Lichess", "Chess.com"], horizontal=True)
+            plat = st.radio("Piattaforma:", ["lichess", "chesscom", "fide"], horizontal=True)
             usr = st.text_input("Username:", value="")
     with col_i2:
         limite_partite = st.number_input("Partite da scaricare:", min_value=5, max_value=50, value=20)
@@ -1103,21 +1142,16 @@ elif current_selection == "🌐 Importa & Sincronizza":
             with st.spinner(f"Scaricamento partite e aperture per {usr}..."):
                 try:
                     user_lower = usr.strip().lower()
-                    if plat == "Lichess":
+                    if plat == "lichess":
                         url_lic = f"https://lichess.org/api/games/user/{user_lower}"
                         headers_lic = {"Accept": "application/x-chess-pgn", "User-Agent": "ChessCoachPro/1.0"}
-                        r = requests.get(
-                            url_lic, 
-                            params={"max": limite_partite, "opening": "true"}, 
-                            headers=headers_lic, 
-                            timeout=25
-                        )
+                        r = requests.get(url_lic, params={"max": limite_partite, "opening": "true"}, headers=headers_lic, timeout=25)
                         if r.status_code == 200 and r.text.strip():
                             st.session_state['partite_importate'] = r.text
                             st.success("Scaricamento completato con metadati apertura!")
                         else:
                             st.error(f"Errore Lichess (HTTP {r.status_code})")
-                    else:
+                    elif plat == "chesscom":
                         headers_cc = {"User-Agent": "ChessCoachPro/1.0"}
                         r_arch = requests.get(f"https://api.chess.com/pub/player/{user_lower}/games/archives", headers=headers_cc, timeout=10)
                         if r_arch.status_code == 200 and r_arch.json().get("archives"):
@@ -1132,7 +1166,7 @@ elif current_selection == "🌐 Importa & Sincronizza":
                                         raw_pgn = f'[Opening "{eco_name}"]\n' + raw_pgn
                                     pgns_cc.append(raw_pgn)
                             st.session_state['partite_importate'] = "\n\n".join(pgns_cc)
-                            st.success("Scaricamento da Chess.com completato con metadati apertura!")
+                            st.success("Scaricamento da Chess.com completato!")
                         else:
                             st.error("Impossibile recuperare gli archivi da Chess.com.")
                 except Exception as e: st.error(f"Errore download: {e}")
@@ -1190,10 +1224,10 @@ elif current_selection == "🎯 Palestra sui Tuoi Errori":
         if not lezioni_salvate.empty:
             st.markdown(f"<div class='section-title'>📚 Lezioni GM Trovate ({len(lezioni_salvate)})</div>", unsafe_allow_html=True)
             for _, row in lezioni_salvate.iterrows():
-                with st.expander(f"Partita: {row['partita_id']} · Mossa: {row['mossa_critica']} · Apertura: {row.get('apertura', 'Standard')} ({row['data']})"):
+                with st.expander(f"Partita: {row['partita_id']} · Mossa: {row['mossa_critica']} · Apertura: {row.get('apertura', 'Standard')} ({row['data'][:10] if pd.notnull(row['data']) else ''})"):
                     st.markdown(row['spiegazione'], unsafe_allow_html=True)
         else:
-            st.markdown("<div class='info-box'>Nessuna lezione GM corrisponde ai filtri selezionati. Clicca su 'Spiegazione GM AI' durante l'analisi delle partite per popolarla!</div>", unsafe_allow_html=True)
+            st.markdown("<div class='info-box'>Nessuna lezione GM corrisponde ai filtri selezionati. Clicca su 'Spiegazione GM AI' durante l'analisi per popolarla!</div>", unsafe_allow_html=True)
 
 # ==========================================
 # ALTRE SEZIONI
@@ -1260,44 +1294,58 @@ elif current_selection == "📝 Diario & PDF":
 
 elif current_selection == "💎 Piani Abbonamento":
     st.markdown("<div class='section-title'>💎 Scegli il tuo Piano</div>", unsafe_allow_html=True)
-    col_pr1, col_pr2, col_pr3 = st.columns(3)
+    col_pr1, col_pr2, col_pr3, col_pr4 = st.columns(4)
 
     with col_pr1:
-        st.markdown("<div class='pricing-card'><div class='pricing-title'>Free</div><div class='pricing-price'>€0</div><ul class='pricing-features'><li>✅ 1 Profilo</li><li>✅ 5 Analisi GM al mese</li><li>✅ Analisi Motore Base</li></ul></div>", unsafe_allow_html=True)
+        st.markdown("<div class='pricing-card'><div class='pricing-title'>Free</div><div class='pricing-price'>€0</div><ul class='pricing-features'><li>✅ 1 Profilo</li><li>✅ 5 Analisi GM/mese</li><li>✅ Analisi Base</li></ul></div>", unsafe_allow_html=True)
         if user_tier == "Free": st.button("Piano Attuale", disabled=True, use_container_width=True, key="b_f")
         else:
             if st.button("Passa a Free", use_container_width=True, key="b_tf"):
                 if supabase: 
-                    supabase.table("config_utenti").upsert({"user_email": user_email, "tier": "Free", "data_scadenza": None}, on_conflict="user_email").execute()
-                    registra_movimento_abbonamento(user_email, user_tier, "Free", "downgrade", 0.0, None)
+                    scadenza = datetime.date.today().isoformat()
+                    supabase.table("config_utenti").upsert({"user_email": user_email, "tier": "Free", "data_scadenza": None, "subscription_status": "inactive"}, on_conflict="user_email").execute()
+                    registra_movimento_abbonamento(user_email, user_tier, "Free", "downgrade", 0.0)
                 st.rerun()
 
     with col_pr2:
+        is_plus = (user_tier == "Plus")
+        st.markdown(f"<div class='pricing-card {'featured' if is_plus else ''}'><div class='tier-badge badge-plus'>Base</div><div class='pricing-title'>Plus</div><div class='pricing-price'>€2.99</div><ul class='pricing-features'><li>✅ 2 Profili</li><li>✅ 20 Analisi GM/mese</li><li>✅ Sync Standard</li></ul></div>", unsafe_allow_html=True)
+        if is_plus: st.markdown("<div class='success-box' style='text-align:center;'>✨ Piano Attivo</div>", unsafe_allow_html=True)
+        else:
+            if st.button("Sottoscrivi Plus 🚀", type="primary", use_container_width=True, key="b_tplus"):
+                if supabase:
+                    scadenza = (datetime.date.today() + datetime.timedelta(days=30)).isoformat()
+                    supabase.table("config_utenti").upsert({"user_email": user_email, "tier": "Plus", "data_scadenza": scadenza, "subscription_status": "active"}, on_conflict="user_email").execute()
+                    registra_movimento_abbonamento(user_email, user_tier, "Plus", "attivazione", 2.99)
+                st.success("Abbonamento Plus attivato!")
+                time.sleep(1)
+                st.rerun()
+
+    with col_pr3:
         is_pro = (user_tier == "Pro")
         st.markdown(f"<div class='pricing-card {'featured' if is_pro else ''}'><div class='tier-badge badge-pro'>Popolare</div><div class='pricing-title'>Pro</div><div class='pricing-price'>€4.99</div><ul class='pricing-features'><li>✅ 3 Profili</li><li>✅ Analisi GM Illimitate</li><li>✅ Sincronizzazione Notturna</li></ul></div>", unsafe_allow_html=True)
         if is_pro: st.markdown("<div class='success-box' style='text-align:center;'>✨ Piano Attivo</div>", unsafe_allow_html=True)
         else:
             if st.button("Sottoscrivi Pro 🚀", type="primary", use_container_width=True, key="b_tp"):
                 if supabase:
-                    scadenza = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=30)).isoformat()
-                    supabase.table("config_utenti").upsert({"user_email": user_email, "tier": "Pro", "data_scadenza": scadenza}, on_conflict="user_email").execute()
-                    registra_movimento_abbonamento(user_email, user_tier, "Pro", "attivazione", 4.99, scadenza)
+                    scadenza = (datetime.date.today() + datetime.timedelta(days=30)).isoformat()
+                    supabase.table("config_utenti").upsert({"user_email": user_email, "tier": "Pro", "data_scadenza": scadenza, "subscription_status": "active"}, on_conflict="user_email").execute()
+                    registra_movimento_abbonamento(user_email, user_tier, "Pro", "attivazione", 4.99)
                 st.success("Abbonamento Pro attivato!")
                 time.sleep(1)
                 st.rerun()
 
-    with col_pr3:
-        is_diamond = (user_tier == "Diamond")
-        st.markdown(f"<div class='pricing-card {'featured' if is_diamond else ''}'><div class='tier-badge badge-diamond'>Elite</div><div class='pricing-title'>Diamond</div><div class='pricing-price'>€9.99</div><ul class='pricing-features'><li>✅ 5 Profili</li><li>✅ Analisi GM Illimitate</li><li>✅ Sync Prioritario 24/7</li></ul></div>", unsafe_allow_html=True)
-        if is_diamond: st.markdown("<div class='success-box' style='text-align:center;'>✨ Piano Attivo</div>", unsafe_allow_html=True)
+    with col_pr4:
+        is_elite = (user_tier == "Elite")
+        st.markdown(f"<div class='pricing-card {'featured' if is_elite else ''}'><div class='tier-badge badge-elite'>Elite</div><div class='pricing-title'>Elite</div><div class='pricing-price'>€9.99</div><ul class='pricing-features'><li>✅ 5 Profili</li><li>✅ Analisi GM Illimitate</li><li>✅ Sync Prioritario 24/7</li></ul></div>", unsafe_allow_html=True)
+        if is_elite: st.markdown("<div class='success-box' style='text-align:center;'>✨ Piano Attivo</div>", unsafe_allow_html=True)
         else:
-            if st.button("Sottoscrivi Diamond 💎", type="primary", use_container_width=True, key="b_td"):
+            if st.button("Sottoscrivi Elite 💎", type="primary", use_container_width=True, key="b_telite"):
                 if supabase:
-                    scadenza = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=30)).isoformat()
-                    supabase.table("config_utenti").upsert({"user_email": user_email, "tier": "Diamond", "data_scadenza": scadenza}, on_conflict="user_email").execute()
-                    azione_tipo = "upgrade" if user_tier == "Pro" else "attivazione"
-                    registra_movimento_abbonamento(user_email, user_tier, "Diamond", azione_tipo, 9.99, scadenza)
-                st.success("Abbonamento Diamond attivato!")
+                    scadenza = (datetime.date.today() + datetime.timedelta(days=30)).isoformat()
+                    supabase.table("config_utenti").upsert({"user_email": user_email, "tier": "Elite", "data_scadenza": scadenza, "subscription_status": "active"}, on_conflict="user_email").execute()
+                    registra_movimento_abbonamento(user_email, user_tier, "Elite", "attivazione", 9.99)
+                st.success("Abbonamento Elite attivato!")
                 time.sleep(1)
                 st.rerun()
 
