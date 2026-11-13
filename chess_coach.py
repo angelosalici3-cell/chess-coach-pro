@@ -80,11 +80,13 @@ def build_partita_id(headers):
     return f"{white}_vs_{black}_{date}"
 
 # ==========================================
-# SUPABASE CLIENT
+# SUPABASE CLIENT (Ora con caching in session_state)
 # ==========================================
 def get_supabase():
     if not SUPABASE_URL or not SUPABASE_KEY or "INSERISCI" in SUPABASE_URL:
         return None
+    if "supabase_client" in st.session_state:
+        return st.session_state["supabase_client"]
     try:
         from supabase import create_client
         client = create_client(SUPABASE_URL.strip(), SUPABASE_KEY.strip())
@@ -93,27 +95,65 @@ def get_supabase():
                 st.session_state["sb_access_token"],
                 st.session_state["sb_refresh_token"],
             )
+        st.session_state["supabase_client"] = client
         return client
     except Exception:
         return None
 
+def clear_supabase():
+    st.session_state.pop("supabase_client", None)
+    st.session_state.pop("sb_access_token", None)
+    st.session_state.pop("sb_refresh_token", None)
+
 st.set_page_config(page_title="Chess Coach Pro", layout="wide", page_icon="⚡", initial_sidebar_state="expanded")
 
 # ==========================================
-# PERSISTENZA UTENTE
+# GESTIONE PERSISTENZA E SESSIONE (FIX MOBILE)
 # ==========================================
 query_params = st.query_params
 persisted_user = query_params.get("user_email", None)
 
-for key, default in {
-    'user': persisted_user, 'lang': 'it', 'profile_setup_done': bool(persisted_user),
-    'nav_selection': "📊 Dashboard & Insights", 'theme_mode': 'Dark',
-    'last_analyzed_pgn': None, 'current_board_ply': 0, 'goto_ply': None,
-    'eval_history': None, 'storico_errori_locale': [], 'storico_rating_locale': [],
-    'lezioni_gm_salvate': {}
-}.items():
-    if key not in st.session_state or st.session_state[key] is None:
-        st.session_state[key] = default
+if 'user' not in st.session_state:
+    st.session_state['user'] = persisted_user
+if 'lang' not in st.session_state: st.session_state['lang'] = 'it'
+if 'profile_setup_done' not in st.session_state: st.session_state['profile_setup_done'] = False
+if 'nav_selection' not in st.session_state: st.session_state['nav_selection'] = "📊 Dashboard & Insights"
+if 'theme_mode' not in st.session_state: st.session_state['theme_mode'] = 'Dark'
+if 'eval_history' not in st.session_state: st.session_state['eval_history'] = None
+if 'storico_errori_locale' not in st.session_state: st.session_state['storico_errori_locale'] = []
+if 'storico_rating_locale' not in st.session_state: st.session_state['storico_rating_locale'] = []
+if 'goto_ply' not in st.session_state: st.session_state['goto_ply'] = None
+
+# Ripristino/Validazione della sessione all'avvio
+if not st.session_state['user'] and persisted_user:
+    sb = get_supabase()
+    if sb:
+        try:
+            session = sb.auth.get_session()
+            if session and session.user:
+                st.session_state['user'] = session.user.email
+            else:
+                # Tenta refresh se abbiamo i token
+                if 'sb_refresh_token' in st.session_state:
+                    try:
+                        res = sb.auth.refresh_session(st.session_state['sb_refresh_token'])
+                        st.session_state['sb_access_token'] = res.session.access_token
+                        st.session_state['sb_refresh_token'] = res.session.refresh_token
+                        st.session_state['user'] = res.user.email
+                        st.session_state["supabase_client"] = sb
+                    except Exception:
+                        # Sessione completamente scaduta
+                        st.query_params.clear()
+                        clear_supabase()
+                else:
+                    # Nessun token in memoria
+                    st.query_params.clear()
+                    clear_supabase()
+        except Exception:
+            st.query_params.clear()
+            clear_supabase()
+    else:
+        st.query_params.clear()
 
 if st.session_state.get('user') and query_params.get("user_email") != st.session_state['user']:
     st.query_params["user_email"] = st.session_state['user']
@@ -122,10 +162,7 @@ if 'goto_tab' in st.session_state and st.session_state['goto_tab']:
     st.session_state['nav_selection'] = st.session_state['goto_tab']
     del st.session_state['goto_tab']
 
-st.components.v1.html(
-    "<script>setInterval(function(){fetch(window.location.href);},25000);</script>",
-    height=0,
-)
+# NOTA: Rimosso il keep-alive JS che causava instabilità su mobile
 
 # ==========================================
 # DB HELPERS
@@ -548,15 +585,14 @@ if not st.session_state['user']:
                             st.session_state['user'] = email_log.strip()
                             st.query_params["user_email"] = email_log.strip()
                             st.session_state['profile_setup_done'] = False
+                            st.session_state["supabase_client"] = sb
                             st.success("Login effettuato!")
                             time.sleep(0.5)
                             st.rerun()
                         except Exception:
                             st.error("Credenziali non valide o utente inesistente.")
                     else:
-                        st.session_state['user'] = email_log.strip()
-                        st.query_params["user_email"] = email_log.strip()
-                        st.rerun()
+                        st.error("Impossibile connettersi a Supabase.")
                 else:
                     st.warning("Inserisci email e password.")
 
@@ -572,6 +608,7 @@ if not st.session_state['user']:
                             if res.session:
                                 st.session_state['sb_access_token'] = res.session.access_token
                                 st.session_state['sb_refresh_token'] = res.session.refresh_token
+                                st.session_state["supabase_client"] = sb
                             st.session_state['user'] = email_reg.strip()
                             st.query_params["user_email"] = email_reg.strip()
                             st.session_state['profile_setup_done'] = False
@@ -590,9 +627,7 @@ if not st.session_state['user']:
                         except Exception as e:
                             st.error(f"Errore di registrazione: {e}")
                     else:
-                        st.session_state['user'] = email_reg.strip()
-                        st.query_params["user_email"] = email_reg.strip()
-                        st.rerun()
+                        st.error("Impossibile connettersi a Supabase.")
                 else:
                     st.warning("Inserisci email e password.")
     st.stop()
@@ -703,8 +738,7 @@ with st.sidebar:
             except Exception: pass
         st.session_state['user'] = None
         if "user_email" in st.query_params: del st.query_params["user_email"]
-        for k in ("sb_access_token", "sb_refresh_token"):
-            if k in st.session_state: del st.session_state[k]
+        clear_supabase()
         st.session_state['profile_setup_done'] = False
         st.rerun()
 
@@ -904,7 +938,7 @@ if current_selection == "📊 Dashboard & Insights":
         st.markdown("<div class='info-box'>Nessuna partita registrata. Analizza una partita per popolare la dashboard!</div>", unsafe_allow_html=True)
 
 # ==========================================
-# 2) ANALIZZA PARTITA (FIX SCACCHIERA)
+# 2) ANALIZZA PARTITA
 # ==========================================
 elif current_selection == "🔍 Analizza Partita":
     st.markdown("<div class='section-title'>📖 Analisi Dettagliata Partita</div>", unsafe_allow_html=True)
@@ -962,7 +996,6 @@ elif current_selection == "🔍 Analizza Partita":
         game_moves = st.session_state['active_game_moves']
         max_ply = len(game_moves)
 
-        # --- GESTIONE DEL SALTO ---
         if 'goto_ply' in st.session_state and st.session_state['goto_ply'] is not None:
             st.session_state['current_board_ply'] = st.session_state['goto_ply']
             st.session_state['slider_ply_widget'] = st.session_state['goto_ply']
