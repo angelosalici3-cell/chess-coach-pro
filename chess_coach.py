@@ -35,7 +35,7 @@ APP_BASE_URL = st.secrets.get("APP_BASE_URL", "http://localhost:8501")
 if HAS_STRIPE and STRIPE_SECRET_KEY:
     stripe.api_key = STRIPE_SECRET_KEY
 
-#GEMINI_MODEL_NAME = "gemini-3.5-flash"
+GEMINI_MODEL_NAME = "gemini-3.5-flash"
 
 # ==========================================
 # HELPERS: NORMALIZZAZIONE (fix constraint violations)
