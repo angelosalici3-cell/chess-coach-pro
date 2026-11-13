@@ -130,6 +130,7 @@ def get_user_tier(email):
                     supabase.table("config_utenti").update({
                         "tier": "Free", "data_scadenza": None, "updated_at": now.isoformat()
                     }).eq("user_email", email).execute()
+                    registra_movimento_abbonamento(email, current_tier, "Free", "scadenza", 0.0, None)
                     return "Free"
             return current_tier
     except Exception:
@@ -187,6 +188,22 @@ def check_and_consume_gm_quota(email, tier):
             st.error(f"Errore aggiornamento quota DB: {e}")
 
     return True, ""
+
+def registra_movimento_abbonamento(user_email, tier_precedente, tier_nuovo, azione, importo=0.0, data_fine=None, stripe_id=None):
+    if supabase:
+        try:
+            record = {
+                "user_email": user_email,
+                "tier_precedente": tier_precedente,
+                "tier_nuovo": tier_nuovo,
+                "azione": azione,
+                "importo": importo,
+                "data_fine": data_fine,
+                "stripe_session_id": stripe_id
+            }
+            supabase.table("storico_abbonamenti").insert(record).execute()
+        except Exception as e:
+            st.error(f"Errore registrazione storico abbonamento: {e}")
 
 def format_gm_lesson_html(raw_text):
     lines = raw_text.strip().split('\n')
@@ -546,6 +563,10 @@ if not st.session_state['user']:
                             st.session_state['user'] = email_reg.strip()
                             st.query_params["user_email"] = email_reg.strip()
                             st.session_state['profile_setup_done'] = False
+                            
+                            # Registra evento attivazione piano Free iniziale nello storico abbonamenti
+                            registra_movimento_abbonamento(email_reg.strip(), None, "Free", "attivazione", 0.0, None)
+                            
                             st.success("Registrazione completata!")
                             time.sleep(0.5)
                             st.rerun()
@@ -685,7 +706,6 @@ def detect_opening_from_api(main_moves_list):
     if not main_moves_list:
         return "Apertura Standard"
     
-    # Interroga il database mondiale di aperture Lichess con le prime 12 semimosse
     uci_moves = ",".join([m.uci() for m in main_moves_list[:12]])
     try:
         r = requests.get(
@@ -732,7 +752,6 @@ def analizza_partita_stockfish(pgn_text, target_usernames):
     black_elo = headers.get('BlackElo', '1500')
     date_str = headers.get('Date', datetime.datetime.now().strftime("%Y-%m-%d")).replace('.', '-')
     
-    # Estrazione dell'apertura dalle intestazioni ufficiali Lichess / Chess.com
     opening_name = headers.get('Opening', '').strip()
     eco_code = headers.get('ECO', '').strip()
     
@@ -747,7 +766,6 @@ def analizza_partita_stockfish(pgn_text, target_usernames):
     if opening_name and opening_name != "?":
         opening_display = f"{opening_name} ({eco_code})" if eco_code and eco_code != "?" else opening_name
     else:
-        # Se il PGN non contiene l'apertura (es. incollato manualmente), interroga l'API Lichess
         opening_display = detect_opening_from_api(main_moves_list)
 
     user_is_white, user_is_black = False, False
@@ -959,7 +977,6 @@ elif current_selection == "🔍 Analizza Partita":
         if 'current_board_ply' not in st.session_state:
             st.session_state['current_board_ply'] = 0
 
-        # --- GESTIONE PULSANTI DI NAVIGAZIONE E SLIDER SINCRONIZZATI ---
         c1, c2, c3, c4 = st.columns(4)
         if c1.button("⏪ Inizio", use_container_width=True): 
             st.session_state['current_board_ply'] = 0
@@ -1062,7 +1079,7 @@ elif current_selection == "🔍 Analizza Partita":
             st.markdown("<div class='info-box'>Nessun errore registrato in questa partita.</div>", unsafe_allow_html=True)
 
 # ==========================================
-# SEZIONE 3: IMPORTA & SINCRONIZZA (CON APERTURA UFFICIALE LICHESS / CHESS.COM)
+# SEZIONE 3: IMPORTA & SINCRONIZZA
 # ==========================================
 elif current_selection == "🌐 Importa & Sincronizza":
     st.markdown("<div class='section-title'>🌐 Importa e Sincronizza Partite</div>", unsafe_allow_html=True)
@@ -1089,7 +1106,6 @@ elif current_selection == "🌐 Importa & Sincronizza":
                     if plat == "Lichess":
                         url_lic = f"https://lichess.org/api/games/user/{user_lower}"
                         headers_lic = {"Accept": "application/x-chess-pgn", "User-Agent": "ChessCoachPro/1.0"}
-                        # Parametro opening="true" attivato per ricevere Apertura ed ECO ufficiali
                         r = requests.get(
                             url_lic, 
                             params={"max": limite_partite, "opening": "true"}, 
@@ -1111,7 +1127,6 @@ elif current_selection == "🌐 Importa & Sincronizza":
                             for g in games_j:
                                 raw_pgn = g.get("pgn", "")
                                 if raw_pgn:
-                                    # Se Chess.com fornisce l'URL dell'apertura ma non l'header, lo estraiamo
                                     if "[Opening " not in raw_pgn and g.get("eco"):
                                         eco_name = g.get("eco").split("/")[-1].replace("-", " ").title()
                                         raw_pgn = f'[Opening "{eco_name}"]\n' + raw_pgn
@@ -1252,7 +1267,9 @@ elif current_selection == "💎 Piani Abbonamento":
         if user_tier == "Free": st.button("Piano Attuale", disabled=True, use_container_width=True, key="b_f")
         else:
             if st.button("Passa a Free", use_container_width=True, key="b_tf"):
-                if supabase: supabase.table("config_utenti").upsert({"user_email": user_email, "tier": "Free", "data_scadenza": None}, on_conflict="user_email").execute()
+                if supabase: 
+                    supabase.table("config_utenti").upsert({"user_email": user_email, "tier": "Free", "data_scadenza": None}, on_conflict="user_email").execute()
+                    registra_movimento_abbonamento(user_email, user_tier, "Free", "downgrade", 0.0, None)
                 st.rerun()
 
     with col_pr2:
@@ -1264,6 +1281,7 @@ elif current_selection == "💎 Piani Abbonamento":
                 if supabase:
                     scadenza = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=30)).isoformat()
                     supabase.table("config_utenti").upsert({"user_email": user_email, "tier": "Pro", "data_scadenza": scadenza}, on_conflict="user_email").execute()
+                    registra_movimento_abbonamento(user_email, user_tier, "Pro", "attivazione", 4.99, scadenza)
                 st.success("Abbonamento Pro attivato!")
                 time.sleep(1)
                 st.rerun()
@@ -1277,6 +1295,8 @@ elif current_selection == "💎 Piani Abbonamento":
                 if supabase:
                     scadenza = (datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=30)).isoformat()
                     supabase.table("config_utenti").upsert({"user_email": user_email, "tier": "Diamond", "data_scadenza": scadenza}, on_conflict="user_email").execute()
+                    azione_tipo = "upgrade" if user_tier == "Pro" else "attivazione"
+                    registra_movimento_abbonamento(user_email, user_tier, "Diamond", azione_tipo, 9.99, scadenza)
                 st.success("Abbonamento Diamond attivato!")
                 time.sleep(1)
                 st.rerun()
