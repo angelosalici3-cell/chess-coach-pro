@@ -1029,14 +1029,8 @@ elif current_selection == "🔍 Analizza Partita":
                         else:
                             with st.spinner("🎓 Il Gran Maestro AI sta preparando la lezione..."):
                                 prompt_lesson = f"""
-                                Sei un Gran Maestro di scacchi. Spiega questo errore tattico in modo chiaro e formattato.
                                 FEN prima della mossa: {err['fen_prima']}
                                 Mossa errata giocata: {err['mossa_giocata']} ({err['label_mossa']})
-                                
-                                Rispondi in italiano seguendo rigorosamente questa struttura:
-                                1. **Analisi dell'errore:** Spiega perché questa mossa è debole.
-                                2. **Idea corretta:** Indica quale principio o mossa andava seguita.
-                                3. **Regola pratica:** Dai una regola generale da ricordare.
                                 """
                                 try:
                                     client = genai.Client(api_key=MASTER_GEMINI_KEY)
@@ -1044,8 +1038,17 @@ elif current_selection == "🔍 Analizza Partita":
                                         model=GEMINI_MODEL_NAME, 
                                         contents=prompt_lesson,
                                         config={
+                                            "system_instruction": (
+                                                "Sei un Gran Maestro di scacchi italiano. Rispondi ESCLUSIVAMENTE in italiano, "
+                                                "senza mostrare calcoli preliminari o ragionamenti in inglese. "
+                                                "Usa rigorosamente questa struttura a 3 punti:\n"
+                                                "1. **Analisi dell'errore:** Spiega in 2-3 frasi perché la mossa giocata è debole.\n"
+                                                "2. **Idea corretta:** Indica quale principio o mossa andava seguita.\n"
+                                                "3. **Regola pratica:** Dai una regola generale da ricordare."
+                                            ),
                                             "temperature": 0.3, 
-                                            "max_output_tokens": 800
+                                            "max_output_tokens": 1500,
+                                            "thinking_config": {"thinking_budget": 0}
                                         }
                                     )
                                     testo_gm = resp.text
