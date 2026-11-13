@@ -38,7 +38,7 @@ STRIPE_DIAMOND_PRICE_ID = st.secrets.get("STRIPE_DIAMOND_PRICE_ID", "")
 if HAS_STRIPE and STRIPE_SECRET_KEY:
     stripe.api_key = STRIPE_SECRET_KEY
 
-GEMINI_MODEL_NAME = "gemini-3.5-flash"
+GEMINI_MODEL_NAME = "gemini-3.8-flash"
 
 # --- SUPABASE CLIENT CON RIPRISTINO SESSIONE TOKEN ---
 def get_supabase_client():
@@ -47,7 +47,6 @@ def get_supabase_client():
     try:
         from supabase import create_client
         client = create_client(SUPABASE_URL.strip(), SUPABASE_KEY.strip())
-        # Ripristina la sessione autenticata per superare le policy RLS dopo il refresh
         if "sb_access_token" in st.session_state and "sb_refresh_token" in st.session_state:
             client.auth.set_session(st.session_state["sb_access_token"], st.session_state["sb_refresh_token"])
         return client
@@ -195,14 +194,14 @@ def format_gm_lesson_html(raw_text):
     for line in lines:
         line_clean = line.strip()
         if not line_clean: continue
-        if line_clean.startswith("1.") or "**Errore:**" in line_clean or "Spiegazione" in line_clean:
-            text = line_clean.replace("1.", "").replace("**Errore:**", "").strip()
+        if line_clean.startswith("1.") or "**Analisi dell'errore:**" in line_clean:
+            text = line_clean.replace("1.", "").replace("**Analisi dell'errore:**", "").replace("**Analisi dell'errore**:", "").strip()
             formatted_parts.append(f"<div class='gm-section'><b>❌ Analisi Errore:</b> {text}</div>")
-        elif line_clean.startswith("2.") or "**Idea corretta:**" in line_clean or "Idea" in line_clean:
-            text = line_clean.replace("2.", "").replace("**Idea corretta:**", "").strip()
+        elif line_clean.startswith("2.") or "**Idea corretta:**" in line_clean:
+            text = line_clean.replace("2.", "").replace("**Idea corretta:**", "").replace("**Idea corretta**:", "").strip()
             formatted_parts.append(f"<div class='gm-section'><b>💡 Idea Corretta:</b> {text}</div>")
-        elif line_clean.startswith("3.") or "**Regola pratica:**" in line_clean or "Regola" in line_clean:
-            text = line_clean.replace("3.", "").replace("**Regola pratica:**", "").strip()
+        elif line_clean.startswith("3.") or "**Regola pratica:**" in line_clean:
+            text = line_clean.replace("3.", "").replace("**Regola pratica:**", "").replace("**Regola pratica**:", "").strip()
             formatted_parts.append(f"<div class='gm-section'><b>♟️ Regola Pratica:</b> {text}</div>")
         else:
             formatted_parts.append(f"<div class='gm-section'>{line_clean}</div>")
@@ -480,7 +479,7 @@ TEXTS = {
         "login_header": "🔐 Accedi", "register_header": "📝 Registrati",
         "email_label": "Email:", "password_label": "Password:",
         "login_btn": "Accedi", "register_btn": "Crea Account", "logout_btn": "🚪 Disconnetti",
-        "analyze_btn": "🔍 Avvia Analisi Motore",
+        "analyze_btn": "🔍 Avvia Analisi Motore (Depth 12)",
         "critique_found": "errori tuoi individuati dal motore!",
         "no_errors": "Partita eccellente! Nessun errore rilevato per te.",
         "gm_lesson_btn": "🎓 Spiegazione GM AI",
@@ -525,7 +524,7 @@ if not st.session_state['user']:
                             time.sleep(0.5)
                             st.rerun()
                         except Exception as e:
-                            st.error(f"Errore di accesso: credenziali non valide o utente inesistente.")
+                            st.error("Errore di accesso: credenziali non valide o utente inesistente.")
                     else:
                         st.session_state['user'] = email_log.strip()
                         st.query_params["user_email"] = email_log.strip()
@@ -680,44 +679,35 @@ st.divider()
 current_selection = st.session_state['nav_selection']
 
 # ==========================================
-# MOTORE STOCKFISH & RILEVAMENTO APERTURA
+# RILEVAMENTO APERTURA UFFICIALE (API LICHESS + PGN) E MOTORE DEPTH 12
 # ==========================================
-def detect_opening(game_moves_san):
-    if not game_moves_san: return "Apertura Standard"
-    m1 = game_moves_san[0] if len(game_moves_san) > 0 else ""
-    m2 = game_moves_san[1] if len(game_moves_san) > 1 else ""
-    m3 = game_moves_san[2] if len(game_moves_san) > 2 else ""
-    m4 = game_moves_san[3] if len(game_moves_san) > 3 else ""
-
-    if m1 == "e4":
-        if m2 == "e5":
-            if m3 == "Nf3":
-                if m4 == "Nc6": return "Partita Italiana / Spagnola (Ruy Lopez)"
-                elif m4 == "Nf6": return "Difesa Petroff"
-                return "Partita Aperta (1.e4 e5)"
-            return "Gioco Aperto (1.e4 e5)"
-        elif m2 == "c5": return "Difesa Siciliana"
-        elif m2 == "e6": return "Difesa Francese"
-        elif m2 == "c6": return "Difesa Caro-Kann"
-        return "Gioco di Re (1.e4)"
-    elif m1 == "d4":
-        if m2 == "Nf6":
-            if m3 == "c4":
-                if m4 == "e6": return "Difesa Nimzo-Indiana"
-                elif m4 == "g6": return "Difesa Indiana di Re"
-                return "Difesa Indiana"
-            return "Difesa Indiana di Donna"
-        elif m2 == "d5":
-            if m3 == "c4": return "Gambetto di Donna"
-            return "Partita di Donna (1.d4 d5)"
-        return "Gioco di Donna (1.d4)"
-    elif m1 == "Nf3": return "Apertura Reti"
-    elif m1 == "c4": return "Partita Inglese"
-    return f"Apertura ({m1} {m2})"
-
-def fetch_stockfish_eval(session, fen, depth=8):
+def detect_opening_from_api(main_moves_list):
+    if not main_moves_list:
+        return "Apertura Standard"
+    
+    # Interroga il database mondiale di aperture Lichess con le prime 12 semimosse
+    uci_moves = ",".join([m.uci() for m in main_moves_list[:12]])
     try:
-        r = session.post("https://chess-api.com/v1", json={"fen": fen, "depth": depth}, timeout=1.5)
+        r = requests.get(
+            "https://explorer.lichess.ovh/lichess",
+            params={"play": uci_moves, "moves": 0},
+            headers={"User-Agent": "ChessCoachPro/1.0"},
+            timeout=2.5
+        )
+        if r.status_code == 200:
+            data = r.json()
+            opening = data.get("opening")
+            if opening and opening.get("name"):
+                eco = opening.get("eco", "")
+                name = opening.get("name", "")
+                return f"{name} ({eco})" if eco else name
+    except Exception:
+        pass
+    return "Apertura Personalizzata / Fuori Libro"
+
+def fetch_stockfish_eval(session, fen, depth=12):
+    try:
+        r = session.post("https://chess-api.com/v1", json={"fen": fen, "depth": depth}, timeout=3.0)
         if r.status_code == 200:
             data = r.json()
             if data.get("eval") is not None: return float(data.get("eval"))
@@ -742,8 +732,9 @@ def analizza_partita_stockfish(pgn_text, target_usernames):
     black_elo = headers.get('BlackElo', '1500')
     date_str = headers.get('Date', datetime.datetime.now().strftime("%Y-%m-%d")).replace('.', '-')
     
-    opening_name = headers.get('Opening', '')
-    eco_code = headers.get('ECO', '')
+    # Estrazione dell'apertura dalle intestazioni ufficiali Lichess / Chess.com
+    opening_name = headers.get('Opening', '').strip()
+    eco_code = headers.get('ECO', '').strip()
     
     main_moves_list = list(game.mainline_moves())
     temp_b = game.board()
@@ -753,7 +744,11 @@ def analizza_partita_stockfish(pgn_text, target_usernames):
         except: san_moves.append(mv.uci())
         temp_b.push(mv)
 
-    opening_display = f"{opening_name} ({eco_code})" if opening_name else detect_opening(san_moves)
+    if opening_name and opening_name != "?":
+        opening_display = f"{opening_name} ({eco_code})" if eco_code and eco_code != "?" else opening_name
+    else:
+        # Se il PGN non contiene l'apertura (es. incollato manualmente), interroga l'API Lichess
+        opening_display = detect_opening_from_api(main_moves_list)
 
     user_is_white, user_is_black = False, False
     user_rating = 1500
@@ -783,7 +778,7 @@ def analizza_partita_stockfish(pgn_text, target_usernames):
     total_ply_count = len(main_moves_list)
     total_full_moves = (total_ply_count + 1) // 2
 
-    progress_bar = st.progress(0, text="♟️ Analisi rapida Stockfish in corso...")
+    progress_bar = st.progress(0, text="♟️ Analisi approfondita Stockfish (Depth 12) in corso...")
     session = requests.Session()
     session.headers.update(headers_req)
     prev_eval = 0.0
@@ -792,16 +787,16 @@ def analizza_partita_stockfish(pgn_text, target_usernames):
         fen_before = board.fen()
         move_san = san_moves[idx]
 
-        eval_before = fetch_stockfish_eval(session, fen_before, depth=8)
+        eval_before = fetch_stockfish_eval(session, fen_before, depth=12)
         if eval_before is None: eval_before = prev_eval
 
         board.push(move)
         fen_after = board.fen()
         num_mossa = (idx // 2) + 1
         is_white_move = (idx % 2 == 0)
-        progress_bar.progress((idx + 1) / max(total_ply_count, 1), text=f"♟️ Analisi mossa {num_mossa} di {total_full_moves}...")
+        progress_bar.progress((idx + 1) / max(total_ply_count, 1), text=f"♟️ Analisi mossa {num_mossa} di {total_full_moves} (Depth 12)...")
 
-        eval_after = fetch_stockfish_eval(session, fen_after, depth=8)
+        eval_after = fetch_stockfish_eval(session, fen_after, depth=12)
         if eval_after is None: eval_after = eval_before
 
         clamped = max(min(eval_after, 10.0), -10.0)
@@ -883,7 +878,6 @@ if current_selection == "📊 Dashboard & Insights":
 
     st.divider()
     if not df_err.empty:
-        # Conta gli errori reali escludendo i segnaposto di partite perfette
         df_real_err = df_err[df_err['categoria_errore'] != 'Partita Perfetta']
         n_errors = len(df_real_err)
         n_games = df_err['partita_id'].nunique() if 'partita_id' in df_err else 0
@@ -923,7 +917,7 @@ elif current_selection == "🔍 Analizza Partita":
             if already_exists:
                 st.warning(t['already_analyzed'])
             else:
-                with st.spinner("🔍 Analisi rapida Stockfish in corso..."):
+                with st.spinner("🔍 Analisi approfondita Stockfish (Depth 12) in corso..."):
                     user_profs = get_user_profiles(user_email)
                     user_usernames = [p['username'] for p in user_profs]
                     errori, p_id, err_msg, eval_hist, rating_partita, data_partita, opening_used = analizza_partita_stockfish(current_pgn_text, user_usernames)
@@ -1068,7 +1062,7 @@ elif current_selection == "🔍 Analizza Partita":
             st.markdown("<div class='info-box'>Nessun errore registrato in questa partita.</div>", unsafe_allow_html=True)
 
 # ==========================================
-# SEZIONE 3: IMPORTA & SINCRONIZZA
+# SEZIONE 3: IMPORTA & SINCRONIZZA (CON APERTURA UFFICIALE LICHESS / CHESS.COM)
 # ==========================================
 elif current_selection == "🌐 Importa & Sincronizza":
     st.markdown("<div class='section-title'>🌐 Importa e Sincronizza Partite</div>", unsafe_allow_html=True)
@@ -1089,16 +1083,22 @@ elif current_selection == "🌐 Importa & Sincronizza":
 
     if st.button("📥 Scarica e Analizza", type="primary", use_container_width=True):
         if usr.strip():
-            with st.spinner(f"Scaricamento partite per {usr}..."):
+            with st.spinner(f"Scaricamento partite e aperture per {usr}..."):
                 try:
                     user_lower = usr.strip().lower()
                     if plat == "Lichess":
                         url_lic = f"https://lichess.org/api/games/user/{user_lower}"
                         headers_lic = {"Accept": "application/x-chess-pgn", "User-Agent": "ChessCoachPro/1.0"}
-                        r = requests.get(url_lic, params={"max": limite_partite}, headers=headers_lic, timeout=25)
+                        # Parametro opening="true" attivato per ricevere Apertura ed ECO ufficiali
+                        r = requests.get(
+                            url_lic, 
+                            params={"max": limite_partite, "opening": "true"}, 
+                            headers=headers_lic, 
+                            timeout=25
+                        )
                         if r.status_code == 200 and r.text.strip():
                             st.session_state['partite_importate'] = r.text
-                            st.success("Scaricamento completato!")
+                            st.success("Scaricamento completato con metadati apertura!")
                         else:
                             st.error(f"Errore Lichess (HTTP {r.status_code})")
                     else:
@@ -1107,8 +1107,17 @@ elif current_selection == "🌐 Importa & Sincronizza":
                         if r_arch.status_code == 200 and r_arch.json().get("archives"):
                             r_m = requests.get(r_arch.json()["archives"][-1], headers=headers_cc, timeout=10)
                             games_j = r_m.json().get("games", [])[-limite_partite:][::-1]
-                            st.session_state['partite_importate'] = "\n\n".join([g.get("pgn", "") for g in games_j if g.get("pgn")])
-                            st.success("Scaricamento completato!")
+                            pgns_cc = []
+                            for g in games_j:
+                                raw_pgn = g.get("pgn", "")
+                                if raw_pgn:
+                                    # Se Chess.com fornisce l'URL dell'apertura ma non l'header, lo estraiamo
+                                    if "[Opening " not in raw_pgn and g.get("eco"):
+                                        eco_name = g.get("eco").split("/")[-1].replace("-", " ").title()
+                                        raw_pgn = f'[Opening "{eco_name}"]\n' + raw_pgn
+                                    pgns_cc.append(raw_pgn)
+                            st.session_state['partite_importate'] = "\n\n".join(pgns_cc)
+                            st.success("Scaricamento da Chess.com completato con metadati apertura!")
                         else:
                             st.error("Impossibile recuperare gli archivi da Chess.com.")
                 except Exception as e: st.error(f"Errore download: {e}")
@@ -1122,7 +1131,11 @@ elif current_selection == "🌐 Importa & Sincronizza":
             full_p = "[Event " + p if not p.startswith("[Event") else p
             g_obj = chess.pgn.read_game(io.StringIO(full_p))
             if g_obj:
-                parsed_games.append({"summary": f"{g_obj.headers.get('White','?')} vs {g_obj.headers.get('Black','?')}", "pgn": full_p})
+                op_tag = g_obj.headers.get('Opening', '')
+                summary_str = f"{g_obj.headers.get('White','?')} vs {g_obj.headers.get('Black','?')}"
+                if op_tag and op_tag != "?":
+                    summary_str += f" — [{op_tag}]"
+                parsed_games.append({"summary": summary_str, "pgn": full_p})
         if parsed_games:
             sel_g = st.selectbox("Seleziona partita:", [g['summary'] for g in parsed_games])
             chosen_pgn = next(g['pgn'] for g in parsed_games if g['summary'] == sel_g)
@@ -1180,7 +1193,7 @@ elif current_selection == "📚 Studio da Libri":
                 resp = client.models.generate_content(
                     model=GEMINI_MODEL_NAME,
                     contents=f"Estrai mosse e commenti in JSON: {{\"mosse_san\": [\"e4\"], \"commenti\": {{\"0\": \"Inizio\"}}}}. Testo: {testo_libro_input}",
-                    config={"temperature": 0.2, "max_output_tokens": 800}
+                    config={"temperature": 0.2, "max_output_tokens": 1200, "thinking_config": {"thinking_budget": 0}}
                 )
                 dati = json.loads(resp.text.replace("```json","").replace("```","").strip())
                 board = chess.Board()
