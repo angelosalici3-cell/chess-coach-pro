@@ -99,7 +99,7 @@ def add_user_profile(email, piattaforma, username):
         try:
             sb.table("profili_scacchi").insert({
                 "user_email": email, 
-                "piattaforma": piattaforma.lower().strip(), 
+                "piattaforma": piattaforma.strip(), 
                 "username": username.strip()
             }).execute()
             return True, "Profilo aggiunto con successo!"
