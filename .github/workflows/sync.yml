@@ -9,7 +9,11 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - name: Sveglia il backend
-        run: curl -sS --max-time 90 "${{ secrets.API_URL }}/health" || true
-      - name: Avvia la sync
-        run: curl -fsS -X POST "${{ secrets.API_URL }}/cron/sync" -H "X-Cron-Secret: ${{ secrets.CRON_SECRET }}" --max-time 120
+      - name: Wake up backend
+        run: |
+          curl -sS --max-time 90 "${{ secrets.API_URL }}/health" || true
+      - name: Start sync
+        run: |
+          curl -fsS -X POST "${{ secrets.API_URL }}/cron/sync" \
+            -H "X-Cron-Secret: ${{ secrets.CRON_SECRET }}" \
+            --max-time 120
