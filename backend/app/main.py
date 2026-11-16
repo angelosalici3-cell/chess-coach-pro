@@ -234,3 +234,37 @@ def delete_me(u=Depends(current_user)):
     sb.table("user_profiles").delete().eq("user_id", u["id"]).execute()
     sb.auth.admin.delete_user(u["id"])
     return {"deleted": True}
+
+
+# ---------- Domanda libera al GM su una posizione ----------
+class AskIn(BaseModel):
+    fen: str
+    question: str
+    lang: str = "it"
+
+
+def gm_answer(fen: str, question: str, lang: str) -> str:
+    from google import genai
+    client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+    system = (f"Sei un Gran Maestro di scacchi e un ottimo insegnante. Rispondi solo in {LANG_NAMES.get(lang, 'italiano')}, "
+              "in modo chiaro e concreto, max 150 parole. Parla solo di scacchi.")
+    r = client.models.generate_content(model=GEMINI_MODEL, contents=f"Posizione (FEN): {fen}\nDomanda: {question}",
+                                       config={"system_instruction": system})
+    if not r.text:
+        raise RuntimeError("empty")
+    return r.text.strip()
+
+
+@app.post("/gm/ask")
+def gm_ask(body: AskIn, u=Depends(current_user)):
+    q = body.question.strip()[:500]
+    if not q:
+        raise HTTPException(400, "empty_question")
+    if not sb.rpc("consume_gm_lesson", {"p_email": u["email"]}).execute().data:
+        raise HTTPException(402, "quota_exhausted")
+    try:
+        text = gm_answer(body.fen[:120], q, body.lang)
+    except Exception:
+        sb.rpc("refund_gm_lesson", {"p_email": u["email"]}).execute()
+        raise HTTPException(502, "gm_failed")
+    return {"answer": text}
