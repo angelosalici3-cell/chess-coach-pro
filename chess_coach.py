@@ -80,7 +80,7 @@ def build_partita_id(headers):
     return f"{white}_vs_{black}_{date}"
 
 # ==========================================
-# SUPABASE CLIENT (Ora con caching in session_state)
+# SUPABASE CLIENT
 # ==========================================
 def get_supabase():
     if not SUPABASE_URL or not SUPABASE_KEY or "INSERISCI" in SUPABASE_URL:
@@ -108,61 +108,28 @@ def clear_supabase():
 st.set_page_config(page_title="Chess Coach Pro", layout="wide", page_icon="⚡", initial_sidebar_state="expanded")
 
 # ==========================================
-# GESTIONE PERSISTENZA E SESSIONE (FIX MOBILE)
+# GESTIONE SESSIONE PERSISTENTE (FIX MOBILE)
 # ==========================================
-query_params = st.query_params
-persisted_user = query_params.get("user_email", None)
-
-if 'user' not in st.session_state:
-    st.session_state['user'] = persisted_user
+# Inizializzazione stato di base
+if 'user' not in st.session_state: st.session_state['user'] = None
 if 'lang' not in st.session_state: st.session_state['lang'] = 'it'
 if 'profile_setup_done' not in st.session_state: st.session_state['profile_setup_done'] = False
 if 'nav_selection' not in st.session_state: st.session_state['nav_selection'] = "📊 Dashboard & Insights"
 if 'theme_mode' not in st.session_state: st.session_state['theme_mode'] = 'Dark'
-if 'eval_history' not in st.session_state: st.session_state['eval_history'] = None
+if 'goto_ply' not in st.session_state: st.session_state['goto_ply'] = None
 if 'storico_errori_locale' not in st.session_state: st.session_state['storico_errori_locale'] = []
 if 'storico_rating_locale' not in st.session_state: st.session_state['storico_rating_locale'] = []
-if 'goto_ply' not in st.session_state: st.session_state['goto_ply'] = None
 
-# Ripristino/Validazione della sessione all'avvio
-if not st.session_state['user'] and persisted_user:
-    sb = get_supabase()
-    if sb:
-        try:
-            session = sb.auth.get_session()
-            if session and session.user:
-                st.session_state['user'] = session.user.email
-            else:
-                # Tenta refresh se abbiamo i token
-                if 'sb_refresh_token' in st.session_state:
-                    try:
-                        res = sb.auth.refresh_session(st.session_state['sb_refresh_token'])
-                        st.session_state['sb_access_token'] = res.session.access_token
-                        st.session_state['sb_refresh_token'] = res.session.refresh_token
-                        st.session_state['user'] = res.user.email
-                        st.session_state["supabase_client"] = sb
-                    except Exception:
-                        # Sessione completamente scaduta
-                        st.query_params.clear()
-                        clear_supabase()
-                else:
-                    # Nessun token in memoria
-                    st.query_params.clear()
-                    clear_supabase()
-        except Exception:
-            st.query_params.clear()
-            clear_supabase()
-    else:
-        st.query_params.clear()
-
-if st.session_state.get('user') and query_params.get("user_email") != st.session_state['user']:
-    st.query_params["user_email"] = st.session_state['user']
+# Ripristino sessione all'avvio (se l'utente ha un token di refresh salvato nei cookie)
+# Questa parte è gestita dal componente di login che andremo a creare.
+# Se l'utente è già loggato, non facciamo nulla.
+# Se l'URL contiene ?user_email, lo rimuoviamo per sicurezza.
+if "user_email" in st.query_params:
+    del st.query_params["user_email"]
 
 if 'goto_tab' in st.session_state and st.session_state['goto_tab']:
     st.session_state['nav_selection'] = st.session_state['goto_tab']
     del st.session_state['goto_tab']
-
-# NOTA: Rimosso il keep-alive JS che causava instabilità su mobile
 
 # ==========================================
 # DB HELPERS
@@ -383,7 +350,7 @@ def tier_badge_html(tier):
     return f"<span class='tier-badge badge-{tier.lower()}'>{tier}</span>"
 
 # ==========================================
-# FUNZIONI STRIPE
+# FUNZIONI STRIPE (Fix redirect e allow_promotion_codes)
 # ==========================================
 def create_stripe_checkout_session(user_email, plan_key):
     if not HAS_STRIPE or not STRIPE_SECRET_KEY:
@@ -408,6 +375,7 @@ def create_stripe_checkout_session(user_email, plan_key):
             "cancel_url": f"{APP_BASE_URL}/?checkout=cancel",
             "customer_email": user_email if not customer_id else None,
             "customer": customer_id,
+            "allow_promotion_codes": True,  # FIX: Necessario per il corretto caricamento
             "metadata": {"user_email": user_email, "plan": plan_key}
         }
         session_args = {k: v for k, v in session_args.items() if v is not None}
@@ -556,7 +524,7 @@ TEXTS = {
 t = TEXTS['it']
 
 # ==========================================
-# LOGIN SCREEN
+# LOGIN SCREEN (con gestione cookie per persistenza)
 # ==========================================
 if not st.session_state['user']:
     col_l1, col_l2, col_l3 = st.columns([1, 1.4, 1])
@@ -583,9 +551,13 @@ if not st.session_state['user']:
                             st.session_state['sb_access_token'] = res.session.access_token
                             st.session_state['sb_refresh_token'] = res.session.refresh_token
                             st.session_state['user'] = email_log.strip()
-                            st.query_params["user_email"] = email_log.strip()
                             st.session_state['profile_setup_done'] = False
                             st.session_state["supabase_client"] = sb
+                            # Salva il refresh token in un cookie per persistenza
+                            st.components.v1.html(
+                                f"<script>document.cookie = 'sb_refresh_token={res.session.refresh_token}; path=/; max-age=2592000; Secure; SameSite=Strict';</script>",
+                                height=0
+                            )
                             st.success("Login effettuato!")
                             time.sleep(0.5)
                             st.rerun()
@@ -609,8 +581,11 @@ if not st.session_state['user']:
                                 st.session_state['sb_access_token'] = res.session.access_token
                                 st.session_state['sb_refresh_token'] = res.session.refresh_token
                                 st.session_state["supabase_client"] = sb
+                                st.components.v1.html(
+                                    f"<script>document.cookie = 'sb_refresh_token={res.session.refresh_token}; path=/; max-age=2592000; Secure; SameSite=Strict';</script>",
+                                    height=0
+                                )
                             st.session_state['user'] = email_reg.strip()
-                            st.query_params["user_email"] = email_reg.strip()
                             st.session_state['profile_setup_done'] = False
 
                             try:
@@ -737,8 +712,12 @@ with st.sidebar:
             try: sb.auth.sign_out()
             except Exception: pass
         st.session_state['user'] = None
-        if "user_email" in st.query_params: del st.query_params["user_email"]
         clear_supabase()
+        # Rimuove il cookie
+        st.components.v1.html(
+            "<script>document.cookie = 'sb_refresh_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';</script>",
+            height=0
+        )
         st.session_state['profile_setup_done'] = False
         st.rerun()
 
@@ -1250,7 +1229,7 @@ elif current_selection == "📝 Diario & PDF":
             except Exception as e: st.error(f"Errore: {e}")
 
 # ==========================================
-# 7) PIANI ABBONAMENTO
+# 7) PIANI ABBONAMENTO (Fix redirect con JS)
 # ==========================================
 elif current_selection == "💎 Piani Abbonamento":
     st.markdown("<div class='section-title'>💎 Scegli il tuo Piano</div>", unsafe_allow_html=True)
@@ -1269,7 +1248,9 @@ elif current_selection == "💎 Piani Abbonamento":
         else:
             if st.button("Gestisci Abbonamento", use_container_width=True, key="b_tf"):
                 portal_url = create_stripe_billing_portal(user_email)
-                if portal_url: st.markdown(f'<meta http-equiv="refresh" content="0;url={portal_url}">', unsafe_allow_html=True)
+                if portal_url:
+                    st.components.v1.html(f"<script>window.top.location.href = '{portal_url}';</script>", height=0)
+                    st.link_button("👉 Clicca qui se non vieni reindirizzato", portal_url, use_container_width=True)
 
     with col_pr2:
         is_plus = (user_tier == "Plus")
@@ -1278,7 +1259,9 @@ elif current_selection == "💎 Piani Abbonamento":
         else:
             if st.button("Sottoscrivi Plus 🚀", type="primary", use_container_width=True, key="b_tplus"):
                 url = create_stripe_checkout_session(user_email, "Plus")
-                if url: st.markdown(f'<meta http-equiv="refresh" content="0;url={url}">', unsafe_allow_html=True)
+                if url:
+                    st.components.v1.html(f"<script>window.top.location.href = '{url}';</script>", height=0)
+                    st.link_button("👉 Clicca qui se non vieni reindirizzato a Stripe", url, use_container_width=True)
 
     with col_pr3:
         is_pro = (user_tier == "Pro")
@@ -1287,7 +1270,9 @@ elif current_selection == "💎 Piani Abbonamento":
         else:
             if st.button("Sottoscrivi Pro 🚀", type="primary", use_container_width=True, key="b_tp"):
                 url = create_stripe_checkout_session(user_email, "Pro")
-                if url: st.markdown(f'<meta http-equiv="refresh" content="0;url={url}">', unsafe_allow_html=True)
+                if url:
+                    st.components.v1.html(f"<script>window.top.location.href = '{url}';</script>", height=0)
+                    st.link_button("👉 Clicca qui se non vieni reindirizzato a Stripe", url, use_container_width=True)
 
     with col_pr4:
         is_elite = (user_tier == "Elite")
@@ -1296,7 +1281,9 @@ elif current_selection == "💎 Piani Abbonamento":
         else:
             if st.button("Sottoscrivi Elite 💎", type="primary", use_container_width=True, key="b_telite"):
                 url = create_stripe_checkout_session(user_email, "Elite")
-                if url: st.markdown(f'<meta http-equiv="refresh" content="0;url={url}">', unsafe_allow_html=True)
+                if url:
+                    st.components.v1.html(f"<script>window.top.location.href = '{url}';</script>", height=0)
+                    st.link_button("👉 Clicca qui se non vieni reindirizzato a Stripe", url, use_container_width=True)
 
 # ==========================================
 # 8) CONTATTI
