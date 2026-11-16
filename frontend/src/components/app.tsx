@@ -1,92 +1,78 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { createClient, Session } from "@supabase/supabase-js";
+import { Session } from "@supabase/supabase-js";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { api } from "../lib/api";
-import { K, LANGS, Lang, tr } from "../lib/i18n";
+import { supabase } from "../lib/supabase";
+import { K } from "../lib/i18n";
+import { LangSwitch, useLang } from "./lang";
+import { Logo } from "./Logo";
 
-export const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
-
-type Ctx = { me: any; lang: Lang; t: (k: K) => string; call: <T = any>(path: string, init?: RequestInit) => Promise<T>; refreshMe: () => void };
+type Ctx = { me: any; lang: any; t: (k: K) => string; call: <T = any>(path: string, init?: RequestInit) => Promise<T>; refreshMe: () => void };
 const C = createContext<Ctx>(null as any);
 export const useApp = () => useContext(C);
 
+const I = (d: string) => (
+  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>
+);
+const NAV: { href: string; k: K; icon: React.ReactNode }[] = [
+  { href: "/dashboard", k: "navHome", icon: I("M3 11l9-8 9 8M5 10v10h14V10") },
+  { href: "/dashboard/games", k: "navGames", icon: I("M4 4h16v16H4zM4 12h16M12 4v16") },
+  { href: "/dashboard/lessons", k: "navLessons", icon: I("M4 5a2 2 0 012-2h12v16H6a2 2 0 00-2 2zM8 7h6M8 11h6") },
+  { href: "/dashboard/accounts", k: "navAccounts", icon: I("M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1") },
+  { href: "/dashboard/plans", k: "navPlans", icon: I("M3 7h18v12H3zM3 11h18M7 15h3") },
+];
+
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const [lang, setLang] = useState<Lang>("it");
+  const { lang, t } = useLang();
   const [session, setSession] = useState<Session | null>(null);
   const [ready, setReady] = useState(false);
   const [me, setMe] = useState<any>(null);
-  const [email, setEmail] = useState("");
-  const [pass, setPass] = useState("");
-  const [msg, setMsg] = useState("");
   const path = usePathname();
+  const router = useRouter();
 
   useEffect(() => {
-    const saved = localStorage.getItem("lang") as Lang | null;
-    const nav = navigator.language.slice(0, 2) as Lang;
-    setLang(saved || (LANGS.includes(nav) ? nav : "en"));
     supabase.auth.getSession().then(({ data }) => { setSession(data.session); setReady(true); });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
     return () => sub.subscription.unsubscribe();
   }, []);
+  useEffect(() => { if (ready && !session) router.replace("/login"); }, [ready, session, router]);
 
   const token = session?.access_token;
   const call = useCallback(<T,>(p: string, init?: RequestInit) => api<T>(p, token || "", init), [token]);
   const refreshMe = useCallback(() => { if (token) api("/me", token).then(setMe).catch(() => {}); }, [token]);
   useEffect(() => { refreshMe(); }, [refreshMe]);
 
-  const t = (k: K) => tr(k, lang);
-  const changeLang = (l: Lang) => { setLang(l); localStorage.setItem("lang", l); };
-  const login = async () => { const { error } = await supabase.auth.signInWithPassword({ email, password: pass }); setMsg(error?.message || ""); };
-  const signup = async () => {
-    const { data, error } = await supabase.auth.signUp({ email, password: pass });
-    setMsg(error?.message || (data.session ? "" : t("checkConfirm")));
-  };
+  if (!ready || !session) return <div className="splash"><Logo size={48} text={false} /></div>;
 
-  const head = (
-    <div className="row">
-      <h1>♟️ Chess Coach Pro</h1>
-      <select value={lang} onChange={(e) => changeLang(e.target.value as Lang)}>
-        {LANGS.map((l) => <option key={l} value={l}>{l.toUpperCase()}</option>)}
-      </select>
-    </div>
-  );
-
-  if (!ready) return <div className="wrap muted">…</div>;
-  if (!session)
-    return (
-      <div className="wrap">
-        {head}
-        <p className="muted">{t("tagline")}</p>
-        <div className="card">
-          <input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
-          <input placeholder={t("password")} type="password" value={pass} onChange={(e) => setPass(e.target.value)} />
-          <div className="row"><button className="primary" onClick={login}>{t("login")}</button><button onClick={signup}>{t("signup")}</button></div>
-          {msg && <p className="muted">{msg}</p>}
-        </div>
-      </div>
-    );
-
-  const links: [string, K][] = [["/", "navHome"], ["/games", "navGames"], ["/lessons", "navLessons"], ["/accounts", "navAccounts"], ["/plans", "navPlans"]];
+  const on = (h: string) => (h === "/dashboard" ? path === "/dashboard" : path.startsWith(h));
+  const lessonsPct = me?.lessons?.limit ? Math.min(100, (100 * me.lessons.used) / me.lessons.limit) : 0;
   return (
     <C.Provider value={{ me, lang, t, call, refreshMe }}>
-      <div className="wrap">
-        {head}
-        <nav className="nav">
-          {links.map(([h, k]) => (
-            <Link key={h} href={h} className={(h === "/" ? path === "/" : path.startsWith(h)) ? "on" : ""}>{t(k)}</Link>
-          ))}
-          <span className="grow" />
-          <span className="muted small">{session.user.email} · <b>{me?.tier}</b></span>
-          <button onClick={() => supabase.auth.signOut()}>{t("logout")}</button>
-        </nav>
-        {me && (
-          <div className="card muted small">
-            {t("accounts")}: {me.profiles.used}/{me.profiles.limit} · {t("lessons")}: {me.lessons.used}/{me.lessons.limit ?? t("unlimited")}
+      <div className="shell">
+        <aside className="side">
+          <Link href="/" aria-label="Home"><Logo size={34} /></Link>
+          <nav aria-label="App">
+            {NAV.map((n) => <Link key={n.href} href={n.href} className={on(n.href) ? "on" : ""}>{n.icon}<span>{t(n.k)}</span></Link>)}
+          </nav>
+          <div className="side-foot">
+            {me && (
+              <div className="meters">
+                <div className="small muted">{t("accounts")}: {me.profiles.used}/{me.profiles.limit}</div>
+                <div className="small muted" style={{ marginTop: ".5rem" }}>{t("lessons")}: {me.lessons.used}/{me.lessons.limit ?? t("unlimited")}</div>
+                {me.lessons.limit && <div className="bar"><div style={{ width: `${lessonsPct}%`, background: lessonsPct > 85 ? "var(--bad)" : "var(--ember)" }} /></div>}
+              </div>
+            )}
+            <div className="who"><span className="pill-tier">{me?.tier || "…"}</span><span className="small muted ellip">{session.user.email}</span></div>
+            <div className="row"><LangSwitch /><button className="btn-text" onClick={() => supabase.auth.signOut().then(() => router.replace("/"))}>{t("logout")}</button></div>
           </div>
-        )}
-        {children}
+        </aside>
+        <header className="topbar"><Logo size={30} /><LangSwitch /></header>
+        <main className="content">{children}</main>
+        <nav className="tabbar" aria-label="App">
+          {NAV.map((n) => <Link key={n.href} href={n.href} className={on(n.href) ? "on" : ""}>{n.icon}<span>{t(n.k)}</span></Link>)}
+        </nav>
       </div>
     </C.Provider>
   );

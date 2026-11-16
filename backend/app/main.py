@@ -149,8 +149,8 @@ def lesson(error_id: int, body: LessonIn, u=Depends(current_user)):
     if not rows:
         raise HTTPException(404, "not_found")
     err = rows[0]
-    if err.get("spiegazione"):  # già generata: non consuma quota
-        return {"lesson": err["spiegazione"], "cached": True}
+    if err.get("gm_lesson"):  # già generata: non consuma quota
+        return {"lesson": err["gm_lesson"], "cached": True}
     if not sb.rpc("consume_gm_lesson", {"p_email": u["email"]}).execute().data:
         raise HTTPException(402, "quota_exhausted")
     try:
@@ -158,7 +158,7 @@ def lesson(error_id: int, body: LessonIn, u=Depends(current_user)):
     except Exception:
         sb.rpc("refund_gm_lesson", {"p_email": u["email"]}).execute()  # se il GM non risponde, la lezione non conta
         raise HTTPException(502, "gm_failed")
-    sb.table("errori_utenti").update({"spiegazione": text}).eq("id", error_id).execute()
+    sb.table("errori_utenti").update({"gm_lesson": text, "gm_lesson_at": now_iso()}).eq("id", error_id).execute()
     return {"lesson": text, "cached": False}
 
 
@@ -175,7 +175,7 @@ def checkout(body: CheckoutIn, u=Depends(current_user)):
     cust = row[0].get("stripe_customer_id") if row else None
     args = dict(
         mode="subscription", line_items=[{"price": stripe_price_id(body.plan), "quantity": 1}],
-        success_url=f"{FRONTEND_URL}/?checkout=success", cancel_url=f"{FRONTEND_URL}/?checkout=cancel",
+        success_url=f"{FRONTEND_URL}/dashboard/plans?checkout=success", cancel_url=f"{FRONTEND_URL}/dashboard/plans?checkout=cancel",
         allow_promotion_codes=True, metadata={"email": u["email"], "plan": body.plan})
     if cust:
         args["customer"] = cust
@@ -189,7 +189,7 @@ def portal(u=Depends(current_user)):
     row = sb.table("config_utenti").select("stripe_customer_id").eq("user_email", u["email"]).limit(1).execute().data
     if not row or not row[0].get("stripe_customer_id"):
         raise HTTPException(404, "no_customer")
-    return {"url": stripe.billing_portal.Session.create(customer=row[0]["stripe_customer_id"], return_url=FRONTEND_URL).url}
+    return {"url": stripe.billing_portal.Session.create(customer=row[0]["stripe_customer_id"], return_url=f"{FRONTEND_URL}/dashboard/plans").url}
 
 
 @app.post("/billing/webhook")
@@ -313,8 +313,8 @@ def stats(u=Depends(current_user)):
 @app.get("/lessons")
 def all_lessons(u=Depends(current_user)):
     return (sb.table("errori_utenti")
-            .select("id,game_id,ply,mossa_critica,best_move,categoria_errore,spiegazione,apertura,data,games(white,black)")
-            .eq("user_email", u["email"]).not_.is_("spiegazione", "null").order("data", desc=True).limit(300).execute().data)
+            .select("id,game_id,ply,mossa_critica,best_move,categoria_errore,gm_lesson,gm_lesson_at,apertura,games(white,black)")
+            .eq("user_email", u["email"]).not_.is_("gm_lesson", "null").order("gm_lesson_at", desc=True).limit(300).execute().data)
 
 
 @app.post("/sync")

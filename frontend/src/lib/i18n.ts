@@ -72,6 +72,20 @@ const S = {
   analyzingGame: { it: "Analisi in corso: ricarica tra circa un minuto.", en: "Analysis in progress: refresh in about a minute.", es: "Análisis en curso: recarga en un minuto." },
   notAnalyzed: { it: "da analizzare", en: "not analyzed", es: "sin analizar" },
   moveNo: { it: "Mossa", en: "Move", es: "Jugada" },
+  openApp: { it: "Apri l'app", en: "Open the app", es: "Abrir la app" },
+  loginTitle: { it: "Bentornato", en: "Welcome back", es: "Bienvenido de nuevo" },
+  signupTitle: { it: "Crea il tuo account", en: "Create your account", es: "Crea tu cuenta" },
+  loginSub: { it: "Accedi per vedere le tue partite e chiedere al GM.", en: "Log in to see your games and ask the GM.", es: "Inicia sesión para ver tus partidas y preguntar al GM." },
+  signupSub: { it: "Gratis, senza carta. Ci metti un minuto.", en: "Free, no card. Takes a minute.", es: "Gratis, sin tarjeta. Tarda un minuto." },
+  toSignup: { it: "Non hai un account? Registrati", en: "No account yet? Sign up", es: "¿No tienes cuenta? Regístrate" },
+  toLogin: { it: "Hai già un account? Accedi", en: "Already have an account? Log in", es: "¿Ya tienes cuenta? Inicia sesión" },
+  backSite: { it: "Torna al sito", en: "Back to site", es: "Volver al sitio" },
+  searchLessons: { it: "Cerca nelle lezioni", en: "Search lessons", es: "Buscar en las lecciones" },
+  allOpenings: { it: "Tutte le aperture", en: "All openings", es: "Todas las aperturas" },
+  checkoutOk: { it: "Pagamento completato. L'abbonamento si attiva in pochi secondi.", en: "Payment complete. Your plan activates in a few seconds.", es: "Pago completado. Tu plan se activa en unos segundos." },
+  checkoutKo: { it: "Pagamento annullato. Nessun addebito.", en: "Payment canceled. You were not charged.", es: "Pago cancelado. No se ha cobrado nada." },
+  gamesCount: { it: "partite", en: "games", es: "partidas" },
+  menu: { it: "Menu", en: "Menu", es: "Menú" },
 } as const;
 export type K = keyof typeof S;
 export const tr = (k: K, l: Lang) => S[k][l];
