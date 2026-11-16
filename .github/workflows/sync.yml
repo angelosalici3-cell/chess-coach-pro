@@ -1,1 +1,10 @@
+name: nightly-sync
+on:
+  schedule: [{ cron: "0 2 * * *" }]
+  workflow_dispatch:
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - run: curl -fsS -X POST "${{ secrets.API_URL }}/cron/sync" -H "X-Cron-Secret: ${{ secrets.CRON_SECRET }}" --max-time 120
 
