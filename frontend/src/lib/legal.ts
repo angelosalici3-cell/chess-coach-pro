@@ -36,7 +36,7 @@ const privacyIt: Doc = {
       "Comunicazioni di servizio (conferma email, reimpostazione password, avvisi sull'abbonamento): contratto.",
     ], p: ["Non usiamo i tuoi dati per pubblicità né li vendiamo. Non prendiamo decisioni automatizzate che producano effetti giuridici su di te."] },
     { h: "4. Intelligenza artificiale e servizi di terze parti", p: [
-      "Per generare le lezioni, le posizioni delle tue partite (FEN, mosse giocate e testo delle tue domande) vengono inviate a Google (Gemini API). Per la valutazione delle mosse, le posizioni vengono inviate al servizio chess-api.com (motore Stockfish). Non inviamo a questi servizi il tuo nome né la tua email.",
+      "Per generare le lezioni, le posizioni delle tue partite (FEN e mosse giocate) vengono inviate a Google (Gemini API). Per la valutazione delle mosse, le posizioni vengono inviate al servizio chess-api.com (motore Stockfish). Non inviamo a questi servizi il tuo nome né la tua email.",
       "Le lezioni sono generate da un modello di intelligenza artificiale e possono contenere errori: sono uno strumento di studio, non una consulenza professionale.",
     ] },
     { h: "5. Con chi condividiamo i dati (responsabili del trattamento)", ul: [
@@ -75,7 +75,7 @@ const privacyEn: Doc = {
       "Service messages (email confirmation, password reset, subscription notices): contract.",
     ], p: ["We do not use your data for advertising and we do not sell it. We do not make automated decisions that produce legal effects on you."] },
     { h: "4. Artificial intelligence and third-party services", p: [
-      "To generate lessons, positions from your games (FEN, moves played and the text of your questions) are sent to Google (Gemini API). To evaluate moves, positions are sent to chess-api.com (Stockfish engine). We do not send your name or email to these services.",
+      "To generate lessons, positions from your games (FEN and moves played) are sent to Google (Gemini API). To evaluate moves, positions are sent to chess-api.com (Stockfish engine). We do not send your name or email to these services.",
       "Lessons are produced by an AI model and may contain mistakes: they are a study aid, not professional advice.",
     ] },
     { h: "5. Who we share data with (processors)", ul: [
@@ -114,7 +114,7 @@ const privacyEs: Doc = {
       "Mensajes del servicio (confirmación de email, restablecer contraseña, avisos de suscripción): contrato.",
     ], p: ["No usamos tus datos para publicidad ni los vendemos. No tomamos decisiones automatizadas que produzcan efectos jurídicos sobre ti."] },
     { h: "4. Inteligencia artificial y servicios de terceros", p: [
-      "Para generar las lecciones, las posiciones de tus partidas (FEN, jugadas y el texto de tus preguntas) se envían a Google (API de Gemini). Para evaluar las jugadas, las posiciones se envían a chess-api.com (motor Stockfish). No enviamos tu nombre ni tu email a estos servicios.",
+      "Para generar las lecciones, las posiciones de tus partidas (FEN y jugadas) se envían a Google (API de Gemini). Para evaluar las jugadas, las posiciones se envían a chess-api.com (motor Stockfish). No enviamos tu nombre ni tu email a estos servicios.",
       "Las lecciones las produce un modelo de inteligencia artificial y pueden contener errores: son una ayuda de estudio, no asesoramiento profesional.",
     ] },
     { h: "5. Con quién compartimos los datos (encargados del tratamiento)", ul: [

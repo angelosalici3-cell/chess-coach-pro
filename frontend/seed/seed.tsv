@@ -1,0 +1,61 @@
+eco	name	pgn
+A00	Polish Opening	1. b4
+A02	Bird Opening	1. f4
+A04	Zukertort Opening	1. Nf3
+A06	Zukertort Opening: Queen's Gambit Invitation	1. Nf3 d5
+A09	Reti Opening	1. Nf3 d5 2. c4
+A10	English Opening	1. c4
+A20	English Opening: Reversed Sicilian	1. c4 e5
+A30	English Opening: Symmetrical Variation	1. c4 c5
+A40	Queen's Pawn Game	1. d4
+A45	Indian Defense	1. d4 Nf6
+A80	Dutch Defense	1. d4 f5
+A01	Nimzo-Larsen Attack	1. b3
+B00	King's Pawn Opening	1. e4
+B01	Scandinavian Defense	1. e4 d5
+B02	Alekhine Defense	1. e4 Nf6
+B06	Modern Defense	1. e4 g6
+B07	Pirc Defense	1. e4 d6 2. d4 Nf6 3. Nc3
+B10	Caro-Kann Defense	1. e4 c6
+B12	Caro-Kann Defense: Advance Variation	1. e4 c6 2. d4 d5 3. e5
+B13	Caro-Kann Defense: Exchange Variation	1. e4 c6 2. d4 d5 3. exd5 cxd5
+B20	Sicilian Defense	1. e4 c5
+B22	Sicilian Defense: Alapin Variation	1. e4 c5 2. c3
+B23	Sicilian Defense: Closed	1. e4 c5 2. Nc3
+B27	Sicilian Defense: Mongoose Variation	1. e4 c5 2. Nf3
+B30	Sicilian Defense: Old Sicilian	1. e4 c5 2. Nf3 Nc6
+B40	Sicilian Defense: French Variation	1. e4 c5 2. Nf3 e6
+B50	Sicilian Defense: Modern Variations	1. e4 c5 2. Nf3 d6
+B90	Sicilian Defense: Najdorf Variation	1. e4 c5 2. Nf3 d6 3. d4 cxd4 4. Nxd4 Nf6 5. Nc3 a6
+C00	French Defense	1. e4 e6
+C01	French Defense: Exchange Variation	1. e4 e6 2. d4 d5 3. exd5
+C02	French Defense: Advance Variation	1. e4 e6 2. d4 d5 3. e5
+C03	French Defense: Tarrasch Variation	1. e4 e6 2. d4 d5 3. Nd2
+C10	French Defense: Rubinstein Variation	1. e4 e6 2. d4 d5 3. Nc3 dxe4
+C20	King's Pawn Game	1. e4 e5
+C23	Bishop's Opening	1. e4 e5 2. Bc4
+C25	Vienna Game	1. e4 e5 2. Nc3
+C30	King's Gambit	1. e4 e5 2. f4
+C40	King's Knight Opening	1. e4 e5 2. Nf3
+C41	Philidor Defense	1. e4 e5 2. Nf3 d6
+C42	Russian Game	1. e4 e5 2. Nf3 Nf6
+C44	Scotch Game	1. e4 e5 2. Nf3 Nc6 3. d4
+C50	Italian Game	1. e4 e5 2. Nf3 Nc6 3. Bc4
+C51	Italian Game: Evans Gambit	1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. b4
+C53	Italian Game: Classical Variation	1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5
+C55	Italian Game: Two Knights Defense	1. e4 e5 2. Nf3 Nc6 3. Bc4 Nf6
+C60	Ruy Lopez	1. e4 e5 2. Nf3 Nc6 3. Bb5
+C65	Ruy Lopez: Berlin Defense	1. e4 e5 2. Nf3 Nc6 3. Bb5 Nf6
+C68	Ruy Lopez: Exchange Variation	1. e4 e5 2. Nf3 Nc6 3. Bb5 a6 4. Bxc6
+C70	Ruy Lopez: Morphy Defense	1. e4 e5 2. Nf3 Nc6 3. Bb5 a6
+D00	Queen's Pawn Game	1. d4 d5
+D02	Queen's Pawn Game: London System	1. d4 d5 2. Nf3 Nf6 3. Bf4
+D06	Queen's Gambit	1. d4 d5 2. c4
+D10	Slav Defense	1. d4 d5 2. c4 c6
+D20	Queen's Gambit Accepted	1. d4 d5 2. c4 dxc4
+D30	Queen's Gambit Declined	1. d4 d5 2. c4 e6
+D80	Grunfeld Defense	1. d4 Nf6 2. c4 g6 3. Nc3 d5
+E04	Catalan Opening	1. d4 Nf6 2. c4 e6 3. g3
+E12	Queen's Indian Defense	1. d4 Nf6 2. c4 e6 3. Nf3 b6
+E20	Nimzo-Indian Defense	1. d4 Nf6 2. c4 e6 3. Nc3 Bb4
+E60	King's Indian Defense	1. d4 Nf6 2. c4 g6

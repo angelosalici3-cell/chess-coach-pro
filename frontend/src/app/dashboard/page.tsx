@@ -2,8 +2,41 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useApp } from "../../components/app";
-import { Bar, LineChart } from "../../components/Charts";
+import { Bar, MultiLineChart } from "../../components/Charts";
 import { K, tr } from "../../lib/i18n";
+
+const SPEED_COLOR: Record<string, string> = { bullet: "#ff5d8f", blitz: "#ffb84d", rapid: "#4ee3b0", classical: "#5aa9ff", daily: "#b7c0dc", other: "#8d97b8" };
+const RANGES: [K, number | null][] = [["range30", 30], ["range90", 90], ["range365", 365], ["rangeAll", null]];
+
+function RatingCard({ a }: { a: any }) {
+  const { t, lang } = useApp();
+  const [off, setOff] = useState<string[]>([]);
+  const [range, setRange] = useState<number | null>(null);
+  const series = a.series.map((s: any) => ({ key: s.speed, label: tr(("speed" + s.speed[0].toUpperCase() + s.speed.slice(1)) as K, lang), color: SPEED_COLOR[s.speed] || "#8d97b8", points: s.points }));
+  const shown = series.filter((s: any) => !off.includes(s.key));
+  const toggle = (k: string) => setOff((o) => (o.includes(k) ? o.filter((x) => x !== k) : [...o, k]));
+  const solo = (k: string) => setOff(series.filter((s: any) => s.key !== k).map((s: any) => s.key));
+  return (
+    <div className="card">
+      <div className="row"><b>{t("rating")}</b><span className="muted small">{a.source === "lichess" ? "Lichess" : "Chess.com"} · {a.username}</span></div>
+      <div className="row" style={{ margin: ".6rem 0 .2rem" }}>
+        <div className="chips" style={{ margin: 0 }} role="group" aria-label={t("speedsFilter")}>
+          {series.map((s: any) => (
+            <button key={s.key} className={"chip" + (off.includes(s.key) ? "" : " on")} style={{ borderColor: off.includes(s.key) ? undefined : s.color }}
+              onClick={() => toggle(s.key)} onDoubleClick={() => solo(s.key)} aria-pressed={!off.includes(s.key)}>
+              <i className="dotc" style={{ background: s.color }} />{s.label} <span className="muted">{s.points[s.points.length - 1].r}</span>
+            </button>
+          ))}
+        </div>
+        <div className="lang" role="group">
+          {RANGES.map(([k, v]) => <button key={k} className={range === v ? "on" : ""} onClick={() => setRange(v)}>{t(k)}</button>)}
+        </div>
+      </div>
+      <MultiLineChart series={shown} days={range} />
+      <p className="muted small" style={{ margin: ".3rem 0 0" }}>{t("ratingDaily")}</p>
+    </div>
+  );
+}
 
 export default function Home() {
   const { call, t, lang, me, refreshMe } = useApp();
@@ -11,7 +44,6 @@ export default function Home() {
   const [err, setErr] = useState("");
   const [info, setInfo] = useState("");
   const [busy, setBusy] = useState(false);
-  const [src, setSrc] = useState("");
 
   const load = () => call("/stats").then(setS).catch((e) => setErr(e.message));
   useEffect(() => { load(); }, [call]);
@@ -27,8 +59,6 @@ export default function Home() {
     setBusy(false);
   };
 
-  const ratingKeys = s ? Object.keys(s.rating) : [];
-  const key = src || ratingKeys[0];
   return (
     <>
       <div className="pagehead">
@@ -47,13 +77,7 @@ export default function Home() {
             <div className="card"><div className="muted small">{t("statWin")}</div><div className="big">{s.win_rate ?? "—"}{s.win_rate != null && "%"}</div></div>
             <div className="card"><div className="muted small">{t("statAcc")}</div><div className="big">{s.accuracy ?? "—"}{s.accuracy != null && "%"}</div></div>
           </div>
-          <div className="card">
-            <div className="row"><b>{t("rating")}</b>
-              {ratingKeys.length > 1 && <select value={key} onChange={(e) => setSrc(e.target.value)}>{ratingKeys.map((k) => <option key={k} value={k}>{k}</option>)}</select>}
-              {ratingKeys.length === 1 && <span className="muted small">{key}</span>}
-            </div>
-            {key ? <LineChart points={s.rating[key]} /> : <p className="muted small">—</p>}
-          </div>
+          {s.rating.map((a: any) => <RatingCard key={a.source + a.username} a={a} />)}
           <div className="grid2">
             <div className="card">
               <b>{t("results")}</b>

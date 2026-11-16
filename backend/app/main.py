@@ -119,6 +119,14 @@ def get_game(game_id: str, u=Depends(current_user)):
         raise HTTPException(404, "not_found")
     moves = sb.table("moves").select("*").eq("game_id", game_id).order("ply").execute().data
     errors = sb.table("errori_utenti").select("*").eq("game_id", game_id).eq("user_email", u["email"]).order("ply").execute().data
+    prev = 0
+    for m in moves:  # perdita di valutazione (centesimi di pedone) di chi ha mosso, 0 se la mossa migliora la posizione
+        cur = m.get("eval_cp")
+        if cur is None:
+            m["loss_cp"] = None
+            continue
+        m["loss_cp"] = max(0, min(500, (prev - cur) if m["ply"] % 2 else (cur - prev)))
+        prev = cur
     return {"game": g[0], "moves": moves, "errors": errors}
 
 
@@ -254,49 +262,24 @@ def delete_me(u=Depends(current_user)):
     return {"deleted": True}
 
 
-# ---------- Domanda libera al GM su una posizione ----------
-class AskIn(BaseModel):
-    fen: str
-    question: str
-    lang: str = "it"
-
-
-def gm_answer(fen: str, question: str, lang: str) -> str:
-    from google import genai
-    client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
-    system = (f"Sei un Gran Maestro di scacchi e un ottimo insegnante. Rispondi solo in {LANG_NAMES.get(lang, 'italiano')}, "
-              "in modo chiaro e concreto, max 150 parole. Parla solo di scacchi.")
-    r = client.models.generate_content(model=GEMINI_MODEL, contents=f"Posizione (FEN): {fen}\nDomanda: {question}",
-                                       config={"system_instruction": system})
-    if not r.text:
-        raise RuntimeError("empty")
-    return r.text.strip()
-
-
-@app.post("/gm/ask")
-def gm_ask(body: AskIn, u=Depends(current_user)):
-    q = body.question.strip()[:500]
-    if not q:
-        raise HTTPException(400, "empty_question")
-    if not sb.rpc("consume_gm_lesson", {"p_email": u["email"]}).execute().data:
-        raise HTTPException(402, "quota_exhausted")
-    try:
-        text = gm_answer(body.fen[:120], q, body.lang)
-    except Exception:
-        sb.rpc("refund_gm_lesson", {"p_email": u["email"]}).execute()
-        raise HTTPException(502, "gm_failed")
-    return {"answer": text}
-
-
 # ---------- Statistiche, lezioni, sincronizzazione ----------
 def _elo(pgn: str, color: str):
     m = re.search(rf'\[{"White" if color == "white" else "Black"}Elo "(\d+)"\]', pgn or "")
     return int(m.group(1)) if m else None
 
 
+def _speed(tc: str | None):
+    """Categoria di ritmo come Lichess: durata stimata = base + 40 * incremento."""
+    m = re.match(r"^(\d+)(?:\+(\d+))?$", tc or "")
+    if not m:
+        return "daily" if tc and "/" in tc else "other"
+    est = int(m.group(1)) + 40 * int(m.group(2) or 0)
+    return "bullet" if est < 180 else "blitz" if est < 480 else "rapid" if est < 1500 else "classical"
+
+
 @app.get("/stats")
 def stats(u=Depends(current_user)):
-    rows = (sb.table("games").select("source,pgn,user_color,result,opening_name,played_at,accuracy_user")
+    rows = (sb.table("games").select("source,white,black,time_control,pgn,user_color,result,opening_name,played_at,accuracy_user")
             .eq("user_email", u["email"]).order("played_at", desc=True).limit(500).execute().data)[::-1]
     w = d = l = 0
     ops, rating, accs = {}, {}, []
@@ -310,14 +293,24 @@ def stats(u=Depends(current_user)):
             e["games"] += 1
             e[o] += 1
         if c and g["played_at"] and (elo := _elo(g["pgn"], c)):
-            rating.setdefault(g["source"], []).append({"d": g["played_at"][:10], "r": elo})
+            uname = g["white"] if c == "white" else g["black"]
+            rating.setdefault((g["source"], uname, _speed(g["time_control"])), {})[g["played_at"][:10]] = elo  # un valore al giorno: l'ultimo
         if g["accuracy_user"] is not None:
             accs.append(float(g["accuracy_user"]))
     cats = Counter(r["categoria_errore"] for r in sb.table("errori_utenti").select("categoria_errore").eq("user_email", u["email"]).execute().data if r["categoria_errore"])
+    # un grafico per account con una serie per ritmo, un punto al giorno (l'ultimo rating del giorno)
+    order = ["bullet", "blitz", "rapid", "classical", "daily", "other"]
+    accounts = {}
+    for (src, uname, sp), days in rating.items():
+        accounts.setdefault((src, uname), []).append((sp, days))
+    rating_out = [{"source": src, "username": uname,
+                   "series": [{"speed": sp, "points": [{"d": d_, "r": r_} for d_, r_ in sorted(days.items())]}
+                              for sp, days in sorted(ser, key=lambda x: order.index(x[0]))]}
+                  for (src, uname), ser in accounts.items()]
     n = w + d + l
     top = sorted(ops.values(), key=lambda x: -x["games"])[:10]
     return {"games": len(rows), "w": w, "d": d, "l": l, "win_rate": round(100 * w / n) if n else None,
-            "accuracy": round(sum(accs) / len(accs)) if accs else None, "rating": rating,
+            "accuracy": round(sum(accs) / len(accs)) if accs else None, "rating": rating_out,
             "openings": [{**o, "win_rate": round(100 * o["w"] / o["games"])} for o in top],
             "categories": [{"cat": k, "count": v} for k, v in cats.most_common()]}
 

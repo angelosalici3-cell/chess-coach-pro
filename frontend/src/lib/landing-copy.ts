@@ -39,7 +39,7 @@ export const COPY: Record<Lang, Copy> = {
       title: "Tutto quello che serve per smettere di ripetere gli stessi errori",
       items: [
         { title: "Lezioni del Gran Maestro AI", text: "Una spiegazione chiara per ogni errore, nella tua lingua. Le trovi tutte salvate e filtrabili in un'unica pagina." },
-        { title: "Chiedi quello che vuoi", text: "Fai una domanda libera su qualsiasi posizione della tua partita e ricevi una risposta subito." },
+        { title: "Quanto ti è costata ogni mossa", text: "Un grafico per partita mostra i centesimi di pedone persi mossa dopo mossa, con errori e imprecisioni evidenziati." },
         { title: "Statistiche per apertura", text: "Scopri con quali aperture vinci e con quali perdi, e dove sbagli di più." },
         { title: "Partite che arrivano da sole", text: "Con un abbonamento le nuove partite si scaricano e si analizzano ogni notte." },
         { title: "Il tuo rating nel tempo", text: "Segui la crescita su Lichess e Chess.com in un grafico solo." },
@@ -103,7 +103,7 @@ export const COPY: Record<Lang, Copy> = {
       title: "Everything you need to stop repeating the same mistakes",
       items: [
         { title: "AI Grandmaster lessons", text: "A clear explanation for every mistake, in your language. All of them saved and filterable on one page." },
-        { title: "Ask anything", text: "Ask a free question about any position in your game and get an answer right away." },
+        { title: "What every move cost you", text: "A chart per game shows the hundredths of a pawn lost move by move, with mistakes and inaccuracies highlighted." },
         { title: "Opening statistics", text: "See which openings you win with, which ones you lose with, and where you slip most." },
         { title: "Games that arrive on their own", text: "With a subscription, new games are downloaded and analyzed every night." },
         { title: "Your rating over time", text: "Follow your progress on Lichess and Chess.com in a single chart." },
@@ -167,7 +167,7 @@ export const COPY: Record<Lang, Copy> = {
       title: "Todo lo que necesitas para dejar de repetir los mismos errores",
       items: [
         { title: "Lecciones del Gran Maestro IA", text: "Una explicación clara para cada error, en tu idioma. Todas guardadas y filtrables en una sola página." },
-        { title: "Pregunta lo que quieras", text: "Haz una pregunta libre sobre cualquier posición de tu partida y recibe la respuesta al instante." },
+        { title: "Cuánto te costó cada jugada", text: "Un gráfico por partida muestra las centésimas de peón perdidas jugada a jugada, con errores e imprecisiones resaltados." },
         { title: "Estadísticas por apertura", text: "Descubre con qué aperturas ganas, con cuáles pierdes y dónde fallas más." },
         { title: "Partidas que llegan solas", text: "Con una suscripción, las partidas nuevas se descargan y se analizan cada noche." },
         { title: "Tu rating en el tiempo", text: "Sigue tu progreso en Lichess y Chess.com en un solo gráfico." },
