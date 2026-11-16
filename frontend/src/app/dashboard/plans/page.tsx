@@ -11,7 +11,7 @@ const PLANS = [
 ];
 
 export default function PlansPage() {
-  const { call, t, me, refreshMe } = useApp();
+  const { call, t, me, refreshMe, lang } = useApp();
   const [err, setErr] = useState("");
   const [flash, setFlash] = useState("");
   useEffect(() => {
@@ -38,7 +38,7 @@ export default function PlansPage() {
             <h3>{p.k}</h3>
             <div className="price">€{p.price.toFixed(2)}<span className="muted small">{t("perMonth")}</span></div>
             <p className="small">{t("accounts")}: {p.acc}<br />{t("lessons")}: {p.gm}<br />{p.sync ? t("autoSync") : ""}</p>
-            {me?.tier === p.k ? <span className="muted">{t("current")}</span> : p.price > 0 && <button className="btn btn-primary" onClick={() => go("/billing/checkout", { plan: p.k })}>{t("choose")}</button>}
+            {me?.tier === p.k ? <span className="muted">{t("current")}</span> : p.price > 0 && <button className="btn btn-primary" onClick={() => go("/billing/checkout", { plan: p.k, lang })}>{t("choose")}</button>}
           </div>
         ))}
       </div>

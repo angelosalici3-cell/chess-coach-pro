@@ -84,8 +84,8 @@ function VisConnect({ c }: { c: Copy }) {
   return (
     <div className="vis">
       <b>{c.vis.accounts}</b>
-      <div className="vis-row"><span className="dot lichess" />Lichess<em>chene91</em></div>
-      <div className="vis-row"><span className="dot chesscom" />Chess.com<em>chene91</em></div>
+      <div className="vis-row"><span className="avatar">MC</span><span className="dot lichess" />Lichess<em>DrNykterstein</em></div>
+      <div className="vis-row"><span className="avatar">MC</span><span className="dot chesscom" />Chess.com<em>MagnusCarlsen</em></div>
       <div className="vis-row add"><span>{c.vis.add}</span></div>
     </div>
   );
@@ -267,7 +267,7 @@ function Footer({ c }: { c: Copy }) {
     <footer className="lp-footer">
       <div className="lp-wrap lp-foot-in">
         <div><Logo size={30} /><p>{c.footer.text}</p></div>
-        <div className="lp-foot-r"><a href={`mailto:${SUPPORT}`}>{c.footer.support}: {SUPPORT}</a><span>© {new Date().getFullYear()} {BRAND}</span></div>
+        <div className="lp-foot-r"><span className="lp-foot-links"><Link href="/privacy">Privacy</Link><Link href="/terms">{c.footer.terms}</Link></span><a href={`mailto:${SUPPORT}`}>{c.footer.support}: {SUPPORT}</a><span>© {new Date().getFullYear()} {BRAND}</span></div>
       </div>
     </footer>
   );

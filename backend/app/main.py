@@ -18,7 +18,7 @@ from .sync import analyze_pending, run_cron, sync_user
 
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "")
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
 
 app = FastAPI(title="Chess Coach API")
 app.add_middleware(CORSMiddleware, allow_origins=[FRONTEND_URL], allow_methods=["*"], allow_headers=["*"])
@@ -163,8 +163,16 @@ def lesson(error_id: int, body: LessonIn, u=Depends(current_user)):
 
 
 # ---------- Stripe ----------
+LEGAL_TEXT = {
+    "it": "Abbonandoti accetti i [Termini]({url}/terms) e la [Privacy]({url}/privacy). Rinnovo mensile automatico, disdici quando vuoi dal portale.",
+    "en": "By subscribing you accept the [Terms]({url}/terms) and the [Privacy Policy]({url}/privacy). Renews monthly, cancel any time from the portal.",
+    "es": "Al suscribirte aceptas los [Términos]({url}/terms) y la [Privacidad]({url}/privacy). Renovación mensual automática, cancela cuando quieras desde el portal.",
+}
+
+
 class CheckoutIn(BaseModel):
     plan: str
+    lang: str = "it"
 
 
 @app.post("/billing/checkout")
@@ -176,7 +184,11 @@ def checkout(body: CheckoutIn, u=Depends(current_user)):
     args = dict(
         mode="subscription", line_items=[{"price": stripe_price_id(body.plan), "quantity": 1}],
         success_url=f"{FRONTEND_URL}/dashboard/plans?checkout=success", cancel_url=f"{FRONTEND_URL}/dashboard/plans?checkout=cancel",
-        allow_promotion_codes=True, metadata={"email": u["email"], "plan": body.plan})
+        allow_promotion_codes=True, metadata={"email": u["email"], "plan": body.plan},
+        locale=body.lang if body.lang in ("it", "en", "es") else "auto",
+        custom_text={"submit": {"message": LEGAL_TEXT.get(body.lang, LEGAL_TEXT["en"]).format(url=FRONTEND_URL)}})
+    if os.environ.get("STRIPE_TERMS_CHECKBOX") == "1":
+        args["consent_collection"] = {"terms_of_service": "required"}
     if cust:
         args["customer"] = cust
     else:

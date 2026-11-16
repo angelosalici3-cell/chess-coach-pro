@@ -12,7 +12,7 @@ export type Copy = {
   pricing: { title: string; sub: string; month: string; popular: string; start: string; plans: Record<PlanKey, { blurb: string; items: string[] }> };
   faq: { title: string; items: { q: string; a: string }[] };
   final: { title: string; sub: string; cta: string };
-  footer: { text: string; support: string };
+  footer: { text: string; support: string; terms: string };
 };
 
 export const COPY: Record<Lang, Copy> = {
@@ -77,7 +77,7 @@ export const COPY: Record<Lang, Copy> = {
       ],
     },
     final: { title: "La prossima partita può andare diversamente.", sub: "Collega il tuo account e ricevi la prima lezione oggi.", cta: "Crea il tuo account gratis" },
-    footer: { text: "Allenatore di scacchi con intelligenza artificiale.", support: "Assistenza" },
+    footer: { text: "Allenatore di scacchi con intelligenza artificiale.", support: "Assistenza", terms: "Termini" },
   },
 
   en: {
@@ -141,7 +141,7 @@ export const COPY: Record<Lang, Copy> = {
       ],
     },
     final: { title: "Your next game can go differently.", sub: "Connect your account and get your first lesson today.", cta: "Create your free account" },
-    footer: { text: "An AI chess coach.", support: "Support" },
+    footer: { text: "An AI chess coach.", support: "Support", terms: "Terms" },
   },
 
   es: {
@@ -205,6 +205,6 @@ export const COPY: Record<Lang, Copy> = {
       ],
     },
     final: { title: "Tu próxima partida puede ser distinta.", sub: "Conecta tu cuenta y recibe tu primera lección hoy.", cta: "Crea tu cuenta gratis" },
-    footer: { text: "Entrenador de ajedrez con inteligencia artificial.", support: "Soporte" },
+    footer: { text: "Entrenador de ajedrez con inteligencia artificial.", support: "Soporte", terms: "Términos" },
   },
 };
