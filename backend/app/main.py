@@ -5,14 +5,20 @@ import stripe
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from supabase import create_client
+
+import re
+from collections import Counter
+
+from fastapi import BackgroundTasks
 
 from core.plans import get_plan, stripe_price_id
+from .db import sb
+from .engine import analyze_game
+from .sync import analyze_pending, run_cron, sync_user
 
-sb = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_ROLE_KEY"])
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "")
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
 
 app = FastAPI(title="Chess Coach API")
 app.add_middleware(CORSMiddleware, allow_origins=[FRONTEND_URL], allow_methods=["*"], allow_headers=["*"])
@@ -268,3 +274,72 @@ def gm_ask(body: AskIn, u=Depends(current_user)):
         sb.rpc("refund_gm_lesson", {"p_email": u["email"]}).execute()
         raise HTTPException(502, "gm_failed")
     return {"answer": text}
+
+
+# ---------- Statistiche, lezioni, sincronizzazione ----------
+def _elo(pgn: str, color: str):
+    m = re.search(rf'\[{"White" if color == "white" else "Black"}Elo "(\d+)"\]', pgn or "")
+    return int(m.group(1)) if m else None
+
+
+@app.get("/stats")
+def stats(u=Depends(current_user)):
+    rows = (sb.table("games").select("source,pgn,user_color,result,opening_name,played_at,accuracy_user")
+            .eq("user_email", u["email"]).order("played_at", desc=True).limit(500).execute().data)[::-1]
+    w = d = l = 0
+    ops, rating, accs = {}, {}, []
+    for g in rows:
+        c, res = g["user_color"], g["result"]
+        if c and res in ("1-0", "0-1", "1/2-1/2"):
+            o = "d" if res == "1/2-1/2" else "w" if (res == "1-0") == (c == "white") else "l"
+            w, d, l = w + (o == "w"), d + (o == "d"), l + (o == "l")
+            name = (g["opening_name"] or "?").split(":")[0].split(",")[0].strip()
+            e = ops.setdefault(name, {"name": name, "games": 0, "w": 0, "d": 0, "l": 0})
+            e["games"] += 1
+            e[o] += 1
+        if c and g["played_at"] and (elo := _elo(g["pgn"], c)):
+            rating.setdefault(g["source"], []).append({"d": g["played_at"][:10], "r": elo})
+        if g["accuracy_user"] is not None:
+            accs.append(float(g["accuracy_user"]))
+    cats = Counter(r["categoria_errore"] for r in sb.table("errori_utenti").select("categoria_errore").eq("user_email", u["email"]).execute().data if r["categoria_errore"])
+    n = w + d + l
+    top = sorted(ops.values(), key=lambda x: -x["games"])[:10]
+    return {"games": len(rows), "w": w, "d": d, "l": l, "win_rate": round(100 * w / n) if n else None,
+            "accuracy": round(sum(accs) / len(accs)) if accs else None, "rating": rating,
+            "openings": [{**o, "win_rate": round(100 * o["w"] / o["games"])} for o in top],
+            "categories": [{"cat": k, "count": v} for k, v in cats.most_common()]}
+
+
+@app.get("/lessons")
+def all_lessons(u=Depends(current_user)):
+    return (sb.table("errori_utenti")
+            .select("id,game_id,ply,mossa_critica,best_move,categoria_errore,spiegazione,apertura,data,games(white,black)")
+            .eq("user_email", u["email"]).not_.is_("spiegazione", "null").order("data", desc=True).limit(300).execute().data)
+
+
+@app.post("/sync")
+def sync(bg: BackgroundTasks, u=Depends(current_user)):
+    tier = tier_of(u["email"])
+    imported = sync_user(u["email"])
+    limit = 3 if tier == "Free" else 8
+    bg.add_task(analyze_pending, u["email"], limit)
+    pending = sb.table("games").select("id", count="exact").eq("user_email", u["email"]).is_("analyzed_at", "null").not_.is_("user_color", "null").execute().count or 0
+    return {"imported": imported, "analyzing": min(limit, pending), "pending": pending}
+
+
+@app.post("/games/{game_id}/analyze")
+def analyze_one(game_id: str, bg: BackgroundTasks, u=Depends(current_user)):
+    g = sb.table("games").select("*").eq("id", game_id).eq("user_email", u["email"]).limit(1).execute().data
+    if not g:
+        raise HTTPException(404, "not_found")
+    bg.add_task(analyze_game, g[0])
+    return {"queued": True}
+
+
+@app.post("/cron/sync")
+def cron_sync(bg: BackgroundTasks, x_cron_secret: str = Header(None)):
+    secret = os.environ.get("CRON_SECRET")
+    if not secret or x_cron_secret != secret:
+        raise HTTPException(403, "forbidden")
+    bg.add_task(run_cron)
+    return {"started": True}

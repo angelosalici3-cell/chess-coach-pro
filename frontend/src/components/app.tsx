@@ -68,14 +68,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
     );
 
-  const links: [string, K][] = [["/", "navGames"], ["/accounts", "navAccounts"], ["/plans", "navPlans"]];
+  const links: [string, K][] = [["/", "navHome"], ["/games", "navGames"], ["/lessons", "navLessons"], ["/accounts", "navAccounts"], ["/plans", "navPlans"]];
   return (
     <C.Provider value={{ me, lang, t, call, refreshMe }}>
       <div className="wrap">
         {head}
         <nav className="nav">
           {links.map(([h, k]) => (
-            <Link key={h} href={h} className={(h === "/" ? path === "/" || path.startsWith("/games") : path.startsWith(h)) ? "on" : ""}>{t(k)}</Link>
+            <Link key={h} href={h} className={(h === "/" ? path === "/" : path.startsWith(h)) ? "on" : ""}>{t(k)}</Link>
           ))}
           <span className="grow" />
           <span className="muted small">{session.user.email} · <b>{me?.tier}</b></span>

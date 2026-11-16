@@ -24,3 +24,8 @@ a { color: inherit; text-decoration: none; }
 .movelist { max-height:380px; overflow:auto; }
 .pre { white-space:pre-wrap; line-height:1.5; margin:.7rem 0 0; }
 .plans { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:.6rem; } .plans .cur { border-color:var(--gold); } .price { font-size:1.6rem; font-weight:700; color:var(--gold); }
+.stats { display:grid; grid-template-columns:repeat(3,1fr); gap:.6rem; } .stats .card { margin:.3rem 0; }
+.big { font-size:1.9rem; font-weight:800; color:var(--gold); }
+.bar { height:8px; background:#1c2440; border-radius:6px; overflow:hidden; margin-top:.25rem; } .bar div { height:100%; }
+.wdl { display:flex; height:14px; border-radius:7px; overflow:hidden; margin:.6rem 0 .4rem; background:#1c2440; }
+details summary { cursor:pointer; } details[open] summary { margin-bottom:.4rem; }

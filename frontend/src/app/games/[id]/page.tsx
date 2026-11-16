@@ -19,12 +19,15 @@ export default function GamePage() {
   const [q, setQ] = useState("");
   const [ans, setAns] = useState("");
   const [asking, setAsking] = useState(false);
+  const [queued, setQueued] = useState(false);
 
   useEffect(() => { call(`/games/${id}`).then((x) => { setD(x); setLessons(Object.fromEntries(x.errors.filter((e: any) => e.spiegazione).map((e: any) => [e.id, e.spiegazione]))); }).catch((e) => setErr(e.message)); }, [id, call]);
 
   const msg = (e: any) => (e.message === "quota_exhausted" ? t("quota") : e.message === "gm_failed" ? t("gmFailed") : e.message);
   const fenNow = ply === 0 ? START : d?.moves.find((m: any) => m.ply === ply)?.fen_after || START;
+  const fp = fenNow.split(" "); const moveLabel = ply === 0 ? "—" : `${fp[5] ? (fp[1] === "w" ? +fp[5] - 1 : fp[5]) : Math.ceil(ply / 2)}${fp[1] === "w" ? "..." : "."}`;
 
+  const analyze = async () => { try { await call(`/games/${id}/analyze`, { method: "POST" }); setQueued(true); } catch (e: any) { setErr(msg(e)); } };
   const lesson = async (eid: number) => {
     setBusy(eid); setErr("");
     try { const r = await call(`/errors/${eid}/lesson`, { method: "POST", body: JSON.stringify({ lang }) }); setLessons((s) => ({ ...s, [eid]: r.lesson })); refreshMe(); }
@@ -43,15 +46,19 @@ export default function GamePage() {
   const g = d.game;
   return (
     <>
-      <Link href="/" className="muted">{t("back")}</Link>
+      <Link href="/games" className="muted">{t("back")}</Link>
       <h2>{g.white} vs {g.black} <span className="muted">{g.result}</span></h2>
       {err && <div className="card err">⚠️ {err} {err === t("quota") && <Link href="/plans">→ {t("navPlans")}</Link>}</div>}
+      {!g.analyzed_at && (
+        <div className="card row"><span className="muted">{queued ? t("analyzingGame") : t("notAnalyzed")}</span>{!queued && <button className="primary" onClick={analyze}>{t("analyze")}</button>}</div>
+      )}
       <div className="split">
         <div>
           <Board fen={fenNow} flip={g.user_color === "black"} />
           <div className="row" style={{ justifyContent: "center", marginTop: ".5rem" }}>
             <button onClick={() => setPly(0)}>⏮</button>
             <button onClick={() => setPly(Math.max(0, ply - 1))}>◀</button>
+            <span className="muted small">{t("moveNo")} {moveLabel}</span>
             <button onClick={() => setPly(Math.min(d.moves.length, ply + 1))}>▶</button>
             <button onClick={() => setPly(d.moves.length)}>⏭</button>
           </div>
