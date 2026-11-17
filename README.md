@@ -8,7 +8,7 @@ Rotte del sito: `/` landing, `/login`, `/dashboard/*` app.
 Il nome del prodotto si cambia in `frontend/src/lib/brand.ts`.
 
 ## Modello AI
-Il modello Gemini in uso è `gemini-3.5-flash` (variabile `GEMINI_MODEL` su Render; default nel codice già aggiornato).
+Il modello Gemini in uso è `gemini-3.5-flash` (variabile `GEMINI_MODEL` su Render). Il piano Free usa `GEMINI_MODEL_FREE` (default `gemini-3.5-flash-lite`, più economico; se il nome non esiste o fallisce si usa `GEMINI_MODEL`).
 
 ## Login social, reset password, legale
 - Login con Google e Discord (Supabase Auth): vedi la guida di setup nella chat/documentazione; callback `https://<progetto>.supabase.co/auth/v1/callback`.
@@ -25,6 +25,10 @@ Il modello Gemini in uso è `gemini-3.5-flash` (variabile `GEMINI_MODEL` su Rend
 
 1. Supabase → SQL editor: esegui `supabase/003_training.sql` (dopo 001 e 002).
 2. GitHub → Settings → Secrets → Actions: aggiungi `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` e (facoltativo) `HF_TOKEN`.
-3. GitHub → Actions → **import-puzzles** → Run workflow (importa circa 5.000 puzzle dal dataset Lichess/chess-puzzles, CC0).
+3. GitHub → Actions → **import-puzzles** → Run workflow (scarica il database ufficiale Lichess, CC0, e importa ~5.000 puzzle; HF_TOKEN non serve più).
 4. Per l'analisi del tempo servono i clock: in Impostazioni premi "Risincronizza 100 partite".
 5. Atlante: "Le mie aperture" usa le ultime 400 partite sincronizzate.
+
+## Prezzi e piani (v2)
+Free 3 lezioni/mese · Plus €3,99 · Pro €6,99 · Elite €12,99. Esegui `supabase/004_free_3_lessons.sql`.
+In Stripe crea **nuovi Price** (3,99 / 6,99 / 12,99 mensili) e aggiorna `STRIPE_PRICE_PLUS/PRO/ELITE` su Render. Gli abbonati esistenti restano sul prezzo vecchio finché non li migri.

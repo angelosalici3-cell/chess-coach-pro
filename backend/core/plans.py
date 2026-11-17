@@ -15,10 +15,10 @@ class Plan:
 
 
 PLANS = {
-    "Free":  Plan("Free", 0.00, 1, 5, False, 0, ""),
-    "Plus":  Plan("Plus", 2.99, 2, 20, True, 30, "STRIPE_PRICE_PLUS"),
-    "Pro":   Plan("Pro", 4.99, 3, None, True, 200, "STRIPE_PRICE_PRO"),
-    "Elite": Plan("Elite", 9.99, 5, None, True, 600, "STRIPE_PRICE_ELITE"),
+    "Free":  Plan("Free", 0.00, 1, 3, False, 0, ""),
+    "Plus":  Plan("Plus", 3.99, 2, 20, True, 30, "STRIPE_PRICE_PLUS"),
+    "Pro":   Plan("Pro", 6.99, 3, None, True, 200, "STRIPE_PRICE_PRO"),
+    "Elite": Plan("Elite", 12.99, 5, None, True, 600, "STRIPE_PRICE_ELITE"),
 }
 
 

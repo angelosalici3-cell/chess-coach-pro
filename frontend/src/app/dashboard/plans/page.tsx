@@ -4,10 +4,10 @@ import { useApp } from "../../../components/app";
 import { supabase } from "../../../lib/supabase";
 
 const PLANS = [
-  { k: "Free", price: 0, acc: 1, gm: "5", sync: false },
-  { k: "Plus", price: 2.99, acc: 2, gm: "20", sync: true },
-  { k: "Pro", price: 4.99, acc: 3, gm: "∞", sync: true },
-  { k: "Elite", price: 9.99, acc: 5, gm: "∞", sync: true },
+  { k: "Free", price: 0, acc: 1, gm: "3", sync: false },
+  { k: "Plus", price: 3.99, acc: 2, gm: "20", sync: true },
+  { k: "Pro", price: 6.99, acc: 3, gm: "∞", sync: true },
+  { k: "Elite", price: 12.99, acc: 5, gm: "∞", sync: true },
 ];
 
 export default function PlansPage() {

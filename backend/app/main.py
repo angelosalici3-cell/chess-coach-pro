@@ -21,6 +21,8 @@ from .train import router as train_router
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "")
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
+# Free usa il modello più economico; se non esiste o fallisce si ripiega su GEMINI_MODEL
+GEMINI_MODEL_FREE = os.environ.get("GEMINI_MODEL_FREE", "gemini-3.5-flash-lite")
 
 app = FastAPI(title="Chess Coach API")
 app.include_router(train_router)
@@ -119,14 +121,22 @@ class LessonIn(BaseModel):
 LANG_NAMES = {"it": "italiano", "en": "English", "es": "español"}
 
 
-def gm_lesson(err: dict, lang: str) -> str:
+def gm_lesson(err: dict, lang: str, tier: str = "Free") -> str:
     from google import genai
     client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
     prompt = (f"Posizione (FEN) prima della mossa: {err['fen']}\n"
               f"Mossa giocata: {err['mossa_critica']}\nMossa migliore: {err.get('best_move') or 'sconosciuta'}")
     system = (f"Sei un Gran Maestro di scacchi e un ottimo insegnante. Rispondi solo in {LANG_NAMES.get(lang, 'italiano')}, "
               "in markdown semplice, con 3 punti: **Errore**, **Idea corretta**, **Regola pratica**. Max 120 parole.")
-    r = client.models.generate_content(model=GEMINI_MODEL, contents=prompt, config={"system_instruction": system})
+    cfg = {"system_instruction": system}
+    r = None
+    if tier == "Free" and GEMINI_MODEL_FREE != GEMINI_MODEL:
+        try:
+            r = client.models.generate_content(model=GEMINI_MODEL_FREE, contents=prompt, config=cfg)
+        except Exception:
+            r = None
+    if r is None or not r.text:
+        r = client.models.generate_content(model=GEMINI_MODEL, contents=prompt, config=cfg)
     if not r.text:
         raise RuntimeError("empty")
     return r.text.strip()
@@ -143,7 +153,7 @@ def lesson(error_id: int, body: LessonIn, u=Depends(current_user)):
     if not sb.rpc("consume_gm_lesson", {"p_email": u["email"]}).execute().data:
         raise HTTPException(402, "quota_exhausted")
     try:
-        text = gm_lesson(err, body.lang)
+        text = gm_lesson(err, body.lang, tier_of(u["email"]))
     except Exception:
         sb.rpc("refund_gm_lesson", {"p_email": u["email"]}).execute()  # se il GM non risponde, la lezione non conta
         raise HTTPException(502, "gm_failed")

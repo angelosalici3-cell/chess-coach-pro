@@ -60,7 +60,7 @@ export const COPY: Record<Lang, Copy> = {
     pricing: {
       title: "Scegli quanto vuoi allenarti", sub: "Parti gratis. Cambi piano o disdici quando vuoi.", month: "/mese", popular: "Il più scelto", start: "Inizia",
       plans: {
-        Free: { blurb: "Per provare", items: ["1 account collegato", "5 lezioni del GM al mese", "Sincronizzazione manuale"] },
+        Free: { blurb: "Per provare", items: ["1 account collegato", "3 lezioni del GM al mese", "Sincronizzazione manuale"] },
         Plus: { blurb: "Per iniziare sul serio", items: ["2 account collegati", "20 lezioni del GM al mese", "Sincronizzazione automatica ogni notte"] },
         Pro: { blurb: "Per migliorare ogni settimana", items: ["3 account collegati", "Lezioni del GM illimitate", "Sincronizzazione automatica ogni notte"] },
         Elite: { blurb: "Per chi gioca su più account", items: ["5 account collegati", "Lezioni del GM illimitate", "Sincronizzazione automatica ogni notte"] },
@@ -124,7 +124,7 @@ export const COPY: Record<Lang, Copy> = {
     pricing: {
       title: "Choose how much you want to train", sub: "Start free. Change plan or cancel whenever you want.", month: "/month", popular: "Most chosen", start: "Start",
       plans: {
-        Free: { blurb: "To try it out", items: ["1 linked account", "5 GM lessons per month", "Manual sync"] },
+        Free: { blurb: "To try it out", items: ["1 linked account", "3 GM lessons per month", "Manual sync"] },
         Plus: { blurb: "To get started for real", items: ["2 linked accounts", "20 GM lessons per month", "Automatic sync every night"] },
         Pro: { blurb: "To improve every week", items: ["3 linked accounts", "Unlimited GM lessons", "Automatic sync every night"] },
         Elite: { blurb: "For players with several accounts", items: ["5 linked accounts", "Unlimited GM lessons", "Automatic sync every night"] },
@@ -188,7 +188,7 @@ export const COPY: Record<Lang, Copy> = {
     pricing: {
       title: "Elige cuánto quieres entrenar", sub: "Empieza gratis. Cambia de plan o cancela cuando quieras.", month: "/mes", popular: "El más elegido", start: "Empezar",
       plans: {
-        Free: { blurb: "Para probar", items: ["1 cuenta vinculada", "5 lecciones del GM al mes", "Sincronización manual"] },
+        Free: { blurb: "Para probar", items: ["1 cuenta vinculada", "3 lecciones del GM al mes", "Sincronización manual"] },
         Plus: { blurb: "Para empezar en serio", items: ["2 cuentas vinculadas", "20 lecciones del GM al mes", "Sincronización automática cada noche"] },
         Pro: { blurb: "Para mejorar cada semana", items: ["3 cuentas vinculadas", "Lecciones del GM ilimitadas", "Sincronización automática cada noche"] },
         Elite: { blurb: "Para quien juega en varias cuentas", items: ["5 cuentas vinculadas", "Lecciones del GM ilimitadas", "Sincronización automática cada noche"] },
