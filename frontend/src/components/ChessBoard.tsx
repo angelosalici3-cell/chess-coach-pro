@@ -7,18 +7,30 @@ const Chessboard = dynamic(() => import("react-chessboard").then((m) => m.Chessb
   loading: () => <div className="board-skel" />,
 });
 
-export default function ChessBoard({ fen, flip, last, notation = true }: { fen: string; flip?: boolean; last?: string | null; notation?: boolean }) {
+type Props = {
+  fen: string; flip?: boolean; last?: string | null; notation?: boolean;
+  /** Se presente la scacchiera è interattiva: restituisci true per accettare la mossa. */
+  onDrop?: (from: string, to: string, piece: string) => boolean;
+  /** Caselle evidenziate (es. suggerimento o soluzione). */
+  marks?: Record<string, string>;
+  shake?: boolean;
+};
+
+export default function ChessBoard({ fen, flip, last, notation = true, onDrop, marks, shake }: Props) {
   const hl: Record<string, React.CSSProperties> = {};
   if (last && last.length >= 4) {
     hl[last.slice(0, 2)] = { backgroundColor: "rgba(255, 200, 61, .45)" };
     hl[last.slice(2, 4)] = { backgroundColor: "rgba(255, 200, 61, .6)" };
   }
+  for (const [sq, color] of Object.entries(marks || {})) hl[sq] = { backgroundColor: color };
   return (
-    <div className="board-frame">
+    <div className={"board-frame" + (shake ? " shake" : "")}>
       <Chessboard
         position={fen}
         boardOrientation={flip ? "black" : "white"}
-        arePiecesDraggable={false}
+        arePiecesDraggable={!!onDrop}
+        onPieceDrop={onDrop ? (a: string, b: string, p: string) => onDrop(a, b, p) : undefined}
+        autoPromoteToQueen={true}
         animationDuration={240}
         showBoardNotation={notation}
         customDarkSquareStyle={{ backgroundColor: "#6d7fb3" }}

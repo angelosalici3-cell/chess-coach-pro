@@ -58,7 +58,7 @@ export function LossChart({ pts, active, onPick }: { pts: LossPt[]; active: numb
   );
 }
 
-export type Series = { key: string; label: string; color: string; points: { d: string; r: number }[] };
+export type Series = { key: string; label: string; color: string; dash?: string; points: { d: string; r: number }[] };
 const DAY = 86400000;
 const ts = (d: string) => Date.parse(d + "T00:00:00Z");
 
@@ -101,7 +101,7 @@ export function MultiLineChart({ series, days }: { series: Series[]; days: numbe
         <text x={W - R} y={H - 7} fill="#8d97b8" fontSize="11" textAnchor="end">{fmt(tMax)}</text>
         {vis.map((s) => (
           <g key={s.key}>
-            {s.pts.length > 1 && <polyline fill="none" stroke={s.color} strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" points={s.pts.map((p) => `${x(ts(p.d)).toFixed(1)},${y(p.r).toFixed(1)}`).join(" ")} />}
+            {s.pts.length > 1 && <polyline fill="none" stroke={s.color} strokeWidth="2.4" strokeDasharray={s.dash} strokeLinejoin="round" strokeLinecap="round" points={s.pts.map((p) => `${x(ts(p.d)).toFixed(1)},${y(p.r).toFixed(1)}`).join(" ")} />}
             {s.pts.length <= 40 && s.pts.map((p) => <circle key={p.d} cx={x(ts(p.d))} cy={y(p.r)} r="2.6" fill={s.color} />)}
             <circle cx={x(ts(s.pts[s.pts.length - 1].d))} cy={y(s.pts[s.pts.length - 1].r)} r="4.5" fill={s.color} />
           </g>

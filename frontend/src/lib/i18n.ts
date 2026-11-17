@@ -153,6 +153,11 @@ const S = {
   omVolC: { it: "C · Aperte", en: "C · Open games", es: "C · Juegos abiertos" },
   omVolD: { it: "D · Chiuse", en: "D · Closed games", es: "D · Juegos cerrados" },
   omVolE: { it: "E · Indiane", en: "E · Indian defenses", es: "E · Defensas indias" },
+  allAccounts: { it: "Tutti gli account", en: "All accounts", es: "Todas las cuentas" },
+  allSpeeds: { it: "Tutti i ritmi", en: "All time controls", es: "Todos los ritmos" },
+  accountFilter: { it: "Account", en: "Account", es: "Cuenta" },
+  speedFilter: { it: "Ritmo", en: "Time control", es: "Ritmo" },
+  navTrain: { it: "Allenamento", en: "Training", es: "Entrenamiento" },
 } as const;
 export type K = keyof typeof S;
 export const tr = (k: K, l: Lang) => S[k][l];

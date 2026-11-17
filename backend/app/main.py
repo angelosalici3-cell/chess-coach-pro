@@ -14,41 +14,21 @@ from fastapi import BackgroundTasks
 from core.plans import get_plan, stripe_price_id
 from .db import sb
 from .engine import analyze_game
+from .auth import current_user, tier_of
 from .sync import analyze_pending, run_cron, sync_user
+from .train import router as train_router
 
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "")
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
 
 app = FastAPI(title="Chess Coach API")
+app.include_router(train_router)
 app.add_middleware(CORSMiddleware, allow_origins=[FRONTEND_URL], allow_methods=["*"], allow_headers=["*"])
 
 
 def now_iso():
     return datetime.datetime.now(datetime.timezone.utc).isoformat()
-
-
-def current_user(authorization: str = Header(None)):
-    """Verifica il token Supabase inviato dal browser. Ogni query è poi filtrata per email."""
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(401, "missing_token")
-    try:
-        u = sb.auth.get_user(authorization[7:]).user
-    except Exception:
-        raise HTTPException(401, "invalid_token")
-    if not u or not u.email:
-        raise HTTPException(401, "invalid_token")
-    return {"id": u.id, "email": u.email}
-
-
-def tier_of(email: str) -> str:
-    rows = sb.table("config_utenti").select("tier,data_scadenza").eq("user_email", email).limit(1).execute().data
-    if not rows:
-        return "Free"
-    tier, exp = rows[0]["tier"], rows[0].get("data_scadenza")
-    if tier != "Free" and exp and datetime.date.fromisoformat(exp) < datetime.date.today():
-        return "Free"
-    return tier
 
 
 @app.get("/health")
@@ -68,6 +48,7 @@ def me(u=Depends(current_user)):
         "profiles": {"used": n, "limit": plan.profiles},
         "lessons": {"used": q[0]["ai_analyses_used"] if q else 0, "limit": plan.gm_lessons_month},
         "auto_sync": plan.auto_sync,
+        "bonus_lessons": (sb.table("config_utenti").select("bonus_lessons").eq("user_email", u["email"]).limit(1).execute().data or [{}])[0].get("bonus_lessons") or 0,
     }
 
 
@@ -255,7 +236,7 @@ def delete_me(u=Depends(current_user)):
     ids = [g["id"] for g in sb.table("games").select("id").eq("user_email", email).execute().data]
     if ids:
         sb.table("moves").delete().in_("game_id", ids).execute()
-    for t in ("errori_utenti", "ai_usage_log", "games", "storico_rating", "profili_scacchi", "quota_usage", "storico_abbonamenti", "config_utenti"):
+    for t in ("mistake_cards", "puzzle_attempts", "training_stats", "rewards", "errori_utenti", "ai_usage_log", "games", "storico_rating", "profili_scacchi", "quota_usage", "storico_abbonamenti", "config_utenti"):
         sb.table(t).delete().eq("user_email", email).execute()
     sb.table("user_profiles").delete().eq("user_id", u["id"]).execute()
     sb.auth.admin.delete_user(u["id"])
@@ -323,9 +304,9 @@ def all_lessons(u=Depends(current_user)):
 
 
 @app.post("/sync")
-def sync(bg: BackgroundTasks, u=Depends(current_user)):
+def sync(bg: BackgroundTasks, n: int = 15, u=Depends(current_user)):
     tier = tier_of(u["email"])
-    imported = sync_user(u["email"])
+    imported = sync_user(u["email"], max(5, min(n, 100)))
     limit = 3 if tier == "Free" else 8
     bg.add_task(analyze_pending, u["email"], limit)
     pending = sb.table("games").select("id", count="exact").eq("user_email", u["email"]).is_("analyzed_at", "null").not_.is_("user_color", "null").execute().count or 0

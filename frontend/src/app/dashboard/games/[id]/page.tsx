@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useApp } from "../../../../components/app";
 import ChessBoard from "../../../../components/ChessBoard";
 import { LossChart, LossPt } from "../../../../components/Charts";
+import TimeChart from "../../../../components/TimeChart";
+import { tc } from "../../../../lib/train-copy";
 
 const START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 const CLS: Record<string, string> = { blunder: "var(--bad)", mistake: "var(--ember)", inaccuracy: "var(--amber)", brilliant: "var(--mint)", best: "var(--mint)" };
@@ -19,12 +21,14 @@ export default function GamePage() {
   const [lessons, setLessons] = useState<Record<number, string>>({});
   const [busy, setBusy] = useState<number | null>(null);
   const [queued, setQueued] = useState(false);
+  const [timeData, setTimeData] = useState<any>(null);
 
   useEffect(() => {
     call(`/games/${id}`).then((x) => {
       setD(x);
       setLessons(Object.fromEntries(x.errors.filter((e: any) => e.gm_lesson).map((e: any) => [e.id, e.gm_lesson])));
     }).catch((e) => setErr(e.message));
+    call(`/games/${id}/time`).then(setTimeData).catch(() => setTimeData({ available: false }));
   }, [id, call]);
 
   const msg = (e: any) => (e.message === "quota_exhausted" ? t("quota") : e.message === "gm_failed" ? t("gmFailed") : e.message);
@@ -105,6 +109,15 @@ export default function GamePage() {
           </div>
         </div>
       )}
+
+      {timeData?.available && (
+        <div className="card loss-wrap">
+          <b>{tc("timeChartTitle", lang)}</b>
+          <TimeChart data={timeData} active={ply} onPick={setPly} />
+        </div>
+      )}
+
+      {timeData && !timeData.available && <p className="muted small">{tc("noClock", lang)}</p>}
 
       <h2>{t("mistakes")}</h2>
       {items.length === 0 && <p className="muted">{t("noMistakes")}</p>}

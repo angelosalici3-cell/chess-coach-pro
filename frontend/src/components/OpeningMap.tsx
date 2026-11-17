@@ -1,9 +1,11 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { Chess } from "chess.js";
 import ChessBoard from "./ChessBoard";
 import { useApp } from "./app";
 import { K } from "../lib/i18n";
+import { tc } from "../lib/train-copy";
 import { H, VOL_COLOR, VolKey, W, currentName, layout, moveLabel, prepare, resolve, search } from "../lib/openings";
 
 type Data = ReturnType<typeof prepare>;
@@ -11,7 +13,7 @@ const short = (name: string) => (name.includes(":") ? name.split(":").slice(1).j
 const pgnOf = (path: string[]) => path.map((s, i) => (i % 2 ? s : `${i / 2 + 1}. ${s}`)).join(" ");
 
 export default function OpeningMap() {
-  const { t } = useApp();
+  const { t, call, lang } = useApp();
   const [data, setData] = useState<Data | null>(null);
   const [failed, setFailed] = useState(false);
   const [path, setPath] = useState<string[]>([]);
@@ -20,7 +22,11 @@ export default function OpeningMap() {
   const [q, setQ] = useState("");
   const [copied, setCopied] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
+  const [games, setGames] = useState<any[] | null>(null);
+  const [mineOn, setMineOn] = useState(true);
+  const [colorF, setColorF] = useState<"all" | "w" | "b">("all");
 
+  useEffect(() => { call("/openings/mine").then(setGames).catch(() => setGames([])); }, [call]);
   useEffect(() => {
     fetch("/openings.json").then((r) => r.json()).then((j) => setData(prepare(j.t))).catch(() => setFailed(true));
   }, []);
@@ -56,6 +62,33 @@ export default function OpeningMap() {
     }, 780);
     return () => clearTimeout(id);
   }, [playing, path, data]);
+
+  // le tue partite: conteggi per ogni linea (prefisso di mosse) e partite che passano dal nodo scelto
+  const mine = useMemo(() => {
+    const m = new Map<string, { n: number; w: number; d: number; l: number }>();
+    for (const g of games || []) {
+      if (colorF !== "all" && g.c !== colorF) continue;
+      let id = "";
+      for (let i = 0; i < g.m.length; i++) {
+        id = i ? id + " " + g.m[i] : g.m[0];
+        const e = m.get(id) || { n: 0, w: 0, d: 0, l: 0 };
+        e.n++; (e as any)[g.r]++; m.set(id, e);
+      }
+    }
+    return m;
+  }, [games, colorF]);
+  const topMine = useMemo(() => {
+    if (!data) return [];
+    return data.entries.map((e) => ({ e, s: mine.get(e.path.join(" ")) })).filter((x) => x.s).sort((a, b) => b.s!.n - a.s!.n).slice(0, 6);
+  }, [data, mine]);
+  const here_id = path.join(" ");
+  const through = useMemo(() => (games || []).filter((g) => (colorF === "all" || g.c === colorF) && g.m.length >= path.length && g.m.slice(0, path.length).join(" ") === here_id), [games, colorF, path, here_id]);
+  const leaving = useMemo(() => {
+    const known = new Set((here ? here.kids : data?.roots || []).map((k) => k.san));
+    const c: Record<string, number> = {};
+    for (const g of through) { const nx = g.m[path.length]; if (nx && !known.has(nx)) c[nx] = (c[nx] || 0) + 1; }
+    return Object.entries(c).sort((a, b) => b[1] - a[1]).slice(0, 4);
+  }, [through, here, data, path]);
 
   const results = useMemo(() => (data ? search(data.entries, q) : []), [data, q]);
   const go = (p: string[]) => { setPlaying(false); setPath(p); };
@@ -95,6 +128,12 @@ export default function OpeningMap() {
             </div>
           )}
         </div>
+        <div className="om-mine-bar">
+          <button className={"chip" + (mineOn ? " on" : "")} onClick={() => setMineOn((v) => !v)} aria-pressed={mineOn}>{tc("mineToggle", lang)}</button>
+          {mineOn && (["all", "w", "b"] as const).map((k) => (
+            <button key={k} className={"chip" + (colorF === k ? " on" : "")} onClick={() => setColorF(k)}>{tc(k === "all" ? "mineAll" : k === "w" ? "mineWhite" : "mineBlack", lang)}</button>
+          ))}
+        </div>
         <div className="om-legend" aria-label="ECO">
           {(["A", "B", "C", "D", "E"] as VolKey[]).map((v) => <span key={v}><i style={{ background: VOL_COLOR[v] }} />{t(("omVol" + v) as K)}</span>)}
         </div>
@@ -105,12 +144,16 @@ export default function OpeningMap() {
             </svg>
             {L.nodes.map((n) => {
               const below = n.node.n - (n.node.name ? 1 : 0);
+              const mi = mineOn ? mine.get(n.id) : undefined;
+              const wr = mi ? mi.w / mi.n : 0;
               return (
-                <button key={n.id} className={"om-node" + (n.sel ? " sel" : "")} style={{ left: n.x, top: n.y, width: W, height: H, ["--v" as string]: VOL_COLOR[n.node.vol] }}
+                <button key={n.id} className={"om-node" + (n.sel ? " sel" : "") + (mi ? " mine" : "")}
+                  style={{ left: n.x, top: n.y, width: W, height: H, ["--v" as string]: VOL_COLOR[n.node.vol], ["--m" as string]: mi ? (wr >= 0.55 ? "#4ee3b0" : wr <= 0.4 ? "#ff5d6c" : "#ffb84d") : undefined }}
                   title={n.node.name ? `${n.node.name} (${n.node.eco})` : undefined} aria-pressed={n.sel}
                   onClick={() => go(n.sel ? n.path.slice(0, -1) : n.path)}>
                   <span className="om-san">{moveLabel(n.node.ply, n.node.san)}</span>
                   {n.node.name && <span className="om-name">{short(n.node.name)}</span>}
+                  {mi && <span className="om-mine" title={tc("mineWinRate", lang, { n: Math.round(wr * 100) })}>{mi.n}× · {Math.round(wr * 100)}%</span>}
                   {below > 0 && <span className="om-n" aria-label={`${below} ${t("omLines")}`}>{below}</span>}
                 </button>
               );
@@ -152,6 +195,45 @@ export default function OpeningMap() {
             ))}
           </div>
         ) : path.length > 0 ? <p className="muted small">{t("omEnd")}</p> : null}
+        {mineOn && games && games.length === 0 && <p className="muted small">{tc("mineNoGames", lang)}</p>}
+        {mineOn && games && games.length > 0 && !path.length && topMine.length > 0 && (
+          <div>
+            <div className="muted small" style={{ marginBottom: ".4rem" }}>{tc("mineTop", lang)}</div>
+            <div className="om-next">
+              {topMine.map(({ e, s }) => (
+                <button key={e.path.join(" ")} onClick={() => go(e.path)} style={{ ["--v" as string]: VOL_COLOR[(e.eco[0] || "A") as VolKey] }}>
+                  <b>{s!.n}× · {Math.round((100 * s!.w) / s!.n)}%</b><span>{e.name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+        {mineOn && games && games.length > 0 && path.length > 0 && (
+          <div className="om-mycard">
+            <div className="muted small" style={{ marginBottom: ".4rem" }}>{tc("mineHere", lang)}</div>
+            {through.length === 0 ? <span className="small muted">{tc("mineNone", lang)}</span> : (() => {
+              const w = through.filter((g) => g.r === "w").length, d = through.filter((g) => g.r === "d").length, l = through.length - w - d;
+              return (
+                <>
+                  <div className="row small"><b>{tc("mineGames", lang, { n: through.length })}</b><span className="muted">{tc("mineW", lang)} {w} · {tc("mineD", lang)} {d} · {tc("mineL", lang)} {l}</span></div>
+                  <div className="wdl"><div style={{ flex: w, background: "var(--mint)" }} /><div style={{ flex: d, background: "var(--mute)" }} /><div style={{ flex: l, background: "var(--bad)" }} /></div>
+                  {leaving.length > 0 && (
+                    <div style={{ marginTop: ".5rem" }}>
+                      <div className="muted small" title={tc("mineLeaveHint", lang)}>{tc("mineLeave", lang)}</div>
+                      <div className="chips">{leaving.map(([m, n]) => <span key={m} className="chip">{moveLabel(path.length + 1, m)} ×{n}</span>)}</div>
+                    </div>
+                  )}
+                  <div className="muted small" style={{ marginTop: ".5rem" }}>{tc("mineRecent", lang)}</div>
+                  <div className="om-games">
+                    {through.slice(0, 4).map((g) => (
+                      <Link key={g.id} href={`/dashboard/games/${g.id}`}><i className={"res " + g.r} />{g.d} · {g.o}</Link>
+                    ))}
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        )}
         <div className="row" style={{ justifyContent: "flex-start" }}>
           <button className="btn btn-primary btn-sm" onClick={random}>{t("omRandom")}</button>
           <button className="btn btn-ghost btn-sm" onClick={copy} disabled={!path.length}>{copied ? t("omCopied") : t("omCopy")}</button>

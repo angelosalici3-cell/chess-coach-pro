@@ -5,11 +5,11 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { api } from "../lib/api";
 import { supabase } from "../lib/supabase";
-import { K } from "../lib/i18n";
+import { K, Lang } from "../lib/i18n";
 import { LangSwitch, useLang } from "./lang";
 import { Logo } from "./Logo";
 
-type Ctx = { me: any; lang: any; t: (k: K) => string; call: <T = any>(path: string, init?: RequestInit) => Promise<T>; refreshMe: () => void };
+type Ctx = { me: any; lang: Lang; t: (k: K) => string; call: <T = any>(path: string, init?: RequestInit) => Promise<T>; refreshMe: () => void };
 const C = createContext<Ctx>(null as any);
 export const useApp = () => useContext(C);
 
@@ -21,6 +21,7 @@ const NAV: { href: string; k: K; icon: React.ReactNode }[] = [
   { href: "/dashboard/games", k: "navGames", icon: I("M4 4h16v16H4zM4 12h16M12 4v16") },
   { href: "/dashboard/lessons", k: "navLessons", icon: I("M4 5a2 2 0 012-2h12v16H6a2 2 0 00-2 2zM8 7h6M8 11h6") },
   { href: "/dashboard/openings", k: "navOpenings", icon: I("M6 4v16M6 8h6a4 4 0 014 4v8M6 14h10") },
+  { href: "/dashboard/train", k: "navTrain", icon: I("M13 2L4 14h7l-1 8 9-12h-7z") },
   { href: "/dashboard/accounts", k: "navAccounts", icon: I("M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1") },
   { href: "/dashboard/plans", k: "navPlans", icon: I("M3 7h18v12H3zM3 11h18M7 15h3") },
 ];

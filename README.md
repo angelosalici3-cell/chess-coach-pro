@@ -20,3 +20,11 @@ Il modello Gemini in uso è `gemini-3.5-flash` (variabile `GEMINI_MODEL` su Rend
 - `frontend/scripts/build-openings.mjs` lo scarica e genera `public/openings.json`; parte da solo prima di `next build` (script `prebuild`), quindi su Vercel i dati completi arrivano al deploy.
 - Il file `public/openings.json` incluso nel repository è un **seed di 60 aperture** per far funzionare la pagina anche in locale (`npm run openings` per scaricare quello completo).
 - Se il download fallisce durante la build, resta il file esistente.
+
+## Allenamento, puzzle, scudi e analisi del tempo
+
+1. Supabase → SQL editor: esegui `supabase/003_training.sql` (dopo 001 e 002).
+2. GitHub → Settings → Secrets → Actions: aggiungi `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` e (facoltativo) `HF_TOKEN`.
+3. GitHub → Actions → **import-puzzles** → Run workflow (importa circa 5.000 puzzle dal dataset Lichess/chess-puzzles, CC0).
+4. Per l'analisi del tempo servono i clock: in Impostazioni premi "Risincronizza 100 partite".
+5. Atlante: "Le mie aperture" usa le ultime 400 partite sincronizzate.

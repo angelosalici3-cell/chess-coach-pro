@@ -16,7 +16,7 @@ UA = {"User-Agent": "ChessCoachPro/1.0 (support@chesscoachpro.com)"}
 
 
 def fetch_lichess(username: str, n: int) -> list[str]:
-    r = httpx.get(f"https://lichess.org/api/games/user/{username.lower()}", params={"max": n, "opening": "true"},
+    r = httpx.get(f"https://lichess.org/api/games/user/{username.lower()}", params={"max": n, "opening": "true", "clocks": "true"},
                   headers={**UA, "Accept": "application/x-chess-pgn"}, timeout=25.0)
     if r.status_code != 200:
         return []
@@ -61,7 +61,8 @@ def to_row(email: str, source: str, pgn_text: str, username: str):
         opening = re.split(r"-\d", h["ECOUrl"].rstrip("/").split("/")[-1])[0].replace("-", " ")
     return {"user_email": email, "source": source, "source_game_id": gid, "pgn": str(g), "white": h.get("White"),
             "black": h.get("Black"), "user_color": color, "result": h.get("Result"), "time_control": h.get("TimeControl"),
-            "opening_eco": h.get("ECO"), "opening_name": opening, "played_at": played}
+            "opening_eco": h.get("ECO"), "opening_name": opening, "played_at": played,
+            "has_clock": "[%clk" in pgn_text}
 
 
 def sync_user(email: str, n: int = 15) -> int:
@@ -78,8 +79,16 @@ def sync_user(email: str, n: int = 15) -> int:
             continue
         rows = [r for r in (to_row(email, src, x, p["username"]) for x in pgns) if r]
         if rows:
-            res = sb.table("games").upsert(rows, on_conflict="user_email,source,source_game_id", ignore_duplicates=True).execute()
-            imported += len(res.data or [])
+            ids = [r["source_game_id"] for r in rows]
+            have = {e["source_game_id"]: e.get("has_clock") for e in sb.table("games").select("source_game_id,has_clock")
+                    .eq("user_email", email).eq("source", src).in_("source_game_id", ids).execute().data}
+            new = [r for r in rows if r["source_game_id"] not in have]
+            if new:
+                res = sb.table("games").upsert(new, on_conflict="user_email,source,source_game_id", ignore_duplicates=True).execute()
+                imported += len(res.data or [])
+            for r in rows:  # partite già presenti senza orologio: recupera il PGN con i tempi
+                if have.get(r["source_game_id"]) is False and r["has_clock"]:
+                    sb.table("games").update({"pgn": r["pgn"], "has_clock": True}).eq("user_email", email).eq("source", src).eq("source_game_id", r["source_game_id"]).execute()
         sb.table("profili_scacchi").update({"last_sync_at": datetime.datetime.now(datetime.timezone.utc).isoformat()}).eq("id", p["id"]).execute()
     return imported
 
