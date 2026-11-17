@@ -12,13 +12,14 @@ class Plan:
     auto_sync: bool                  # download + analisi automatici
     auto_games_month: int            # tetto partite analizzate dal worker
     stripe_price_env: str            # nome della variabile d'ambiente
+    history_games: int = 50          # storico importabile per account collegato
 
 
 PLANS = {
-    "Free":  Plan("Free", 0.00, 1, 3, False, 0, ""),
-    "Plus":  Plan("Plus", 3.99, 2, 20, True, 30, "STRIPE_PRICE_PLUS"),
-    "Pro":   Plan("Pro", 6.99, 3, None, True, 200, "STRIPE_PRICE_PRO"),
-    "Elite": Plan("Elite", 12.99, 5, None, True, 600, "STRIPE_PRICE_ELITE"),
+    "Free":  Plan("Free", 0.00, 1, 3, False, 0, "", history_games=50),
+    "Plus":  Plan("Plus", 3.99, 2, 20, True, 30, "STRIPE_PRICE_PLUS", history_games=200),
+    "Pro":   Plan("Pro", 6.99, 3, None, True, 200, "STRIPE_PRICE_PRO", history_games=500),
+    "Elite": Plan("Elite", 12.99, 5, None, True, 600, "STRIPE_PRICE_ELITE", history_games=1000),
 }
 
 

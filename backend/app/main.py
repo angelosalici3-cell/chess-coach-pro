@@ -15,7 +15,7 @@ from core.plans import get_plan, stripe_price_id
 from .db import sb
 from .engine import analyze_game
 from .auth import current_user, tier_of
-from .sync import analyze_pending, run_cron, sync_user
+from .sync import analyze_pending, import_history, run_cron, sync_user
 from .train import router as train_router
 
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "")
@@ -49,7 +49,7 @@ def me(u=Depends(current_user)):
         "email": u["email"], "tier": tier,
         "profiles": {"used": n, "limit": plan.profiles},
         "lessons": {"used": q[0]["ai_analyses_used"] if q else 0, "limit": plan.gm_lessons_month},
-        "auto_sync": plan.auto_sync,
+        "auto_sync": plan.auto_sync, "history_games": plan.history_games,
         "bonus_lessons": (sb.table("config_utenti").select("bonus_lessons").eq("user_email", u["email"]).limit(1).execute().data or [{}])[0].get("bonus_lessons") or 0,
     }
 
@@ -66,7 +66,7 @@ def list_profiles(u=Depends(current_user)):
 
 
 @app.post("/profiles")
-def add_profile(body: ProfileIn, u=Depends(current_user)):
+def add_profile(body: ProfileIn, bg: BackgroundTasks, u=Depends(current_user)):
     if body.piattaforma not in ("lichess", "chesscom") or not body.username.strip():
         raise HTTPException(400, "invalid_profile")
     plan = get_plan(tier_of(u["email"]))
@@ -78,6 +78,7 @@ def add_profile(body: ProfileIn, u=Depends(current_user)):
             {"user_email": u["email"], "piattaforma": body.piattaforma, "username": body.username.strip()}).execute()
     except Exception:
         raise HTTPException(409, "profile_exists")
+    bg.add_task(import_history, u["email"], tier_of(u["email"]))  # storico subito, in background
     return r.data[0]
 
 
@@ -271,7 +272,7 @@ def _speed(tc: str | None):
 @app.get("/stats")
 def stats(u=Depends(current_user)):
     rows = (sb.table("games").select("source,white,black,time_control,pgn,user_color,result,opening_name,played_at,accuracy_user")
-            .eq("user_email", u["email"]).order("played_at", desc=True).limit(500).execute().data)[::-1]
+            .eq("user_email", u["email"]).order("played_at", desc=True).limit(1000).execute().data)[::-1]
     w = d = l = 0
     ops, rating, accs = {}, {}, []
     for g in rows:
@@ -311,6 +312,14 @@ def all_lessons(u=Depends(current_user)):
     return (sb.table("errori_utenti")
             .select("id,game_id,ply,mossa_critica,best_move,categoria_errore,gm_lesson,gm_lesson_at,apertura,games(white,black)")
             .eq("user_email", u["email"]).not_.is_("gm_lesson", "null").order("gm_lesson_at", desc=True).limit(300).execute().data)
+
+
+@app.post("/sync/history")
+def sync_history(bg: BackgroundTasks, u=Depends(current_user)):
+    """Importa (o amplia dopo un upgrade) lo storico previsto dal piano."""
+    tier = tier_of(u["email"])
+    bg.add_task(import_history, u["email"], tier)
+    return {"started": True, "games": get_plan(tier).history_games}
 
 
 @app.post("/sync")

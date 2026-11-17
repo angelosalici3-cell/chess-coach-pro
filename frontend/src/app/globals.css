@@ -408,3 +408,33 @@ details.card summary { cursor: pointer; } details.card[open] summary { margin-bo
 .om-games a:hover { color: var(--ember-2); }
 .res { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--mute); flex: none; }
 .res.w { background: var(--mint); } .res.l { background: var(--bad); }
+
+/* ===== Guida / onboarding ===== */
+.btn-guide { background: transparent; border: 1px dashed var(--line-2); color: var(--ember-2); border-radius: 10px; padding: .4rem .7rem; font-size: .88rem; }
+.ob-back { position: fixed; inset: 0; z-index: 200; background: rgba(5, 8, 20, .78); backdrop-filter: blur(6px); display: grid; place-items: center; padding: 1rem; animation: ob-fade .25s ease; }
+.ob { position: relative; width: min(560px, 100%); max-height: calc(100dvh - 2rem); overflow: auto; background: linear-gradient(180deg, var(--ink-2), var(--ink)); border: 1px solid var(--line-2); border-radius: 22px; box-shadow: 0 30px 80px rgba(0, 0, 0, .55); }
+.ob-x { position: absolute; top: .6rem; right: .6rem; width: 36px; height: 36px; padding: 0; border-radius: 50%; font-size: 1.3rem; line-height: 1; background: rgba(255, 255, 255, .06); z-index: 2; }
+.ob-art { height: 168px; display: grid; place-items: center; background: radial-gradient(circle at 50% 120%, rgba(255, 107, 61, .22), transparent 65%); border-bottom: 1px solid var(--line); }
+.ob-svg { width: 240px; height: 140px; }
+.ob-logo, .ob-shields { display: flex; align-items: flex-end; gap: .8rem; animation: ob-rise .5s ease both; }
+.ob-body { padding: 1.1rem 1.5rem .4rem; animation: ob-rise .35s ease both; }
+.ob-body h2 { font-size: 1.55rem; margin: .1rem 0 .5rem; }
+.ob-body ul { margin: .4rem 0 .6rem; padding: 0; list-style: none; display: grid; gap: .35rem; }
+.ob-body li { position: relative; padding-left: 1.4rem; font-size: .95rem; }
+.ob-body li::before { content: ""; position: absolute; left: .15rem; top: .55em; width: 7px; height: 7px; border-radius: 50%; background: var(--ember); }
+.ob-live { display: inline-block; margin-top: .2rem; padding: .3rem .75rem; border-radius: 999px; font-size: .86rem; font-weight: 700; background: var(--ink-3); border: 1px solid var(--line-2); }
+.ob-live.ok { color: var(--mint); border-color: var(--mint); } .ob-live.todo { color: var(--amber); border-color: var(--amber); }
+.ob-dots { display: flex; justify-content: center; gap: .4rem; padding: .6rem 0; }
+.ob-dots button { width: 9px; height: 9px; padding: 0; border-radius: 99px; border: 0; background: var(--line-2); transition: width .2s, background .2s; }
+.ob-dots button.seen { background: var(--ember-2); opacity: .6; } .ob-dots button.on { width: 26px; background: var(--ember); }
+.ob-foot { display: flex; justify-content: space-between; align-items: center; gap: .6rem; padding: .4rem 1.5rem 1.3rem; }
+.ob-skip { background: transparent; border-color: transparent; color: var(--mute); }
+.ob-draw { stroke-dasharray: 340; stroke-dashoffset: 340; animation: ob-draw 1.1s .2s ease forwards; }
+.ob-bar { transform-box: fill-box; transform-origin: bottom; animation: ob-grow .6s ease both; }
+.ob-line { transform-box: fill-box; transform-origin: left; animation: ob-grow-x .6s ease both; }
+.ob-pop { transform-box: fill-box; transform-origin: center; animation: ob-popin .5s cubic-bezier(.2, 1.6, .4, 1) both; }
+@keyframes ob-fade { from { opacity: 0; } } @keyframes ob-rise { from { opacity: 0; transform: translateY(8px); } }
+@keyframes ob-draw { to { stroke-dashoffset: 0; } } @keyframes ob-grow { from { transform: scaleY(0); } } @keyframes ob-grow-x { from { transform: scaleX(0); } }
+@keyframes ob-popin { from { transform: scale(.4); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .ob-back, .ob-body, .ob-logo, .ob-shields, .ob-draw, .ob-bar, .ob-line, .ob-pop { animation: none !important; stroke-dashoffset: 0; } }
+@media (max-width: 520px) { .ob-art { height: 140px; } .ob-body, .ob-foot { padding-left: 1.1rem; padding-right: 1.1rem; } }

@@ -17,7 +17,7 @@ UA = {"User-Agent": "ChessCoachPro/1.0 (support@chesscoachpro.com)"}
 
 def fetch_lichess(username: str, n: int) -> list[str]:
     r = httpx.get(f"https://lichess.org/api/games/user/{username.lower()}", params={"max": n, "opening": "true", "clocks": "true"},
-                  headers={**UA, "Accept": "application/x-chess-pgn"}, timeout=25.0)
+                  headers={**UA, "Accept": "application/x-chess-pgn"}, timeout=25.0 if n <= 100 else 180.0)
     if r.status_code != 200:
         return []
     out, buf = [], io.StringIO(r.text)
@@ -32,7 +32,7 @@ def fetch_chesscom(username: str, n: int) -> list[str]:
         r = c.get(f"https://api.chess.com/pub/player/{username.lower()}/games/archives")
         if r.status_code != 200:
             return []
-        for url in reversed(r.json().get("archives", [])[-2:]):
+        for url in reversed(r.json().get("archives", [])[-36:]):  # fino a 3 anni di archivi mensili
             games = c.get(url).json().get("games", [])[::-1]
             out += [g["pgn"] for g in games if g.get("pgn")]
             if len(out) >= n:
@@ -65,31 +65,50 @@ def to_row(email: str, source: str, pgn_text: str, username: str):
             "has_clock": "[%clk" in pgn_text}
 
 
+def _sync_profile(email: str, p: dict, n: int) -> int:
+    """Scarica le ultime n partite di un profilo e inserisce solo quelle nuove."""
+    src = p["piattaforma"]
+    imported = 0
+    try:
+        pgns = fetch_lichess(p["username"], n) if src == "lichess" else fetch_chesscom(p["username"], n)
+    except Exception as e:
+        log.warning("fetch %s/%s: %s", src, p["username"], e)
+        return 0
+    rows = [r for r in (to_row(email, src, x, p["username"]) for x in pgns) if r]
+    if rows:
+        ids = [r["source_game_id"] for r in rows]
+        have = {}
+        for i in range(0, len(ids), 200):  # a blocchi: la query non deve diventare enorme
+            for e in sb.table("games").select("source_game_id,has_clock").eq("user_email", email).eq("source", src).in_("source_game_id", ids[i:i + 200]).execute().data:
+                have[e["source_game_id"]] = e.get("has_clock")
+        new = [r for r in rows if r["source_game_id"] not in have]
+        for i in range(0, len(new), 200):
+            res = sb.table("games").upsert(new[i:i + 200], on_conflict="user_email,source,source_game_id", ignore_duplicates=True).execute()
+            imported += len(res.data or [])
+        for r in rows:  # partite già presenti senza orologio: recupera il PGN con i tempi
+            if have.get(r["source_game_id"]) is False and r["has_clock"]:
+                sb.table("games").update({"pgn": r["pgn"], "has_clock": True}).eq("user_email", email).eq("source", src).eq("source_game_id", r["source_game_id"]).execute()
+    sb.table("profili_scacchi").update({"last_sync_at": datetime.datetime.now(datetime.timezone.utc).isoformat()}).eq("id", p["id"]).execute()
+    return imported
+
+
 def sync_user(email: str, n: int = 15) -> int:
     imported = 0
-    profs = sb.table("profili_scacchi").select("*").eq("user_email", email).execute().data
-    for p in profs:
-        src = p["piattaforma"]
-        if src not in ("lichess", "chesscom"):
+    for p in sb.table("profili_scacchi").select("*").eq("user_email", email).execute().data:
+        if p["piattaforma"] in ("lichess", "chesscom"):
+            imported += _sync_profile(email, p, n)
+    return imported
+
+
+def import_history(email: str, tier: str) -> int:
+    """Importa lo storico in base al piano. Si rifà solo se il piano permette più partite di quelle già importate."""
+    cap = get_plan(tier).history_games
+    imported = 0
+    for p in sb.table("profili_scacchi").select("*").eq("user_email", email).execute().data:
+        if p["piattaforma"] not in ("lichess", "chesscom") or (p.get("history_n") or 0) >= cap:
             continue
-        try:
-            pgns = fetch_lichess(p["username"], n) if src == "lichess" else fetch_chesscom(p["username"], n)
-        except Exception as e:
-            log.warning("fetch %s/%s: %s", src, p["username"], e)
-            continue
-        rows = [r for r in (to_row(email, src, x, p["username"]) for x in pgns) if r]
-        if rows:
-            ids = [r["source_game_id"] for r in rows]
-            have = {e["source_game_id"]: e.get("has_clock") for e in sb.table("games").select("source_game_id,has_clock")
-                    .eq("user_email", email).eq("source", src).in_("source_game_id", ids).execute().data}
-            new = [r for r in rows if r["source_game_id"] not in have]
-            if new:
-                res = sb.table("games").upsert(new, on_conflict="user_email,source,source_game_id", ignore_duplicates=True).execute()
-                imported += len(res.data or [])
-            for r in rows:  # partite già presenti senza orologio: recupera il PGN con i tempi
-                if have.get(r["source_game_id"]) is False and r["has_clock"]:
-                    sb.table("games").update({"pgn": r["pgn"], "has_clock": True}).eq("user_email", email).eq("source", src).eq("source_game_id", r["source_game_id"]).execute()
-        sb.table("profili_scacchi").update({"last_sync_at": datetime.datetime.now(datetime.timezone.utc).isoformat()}).eq("id", p["id"]).execute()
+        imported += _sync_profile(email, p, cap)
+        sb.table("profili_scacchi").update({"history_n": cap}).eq("id", p["id"]).execute()
     return imported
 
 

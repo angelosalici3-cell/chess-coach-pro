@@ -32,3 +32,9 @@ Il modello Gemini in uso è `gemini-3.5-flash` (variabile `GEMINI_MODEL` su Rend
 ## Prezzi e piani (v2)
 Free 3 lezioni/mese · Plus €3,99 · Pro €6,99 · Elite €12,99. Esegui `supabase/004_free_3_lessons.sql`.
 In Stripe crea **nuovi Price** (3,99 / 6,99 / 12,99 mensili) e aggiorna `STRIPE_PRICE_PLUS/PRO/ELITE` su Render. Gli abbonati esistenti restano sul prezzo vecchio finché non li migri.
+
+## Storico per piano
+Esegui `supabase/005_history.sql`. Free 50 partite, Plus 200, Pro 500, Elite 1000 per account collegato: l'import parte da solo al collegamento e si amplia dopo un upgrade (pulsante "Importa lo storico del tuo piano"). Le partite storiche alimentano grafico rating, atlante e statistiche; l'analisi con motore resta in coda.
+
+## Guida / onboarding
+Al primo accesso (una volta per utente, in /dashboard) si apre da sola una guida di 9 passi; si riapre sempre dal pulsante "Guida" (menu laterale e barra in alto su mobile). Testi in `frontend/src/lib/onboarding-copy.ts`.

@@ -8,8 +8,10 @@ import { supabase } from "../lib/supabase";
 import { K, Lang } from "../lib/i18n";
 import { LangSwitch, useLang } from "./lang";
 import { Logo } from "./Logo";
+import Onboarding from "./Onboarding";
+import { ui } from "../lib/onboarding-copy";
 
-type Ctx = { me: any; lang: Lang; t: (k: K) => string; call: <T = any>(path: string, init?: RequestInit) => Promise<T>; refreshMe: () => void };
+type Ctx = { me: any; lang: Lang; t: (k: K) => string; call: <T = any>(path: string, init?: RequestInit) => Promise<T>; refreshMe: () => void; openGuide: () => void };
 const C = createContext<Ctx>(null as any);
 export const useApp = () => useContext(C);
 
@@ -31,6 +33,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [ready, setReady] = useState(false);
   const [me, setMe] = useState<any>(null);
+  const [guide, setGuide] = useState(false);
   const path = usePathname();
   const router = useRouter();
 
@@ -46,6 +49,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const refreshMe = useCallback(() => { if (token) api("/me", token).then(setMe).catch(() => {}); }, [token]);
   useEffect(() => { refreshMe(); }, [refreshMe]);
 
+  // al primo accesso la guida si apre da sola (una volta per utente); poi si riapre dal pulsante Guida
+  const ukey = session?.user?.email ? `onb:${session.user.email}` : "";
+  useEffect(() => {
+    if (!ukey || !me || path !== "/dashboard") return;
+    let seen = "1";
+    try { seen = localStorage.getItem(ukey) || ""; } catch {}
+    if (!seen) { const id = setTimeout(() => setGuide(true), 700); return () => clearTimeout(id); }
+  }, [ukey, me, path]);
+  const closeGuide = () => { setGuide(false); try { localStorage.setItem(ukey, "1"); } catch {} };
+
   const logout = () => supabase.auth.signOut().then(() => router.replace("/"));
 
   if (!ready || !session) return <div className="splash"><Logo size={48} text={false} /></div>;
@@ -53,7 +66,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const on = (h: string) => (h === "/dashboard" ? path === "/dashboard" : path.startsWith(h));
   const lessonsPct = me?.lessons?.limit ? Math.min(100, (100 * me.lessons.used) / me.lessons.limit) : 0;
   return (
-    <C.Provider value={{ me, lang, t, call, refreshMe }}>
+    <C.Provider value={{ me, lang, t, call, refreshMe, openGuide: () => setGuide(true) }}>
       <div className="shell">
         <aside className="side">
           <Link href="/" aria-label="Home"><Logo size={34} /></Link>
@@ -70,18 +83,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             )}
             <div className="who"><span className="pill-tier">{me?.tier || "…"}</span><span className="small muted ellip">{session.user.email}</span></div>
             <div className="row"><LangSwitch /><button className="btn-out" onClick={logout}>{t("logout")}</button></div>
+            <button className="btn-guide" onClick={() => setGuide(true)}>? {ui("guide", lang)}</button>
             <Link href="/" className="small muted">← {t("homeSite")}</Link>
           </div>
         </aside>
         <header className="topbar">
           <Link href="/" aria-label="Home"><Logo size={30} /></Link>
-          <div className="row"><LangSwitch /><button className="btn-out" onClick={logout}>{t("logout")}</button></div>
+          <div className="row"><LangSwitch /><button className="btn-out" onClick={() => setGuide(true)}>? {ui("guide", lang)}</button><button className="btn-out" onClick={logout}>{t("logout")}</button></div>
         </header>
         <main className="content">{children}</main>
         <nav className="tabbar" aria-label="App">
           {NAV.map((n) => <Link key={n.href} href={n.href} className={on(n.href) ? "on" : ""}>{n.icon}<span>{t(n.k)}</span></Link>)}
         </nav>
       </div>
+      {guide && <Onboarding lang={lang} me={me} onClose={closeGuide} />}
     </C.Provider>
   );
 }

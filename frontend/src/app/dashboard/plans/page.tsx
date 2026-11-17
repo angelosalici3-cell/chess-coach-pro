@@ -4,10 +4,10 @@ import { useApp } from "../../../components/app";
 import { supabase } from "../../../lib/supabase";
 
 const PLANS = [
-  { k: "Free", price: 0, acc: 1, gm: "3", sync: false },
-  { k: "Plus", price: 3.99, acc: 2, gm: "20", sync: true },
-  { k: "Pro", price: 6.99, acc: 3, gm: "∞", sync: true },
-  { k: "Elite", price: 12.99, acc: 5, gm: "∞", sync: true },
+  { k: "Free", price: 0, acc: 1, gm: "3", hist: 50, sync: false },
+  { k: "Plus", price: 3.99, acc: 2, gm: "20", hist: 200, sync: true },
+  { k: "Pro", price: 6.99, acc: 3, gm: "∞", hist: 500, sync: true },
+  { k: "Elite", price: 12.99, acc: 5, gm: "∞", hist: 1000, sync: true },
 ];
 
 export default function PlansPage() {
@@ -37,7 +37,7 @@ export default function PlansPage() {
           <div key={p.k} className={"card " + (me?.tier === p.k ? "cur" : "")}>
             <h3>{p.k}</h3>
             <div className="price">€{p.price.toFixed(2)}<span className="muted small">{t("perMonth")}</span></div>
-            <p className="small">{t("accounts")}: {p.acc}<br />{t("lessons")}: {p.gm}<br />{p.sync ? t("autoSync") : ""}</p>
+            <p className="small">{t("accounts")}: {p.acc}<br />{t("lessons")}: {p.gm}<br />{t("historyN")}: {p.hist}<br />{p.sync ? t("autoSync") : ""}</p>
             {me?.tier === p.k ? <span className="muted">{t("current")}</span> : p.price > 0 && <button className="btn btn-primary" onClick={() => go("/billing/checkout", { plan: p.k, lang })}>{t("choose")}</button>}
           </div>
         ))}
