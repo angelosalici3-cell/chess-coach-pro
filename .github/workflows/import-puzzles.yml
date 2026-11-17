@@ -4,6 +4,7 @@ on:
 jobs:
   import:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -11,11 +12,16 @@ jobs:
           python-version: "3.12"
       - name: Install
         run: |
-          pip install "supabase>=2.9" httpx
+          pip install "supabase>=2.9"
+          sudo apt-get install -y zstd
+      - name: Download Lichess puzzle database
+        run: |
+          curl -fL --retry 5 --retry-delay 10 -o puzzles.csv.zst https://database.lichess.org/lichess_db_puzzle.csv.zst
+          zstd -d -f puzzles.csv.zst -o puzzles.csv
+          head -c 300 puzzles.csv; echo; wc -l puzzles.csv
       - name: Import puzzles
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          python backend/scripts/import_puzzles.py
+          python backend/scripts/import_puzzles.py puzzles.csv
