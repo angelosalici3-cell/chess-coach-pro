@@ -120,6 +120,11 @@ def analyze_pending(email: str, limit: int) -> None:
             analyze_game(g)
         except Exception as e:
             log.warning("analisi %s fallita: %s", g["id"], e)
+    try:  # le carte si assegnano subito: la preview è pronta quando l'utente apre l'app
+        from .train import assign_cards
+        assign_cards(email)
+    except Exception as e:
+        log.warning("carte %s: %s", email, e)
 
 
 def run_cron() -> None:

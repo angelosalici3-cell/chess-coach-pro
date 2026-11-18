@@ -122,6 +122,49 @@ const C = {
   mineRecent: x("Ultime partite", "Recent games", "Últimas partidas"),
   mineNoGames: x("Collega un account e sincronizza le partite per vedere qui le tue aperture.", "Link an account and sync games to see your openings here.", "Vincula una cuenta y sincroniza partidas para ver aquí tus aperturas."),
   mineW: x("V", "W", "G"), mineD: x("P", "D", "E"), mineL: x("S", "L", "P"),
+  // carte collezionabili
+  tabCards: x("Carte", "Cards", "Cartas"),
+  cardsTitle: x("Le tue carte", "Your cards", "Tus cartas"),
+  cardsSub: x("Ogni carta racconta una tua partita speciale. Rigiocala e condividila.", "Every card tells one of your special games. Replay it and share it.", "Cada carta cuenta una de tus partidas especiales. Reprodúcela y compártela."),
+  cardsEmpty: x("Ancora nessuna carta. Sincronizza le partite e fai analizzare le più belle: la prima carta arriva con la tua prima vittoria di almeno 10 mosse a testa.", "No cards yet. Sync your games and get your best ones analyzed: your first card comes with your first win of at least 10 moves each.", "Aún no hay cartas. Sincroniza tus partidas y analiza las mejores: tu primera carta llega con tu primera victoria de al menos 10 jugadas por bando."),
+  cardsNew: x("{n} carte nuove!", "{n} new cards!", "¡{n} cartas nuevas!"),
+  cardNewTag: x("NUOVA", "NEW", "NUEVA"),
+  cardsGoals: x("Obiettivi delle carte", "Card goals", "Objetivos de cartas"),
+  cardOwned: x("{a} di {b}", "{a} of {b}", "{a} de {b}"),
+  cardGif: x("Condividi GIF", "Share GIF", "Compartir GIF"),
+  cardVideo: x("Video", "Video", "Vídeo"),
+  cardPng: x("Immagine", "Image", "Imagen"),
+  cardMaking: x("Preparo la carta…", "Preparing your card…", "Preparando tu carta…"),
+  cardSaved: x("Salvata sul dispositivo.", "Saved to your device.", "Guardada en tu dispositivo."),
+  cardShared: x("Pronta da pubblicare!", "Ready to post!", "¡Lista para publicar!"),
+  cardFail: x("Non sono riuscito a creare il file. Riprova.", "Couldn't create the file. Try again.", "No pude crear el archivo. Inténtalo de nuevo."),
+  cardClose: x("Chiudi", "Close", "Cerrar"),
+  cardOpenGame: x("Apri la partita", "Open the game", "Abrir la partida"),
+  cardShareText: x("Ho battuto {opp} in {n} mosse. La mia carta su Chess Coach #ChessCoach #scacchi", "I beat {opp} in {n} moves. My card on Chess Coach #ChessCoach #chess", "Vencí a {opp} en {n} jugadas. Mi carta en Chess Coach #ChessCoach #ajedrez"),
+  cardShareTextNoWin: x("La mia carta su Chess Coach #ChessCoach #scacchi", "My card on Chess Coach #ChessCoach #chess", "Mi carta en Chess Coach #ChessCoach #ajedrez"),
+  rarCommon: x("COMUNE", "COMMON", "COMÚN"), rarRare: x("RARA", "RARE", "RARA"), rarEpic: x("EPICA", "EPIC", "ÉPICA"), rarLegendary: x("LEGGENDARIA", "LEGENDARY", "LEGENDARIA"),
+  cWin: x("Vittoria", "Win", "Victoria"), cLoss: x("Sconfitta", "Loss", "Derrota"), cDraw: x("Patta", "Draw", "Tablas"),
+  cMe: x("TU", "YOU", "TÚ"), cOpp: x("VS", "VS", "VS"), cMoves: x("mosse", "moves", "jugadas"), cAcc: x("PREC.", "ACC.", "PREC."),
+  celebTitle: x("Nuova carta {rarity}!", "New {rarity} card!", "¡Nueva carta {rarity}!"),
+  celebSub: x("Hai sbloccato: {title}", "You unlocked: {title}", "Has desbloqueado: {title}"),
+  celebShare: x("Condividi", "Share", "Compartir"),
+  celebView: x("Vedi le mie carte", "See my cards", "Ver mis cartas"),
+  celebLater: x("Più tardi", "Later", "Más tarde"),
+  celebMore: x("e altre {n} carte nuove", "and {n} more new cards", "y {n} cartas nuevas más"),
+  cardsProgress: x("I tuoi progressi", "Your progress", "Tu progreso"),
+  streakNow: x("Serie attuale: {n} (record {b})", "Current streak: {n} (best {b})", "Racha actual: {n} (récord {b})"),
+  streakAll: x("Vittorie di fila", "Wins in a row", "Victorias seguidas"), streakW: x("Col Bianco", "As White", "Con Blancas"), streakB: x("Col Nero", "As Black", "Con Negras"),
+  hoursTitle: x("Ore giocate per ritmo", "Hours played by time control", "Horas jugadas por ritmo"),
+  hoursOf: x("{h} ore · {g} partite", "{h} h · {g} games", "{h} h · {g} partidas"),
+  hoursNext: x("prossima carta a {n} ore", "next card at {n} h", "próxima carta a las {n} h"),
+  hoursNote: x("Le ore contano il tempo reale sulla scacchiera di entrambi i giocatori. Stesse soglie per ogni ritmo, così 1 ora di bullet vale quanto 1 ora di classica.", "Hours count real time on the board for both players. Same thresholds for every time control, so 1 hour of bullet counts like 1 hour of classical.", "Las horas cuentan el tiempo real en el tablero de ambos jugadores. Mismos umbrales para cada ritmo, así 1 hora de bullet vale lo mismo que 1 de clásicas."),
+  // scudi delle aperture
+  openShieldsTitle: x("Scudi delle aperture", "Opening shields", "Escudos de aperturas"),
+  openShieldsSub: x("Vinci partite giocando la linea indicata (al massimo 5 mosse per lato). Bronzo a 3 vittorie, argento a 10, oro a 25.", "Win games playing the given line (5 moves per side at most). Bronze at 3 wins, silver at 10, gold at 25.", "Gana partidas jugando la línea indicada (máximo 5 jugadas por bando). Bronce a 3 victorias, plata a 10, oro a 25."),
+  openAsWhite: x("col Bianco", "as White", "con Blancas"), openAsBlack: x("col Nero", "as Black", "con Negras"),
+  openWins: x("vittorie", "wins", "victorias"),
+  shieldShare: x("Condividi", "Share", "Compartir"),
+  shieldShareText: x("Ho conquistato lo scudo {name} ({tier}) su Chess Coach #ChessCoach #scacchi", "I earned the {name} shield ({tier}) on Chess Coach #ChessCoach #chess", "Conseguí el escudo {name} ({tier}) en Chess Coach #ChessCoach #ajedrez"),
 } as const;
 
 export type TK = keyof typeof C;
@@ -143,3 +186,66 @@ const TH: Record<string, L3> = {
   short: x("Breve", "Short", "Corto"), long: x("Lunga", "Long", "Largo"), quietMove: x("Mossa tranquilla", "Quiet move", "Jugada tranquila"),
 };
 export const themeName = (k: string, lang: Lang) => (TH[k] ? TH[k][lang] : k);
+
+// ---- aperture degli scudi
+const OPEN_NAMES: Record<string, L3> = {
+  italiana: x("Italiana", "Italian Game", "Italiana"), ruy: x("Spagnola", "Ruy Lopez", "Española"), scozzese: x("Scozzese", "Scotch Game", "Escocesa"),
+  londra: x("Sistema Londra", "London System", "Sistema Londres"), gambetto: x("Gambetto di Donna", "Queen's Gambit", "Gambito de Dama"), inglese: x("Inglese", "English Opening", "Inglesa"),
+  siciliana: x("Siciliana", "Sicilian Defense", "Siciliana"), francese: x("Francese", "French Defense", "Francesa"), caro: x("Caro-Kann", "Caro-Kann", "Caro-Kann"),
+  scandinava: x("Scandinava", "Scandinavian", "Escandinava"), indiana: x("Indiana di Re", "King's Indian", "India de Rey"), nimzo: x("Nimzo-Indiana", "Nimzo-Indian", "Nimzo-India"),
+};
+export const openingName = (id: string, lang: Lang) => (OPEN_NAMES[id] ? OPEN_NAMES[id][lang] : id);
+/** Nome dello scudo: per le aperture "op_italiana", per gli altri la chiave sh_*. */
+export const shieldTitle = (id: string, lang: Lang) => (id.startsWith("op_") ? openingName(id.slice(3), lang) : tc(("sh_" + id) as TK, lang));
+export const shieldUnit = (id: string, lang: Lang) => (id.startsWith("op_") ? tc("openWins", lang) : tc(("un_" + id) as TK, lang));
+
+// ---- obiettivi delle carte
+const GOAL: Record<string, { t: L3; s: L3 }> = {
+  first_win: { t: x("Prima vittoria", "First win", "Primera victoria"), s: x("La tua prima vittoria con almeno 10 mosse a testa", "Your first win with at least 10 moves each", "Tu primera victoria con al menos 10 jugadas por bando") },
+  first_95: { t: x("Prima perla", "First gem", "Primera joya"), s: x("Prima partita da 10+ mosse a testa con precisione sopra il 95%", "First game of 10+ moves each with accuracy above 95%", "Primera partida de 10+ jugadas por bando con precisión superior al 95%") },
+  lightning: { t: x("Matto lampo", "Lightning mate", "Mate relámpago"), s: x("Vittoria con scacco matto in 10 mosse o meno", "Win by checkmate in 10 moves or fewer", "Victoria por jaque mate en 10 jugadas o menos") },
+  flawless: { t: x("Senza macchia", "Flawless", "Impecable"), s: x("Vittoria senza un solo errore in 15+ mosse a testa", "A win without a single mistake in 15+ moves each", "Victoria sin un solo error en 15+ jugadas por bando") },
+  master: { t: x("Da maestro", "Master class", "De maestro"), s: x("Precisione del 98% o più in oltre 20 mosse a testa", "98%+ accuracy over 20+ moves each", "Precisión del 98% o más en más de 20 jugadas por bando") },
+  giant: { t: x("Ammazzagiganti", "Giant slayer", "Mata gigantes"), s: x("Battuto un avversario con 150+ punti più di te", "Beat an opponent rated 150+ above you", "Venciste a un rival con 150+ puntos más que tú") },
+  giant_big: { t: x("Re dei giganti", "King of giants", "Rey de gigantes"), s: x("Battuto un avversario con 300+ punti più di te", "Beat an opponent rated 300+ above you", "Venciste a un rival con 300+ puntos más que tú") },
+  masterpiece: { t: x("Capolavoro", "Masterpiece", "Obra maestra"), s: x("Vittoria con 97%+ di precisione in oltre 25 mosse a testa", "A win with 97%+ accuracy over 25+ moves each", "Victoria con 97%+ de precisión en más de 25 jugadas por bando") },
+};
+const SPEED: Record<string, L3> = { bullet: x("Bullet", "Bullet", "Bullet"), blitz: x("Blitz", "Blitz", "Blitz"), rapid: x("Rapid", "Rapid", "Rápidas"), classical: x("Classiche", "Classical", "Clásicas") };
+export const speedName = (k: string, lang: Lang) => (SPEED[k] ? SPEED[k][lang] : k);
+const GOAL2: Record<string, { t: L3; s: L3 }> = {
+  new_opening: { t: x("Nuova apertura", "New opening", "Nueva apertura"), s: x("Prima vittoria con {name}", "First win with {name}", "Primera victoria con {name}") },
+  short_win: { t: x("Lampo preciso", "Precise lightning", "Relámpago preciso"), s: x("Vittoria in meno di 20 mosse con precisione sopra il 90%", "Win in under 20 moves with accuracy above 90%", "Victoria en menos de 20 jugadas con precisión superior al 90%") },
+  short_win_pro: { t: x("Lampo da maestro", "Master lightning", "Relámpago de maestro"), s: x("Vittoria in meno di 20 mosse con precisione sopra il 96%", "Win in under 20 moves with accuracy above 96%", "Victoria en menos de 20 jugadas con precisión superior al 96%") },
+  photo_finish: { t: x("All'ultimo secondo", "Photo finish", "Por un suspiro"), s: x("Vittoria con quasi niente tempo sull'orologio ({left} secondi)", "A win with almost no time left ({left} seconds)", "Victoria con casi nada de tiempo en el reloj ({left} segundos)") },
+  revenge: { t: x("Rivincita", "Revenge", "Revancha"), s: x("Battuto {opp} dopo aver perso con lui", "Beat {opp} after losing to them", "Venciste a {opp} tras perder con él") },
+  comeback: { t: x("Rimonta", "Comeback", "Remontada"), s: x("Vittoria partendo da {low} pedoni sotto", "Won from {low} pawns down", "Victoria desde {low} peones por debajo") },
+  comeback_big: { t: x("Rimonta leggendaria", "Legendary comeback", "Remontada legendaria"), s: x("Vittoria partendo da {low} pedoni sotto", "Won from {low} pawns down", "Victoria desde {low} peones por debajo") },
+  brilliant: { t: x("Mossa brillante", "Brilliant move", "Jugada brillante"), s: x("Un sacrificio che ha deciso la partita", "A sacrifice that decided the game", "Un sacrificio que decidió la partida") },
+};
+const fill = (s: string, d: Record<string, any>) => s.replace(/\{(\w+)\}/g, (_, k) => (d[k] != null ? String(d[k]) : "").trim());
+export function goalCopy(goal: string, lang: Lang, data: Record<string, any> = {}): { title: string; sub: string } {
+  const st = goal.match(/^streak_(all|w|b)_(\d+)$/);
+  if (st) {
+    const n = st[2], who = st[1];
+    const t = { it: who === "all" ? `Serie di ${n}` : `Serie di ${n} col ${who === "w" ? "Bianco" : "Nero"}`, en: who === "all" ? `${n}-win streak` : `${n}-win streak as ${who === "w" ? "White" : "Black"}`, es: who === "all" ? `Racha de ${n}` : `Racha de ${n} con ${who === "w" ? "Blancas" : "Negras"}` };
+    const s = { it: `${n} vittorie di fila${who === "all" ? "" : who === "w" ? " giocando col Bianco" : " giocando col Nero"}`, en: `${n} wins in a row${who === "all" ? "" : who === "w" ? " playing White" : " playing Black"}`, es: `${n} victorias seguidas${who === "all" ? "" : who === "w" ? " con Blancas" : " con Negras"}` };
+    return { title: t[lang], sub: s[lang] };
+  }
+  const hr = goal.match(/^hours_(\w+)_(\d)$/);
+  if (hr) {
+    const h = [2, 10, 40][Number(hr[2]) - 1], sp = speedName(hr[1], lang);
+    const t = { it: `${sp}: ${h} ore`, en: `${sp}: ${h} hours`, es: `${sp}: ${h} horas` };
+    const s = { it: `${h} ore giocate a ${sp}${data.games ? ` in ${data.games} partite` : ""}`, en: `${h} hours played in ${sp}${data.games ? ` over ${data.games} games` : ""}`, es: `${h} horas jugadas en ${sp}${data.games ? ` en ${data.games} partidas` : ""}` };
+    return { title: t[lang], sub: s[lang] };
+  }
+  if (GOAL2[goal]) return { title: GOAL2[goal].t[lang], sub: fill(GOAL2[goal].s[lang], { ...data, name: data.opening_name, low: data.low, left: data.left }) };
+  const m = goal.match(/^op_(\w+)_(\d)$/);
+  if (m) {
+    const tier = [tc("tierBronze", lang), tc("tierSilver", lang), tc("tierGold", lang)][Number(m[2]) - 1];
+    return { title: openingName(m[1], lang), sub: `${tc("openShieldsTitle", lang)} · ${tier}` };
+  }
+  const g = GOAL[goal];
+  return g ? { title: g.t[lang], sub: g.s[lang] } : { title: goal, sub: "" };
+}
+export const rarityName = (r: string, lang: Lang) => tc((r === "common" ? "rarCommon" : r === "rare" ? "rarRare" : r === "epic" ? "rarEpic" : "rarLegendary") as TK, lang);
+export const GOAL_CODES = Object.keys(GOAL);

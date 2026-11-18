@@ -8,6 +8,7 @@ import chess
 import chess.pgn
 import httpx
 
+from .cardlogic import highlights_from_moves
 from .db import sb
 
 log = logging.getLogger("engine")
@@ -89,5 +90,9 @@ def analyze_game(game: dict) -> None:
     if err_rows:
         sb.table("errori_utenti").upsert(err_rows, on_conflict="user_email,game_id,ply").execute()
     acc = round(max(0.0, 100 - 40 * (sum(losses) / len(losses))), 1) if losses else None
-    sb.table("games").update({"analyzed_at": now, "analysis_depth": DEPTH, "accuracy_user": acc}).eq("id", game["id"]).execute()
+    upd = {"analyzed_at": now, "analysis_depth": DEPTH, "accuracy_user": acc}
+    try:  # momenti salienti (rimonta, mosse brillanti); se la colonna non esiste ancora, l'analisi si salva comunque
+        sb.table("games").update({**upd, "highlights": highlights_from_moves(move_rows, color)}).eq("id", game["id"]).execute()
+    except Exception:
+        sb.table("games").update(upd).eq("id", game["id"]).execute()
     log.info("analizzata %s: %d errori", game["id"], len(err_rows))

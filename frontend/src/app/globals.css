@@ -445,3 +445,23 @@ details.card summary { cursor: pointer; } details.card[open] summary { margin-bo
 @media (min-width: 900px) { .pwa { bottom: 1.2rem; left: auto; right: 1.2rem; transform: none; } }
 .topbar, .tabbar { padding-top: env(safe-area-inset-top); }
 .tabbar { padding-bottom: env(safe-area-inset-bottom); }
+
+/* ===== Carte collezionabili ===== */
+.gc { position: relative; width: 100%; max-width: 380px; margin: 0 auto; }
+.gc-canvas { display: block; width: 100%; height: auto; border-radius: 6%; filter: drop-shadow(0 14px 30px rgba(0, 0, 0, .5)); }
+.gc-new { position: absolute; top: 10px; right: 10px; background: var(--ember); color: #1a0b05; font-size: .68rem; font-weight: 800; padding: .18rem .5rem; border-radius: 999px; letter-spacing: .04em; }
+.gc-tools { display: flex; flex-wrap: wrap; justify-content: center; gap: .5rem; margin-top: .9rem; }
+.cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 1rem; margin: 1rem 0; }
+.cards-item { padding: 0; background: none; border: 0; border-radius: 6%; transition: transform .18s; }
+.cards-item:hover:not(:disabled) { transform: translateY(-4px) rotate(-.6deg); border: 0; }
+.viewer { position: relative; width: min(430px, 100%); max-height: calc(100dvh - 2rem); overflow: auto; padding: 1.4rem 1rem 1rem; text-align: center; background: var(--ink-2); border: 1px solid var(--line-2); border-radius: 22px; }
+.viewer .gc { max-width: 340px; }
+.goal-list { display: grid; gap: .5rem; }
+.goal { display: flex; align-items: center; gap: .8rem; padding: .7rem 1rem; }
+.goal > div { flex: 1; } .goal:not(.got) { opacity: .72; }
+.goal-dot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
+.shield-share { margin-top: .5rem; }
+
+.prog { padding: 1rem 1.1rem; }
+.prog-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: .9rem; margin-top: .6rem; }
+.goal.grp { align-items: flex-start; }

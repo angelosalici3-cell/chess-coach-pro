@@ -2,7 +2,9 @@
 import { useEffect, useState } from "react";
 import { useApp } from "../app";
 import Shield from "../Shield";
-import { TK, tc } from "../../lib/train-copy";
+import { TK, tc, shieldTitle, shieldUnit } from "../../lib/train-copy";
+import { cardFonts, shareOrSave } from "../../lib/cardExport";
+import { makeShieldPng } from "../../lib/shieldShare";
 
 const CONFETTI = ["#ff6b3d", "#ffd56a", "#4ee3b0", "#5aa9ff", "#ff5d8f"];
 
@@ -12,6 +14,15 @@ export default function Achievements({ onProgress }: { onProgress: () => void })
   const [err, setErr] = useState("");
   const [msg, setMsg] = useState("");
   const [burst, setBurst] = useState<{ dx: number; dy: number; rot: number; c: string }[]>([]);
+  const shareShield = async (s: any) => {
+    setErr(""); setMsg("");
+    try {
+      const name = shieldTitle(s.id, lang), tier = [tc("tierBronze", lang), tc("tierSilver", lang), tc("tierGold", lang)][s.tier - 1];
+      const png = await makeShieldPng({ id: s.id, tier: s.tier, title: name, tierLabel: tier, detail: `${s.value} ${shieldUnit(s.id, lang)}`, brand: "CHESS COACH" }, await cardFonts());
+      const r = await shareOrSave(png, `chess-coach-${s.id}-${s.tier}.png`, tc("shieldShareText", lang, { name, tier }));
+      setMsg(r === "shared" ? tc("cardShared", lang) : r === "saved" ? tc("cardSaved", lang) : "");
+    } catch { setErr(tc("cardFail", lang)); }
+  };
   const load = () => call("/achievements").then(setA).catch((e) => setErr(e.message));
   useEffect(() => { load(); }, [call]);
 
@@ -31,6 +42,25 @@ export default function Achievements({ onProgress }: { onProgress: () => void })
   if (!a) return <p className="muted">…</p>;
   const span = a.next_xp - a.level_xp, pct = Math.min(1, (a.xp - a.level_xp) / span), R = 46, C = 2 * Math.PI * R;
   const tierName = (n: number) => tc((["tierBronze", "tierSilver", "tierGold"] as TK[])[n - 1], lang);
+  const Grid = ({ list }: { list: any[] }) => (
+    <div className="shields">
+      {list.map((s: any) => {
+        const next = s.tier < 3 ? s.tiers[s.tier] : null;
+        const prev = s.tier > 0 ? s.tiers[s.tier - 1] : 0;
+        return (
+          <div key={s.id} className={"card shield-card t" + s.tier}>
+            <Shield id={s.id} tier={s.tier} />
+            <div className="nm">{shieldTitle(s.id, lang)}</div>
+            {s.kind === "opening" && <div className="muted small">{tc(s.color === "w" ? "openAsWhite" : "openAsBlack", lang)}</div>}
+            <div className="pips" aria-label={s.tier ? tierName(s.tier) : tc("locked", lang)}>{[0, 1, 2].map((i) => <i key={i} className={i < s.tier ? "on" + i : ""} />)}</div>
+            <div className="muted small">{next != null ? `${s.value} / ${next} ${shieldUnit(s.id, lang)}` : tc("maxed", lang)}</div>
+            {next != null && <div className="bar" style={{ width: "100%" }}><div style={{ width: `${Math.min(100, (100 * (s.value - prev)) / (next - prev))}%`, background: "var(--ember)" }} /></div>}
+            {s.tier > 0 && <button className="btn btn-sm shield-share" onClick={() => shareShield(s)}>{tc("shieldShare", lang)}</button>}
+          </div>
+        );
+      })}
+    </div>
+  );
   return (
     <div>
       {burst.length > 0 && <div className="burst" aria-hidden="true">{burst.map((b, i) => <i key={i} style={{ background: b.c, ["--dx" as string]: `${b.dx}px`, ["--dy" as string]: `${b.dy}px`, ["--rot" as string]: `${b.rot}deg` }} />)}</div>}
@@ -53,21 +83,11 @@ export default function Achievements({ onProgress }: { onProgress: () => void })
       </div>
 
       <h2>{tc("shieldsTitle", lang)}</h2>
-      <div className="shields">
-        {a.shields.map((s: any) => {
-          const next = s.tier < 3 ? s.tiers[s.tier] : null;
-          const prev = s.tier > 0 ? s.tiers[s.tier - 1] : 0;
-          return (
-            <div key={s.id} className={"card shield-card t" + s.tier}>
-              <Shield id={s.id} tier={s.tier} />
-              <div className="nm">{tc(("sh_" + s.id) as TK, lang)}</div>
-              <div className="pips" aria-label={s.tier ? tierName(s.tier) : tc("locked", lang)}>{[0, 1, 2].map((i) => <i key={i} className={i < s.tier ? "on" + i : ""} />)}</div>
-              <div className="muted small">{next != null ? `${s.value} / ${next} ${tc(("un_" + s.id) as TK, lang)}` : tc("maxed", lang)}</div>
-              {next != null && <div className="bar" style={{ width: "100%" }}><div style={{ width: `${Math.min(100, (100 * (s.value - prev)) / (next - prev))}%`, background: "var(--ember)" }} /></div>}
-            </div>
-          );
-        })}
-      </div>
+      <Grid list={a.shields.filter((s: any) => s.kind !== "opening")} />
+
+      <h2>{tc("openShieldsTitle", lang)}</h2>
+      <p className="muted" style={{ marginTop: 0 }}>{tc("openShieldsSub", lang)}</p>
+      <Grid list={a.shields.filter((s: any) => s.kind === "opening")} />
 
       <h2>{tc("rewardsTitle", lang)}</h2>
       <p className="muted" style={{ marginTop: 0 }}>{tc("rewardsSub", lang)}</p>

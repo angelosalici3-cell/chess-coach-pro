@@ -1,12 +1,12 @@
-const METAL = [
+export const METAL = [
   { a: "#2a3566", b: "#151c3d", edge: "#2f3a6e" },           // 0 bloccato
   { a: "#e9ab78", b: "#9b5a2a", edge: "#f6c79b" },           // 1 bronzo
   { a: "#f4f7fd", b: "#8d99b8", edge: "#ffffff" },           // 2 argento
   { a: "#ffe38f", b: "#d98d24", edge: "#fff3c2" },           // 3 oro
 ];
-const PATH = "M50 4 L92 18 V52 C92 76 72 92 50 102 C28 92 8 76 8 52 V18 Z";
+export const PATH = "M50 4 L92 18 V52 C92 76 72 92 50 102 C28 92 8 76 8 52 V18 Z";
 
-const ICONS: Record<string, string> = {
+export const ICONS: Record<string, string> = {
   streak: "M12 2c1 4 5 6 5 11a5 5 0 01-10 0c0-2 1-3 2-4 0 2 1 3 2 3 0-3-1-6 1-10z",
   fixed: "M5 12.5l4.5 4.5L19 7.5",
   lessons: "M5 4h9a3 3 0 013 3v13H8a3 3 0 01-3-3zM8 8h6M8 12h6",
@@ -14,12 +14,12 @@ const ICONS: Record<string, string> = {
   openings: "M6 4v16M6 8h6a4 4 0 014 4v8M6 14h10",
   clean: "M12 3l2.2 6.3L21 12l-6.8 2.7L12 21l-2.2-6.3L3 12l6.8-2.7z",
 };
-const GLYPH: Record<string, string> = { games: "♟", analyzed: "♝", puzzles: "♞", puzzle_rating: "♛" };
+export const GLYPH: Record<string, string> = { games: "♟", analyzed: "♝", puzzles: "♞", puzzle_rating: "♛" };
 
 /** Scudo araldico: bloccato (grigio), bronzo, argento oro. Il riflesso scorre solo sugli scudi conquistati. */
 export default function Shield({ id, tier, size }: { id: string; tier: number; size?: number }) {
   const m = METAL[tier], uid = `sh-${id}-${tier}`, on = tier > 0;
-  const glyph = GLYPH[id], icon = ICONS[id];
+  const glyph = GLYPH[id], icon = ICONS[id] ?? (id.startsWith("op_") ? ICONS.openings : undefined);
   return (
     <svg className="shield" viewBox="0 0 100 108" role="img" aria-hidden="true" style={size ? { width: size, height: size * 1.08 } : undefined}>
       <defs>

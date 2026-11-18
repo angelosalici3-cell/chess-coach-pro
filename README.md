@@ -41,3 +41,19 @@ Al primo accesso (una volta per utente, in /dashboard) si apre da sola una guida
 
 ## App installabile (PWA)
 `public/manifest.webmanifest`, `public/sw.js`, `public/offline.html` e le icone (`icon-192/512`, `maskable-512`, `apple-touch-icon`). Il service worker non mette in cache API, login o dati personali: serve solo per l'installazione e per la pagina offline. Su Android/Chrome compare un banner "Installa"; su iPhone le istruzioni "Condividi → Aggiungi alla schermata Home". Serve HTTPS (su Vercel c'è già). Test: Chrome → DevTools → Application → Manifest / Lighthouse "PWA". Per gli store: PWA impacchettata con Bubblewrap/PWABuilder (Google Play).
+
+## Carte collezionabili e scudi delle aperture
+1. Esegui `supabase/006_cards.sql`.
+2. Le carte si assegnano da sole quando apri Allenamento → Carte (obiettivi in `backend/app/cardlogic.py`): prima vittoria con 10+ mosse a testa, prima partita con precisione ≥95%, matto lampo, senza macchia, da maestro, ammazzagiganti, capolavoro e una carta per ogni scudo di apertura (bronzo/argento/oro). Servono partite già analizzate.
+3. La partita si rigioca dentro la carta (canvas). Da "Condividi" si crea GIF animata, video (MP4/WebM) o immagine; sul telefono si apre il foglio di condivisione, sul computer il file viene scaricato.
+4. Scudi delle aperture: 12 linee di massimo 10 semimosse (5 mosse per lato), 3 / 10 / 25 vittorie. Le linee sono in `cardlogic.py`: aggiungine altre nella lista `OPENINGS` e i nomi in `train-copy.ts` (`OPEN_NAMES`).
+5. Ogni scudo conquistato ha il pulsante Condividi (immagine 4:5 per storie e post).
+
+### Carte senza attese
+Le carte vengono assegnate dal backend subito dopo l'analisi di una partita. L'app controlla `/me` (campo `new_cards`) all'apertura e ogni minuto: se c'è una carta nuova mostra la celebrazione con la preview statica e prepara in sottofondo GIF e immagine (cache nel browser), così "Condividi" è immediato. Il video si crea al momento perché si registra in tempo reale.
+
+## Nuovi obiettivi delle carte (rimonta, mossa brillante, serie, ore)
+- Esegui in Supabase `supabase/007_highlights.sql` (dopo la 006): aggiunge `games.highlights`.
+- Nuove carte: serie di vittorie (totali, Bianco, Nero), prima vittoria con una nuova apertura, vittoria lampo precisa (<20 mosse, precisione >90% / >96%), vittoria all'ultimo secondo (usa gli orologi), rivincita contro lo stesso avversario, rimonta (da -3 / -6 pedoni), mossa brillante (badge "!!" sulla scacchiera e pausa nella GIF), traguardi di ore giocate per ritmo (2/10/40 ore, uguali per ogni ritmo).
+- Rimonta e mossa brillante usano le valutazioni già salvate in `moves.eval_cp`: nessun costo motore in più. Per le vecchie partite i dati vengono calcolati 15 partite per volta a ogni apertura dell'album. La mossa brillante è un'euristica (sacrificio di materiale che l'engine conferma valido).
+- Per partite senza orologi la durata è stimata (60% del tempo a disposizione); la vittoria all'ultimo secondo richiede gli orologi (risincronizza le partite vecchie).

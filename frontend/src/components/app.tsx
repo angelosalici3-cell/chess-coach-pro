@@ -10,6 +10,7 @@ import { LangSwitch, useLang } from "./lang";
 import { Logo } from "./Logo";
 import Onboarding from "./Onboarding";
 import Pwa from "./Pwa";
+import CardCelebration from "./CardCelebration";
 import { ui } from "../lib/onboarding-copy";
 
 type Ctx = { me: any; lang: Lang; t: (k: K) => string; call: <T = any>(path: string, init?: RequestInit) => Promise<T>; refreshMe: () => void; openGuide: () => void };
@@ -49,6 +50,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const call = useCallback(<T,>(p: string, init?: RequestInit) => api<T>(p, token || "", init), [token]);
   const refreshMe = useCallback(() => { if (token) api("/me", token).then(setMe).catch(() => {}); }, [token]);
   useEffect(() => { refreshMe(); }, [refreshMe]);
+  useEffect(() => {   // ogni minuto, a scheda visibile: una carta nuova appare senza dover ricaricare la pagina
+    const id = setInterval(() => { if (document.visibilityState === "visible") refreshMe(); }, 60000);
+    return () => clearInterval(id);
+  }, [refreshMe]);
 
   // al primo accesso la guida si apre da sola (una volta per utente); poi si riapre dal pulsante Guida
   const ukey = session?.user?.email ? `onb:${session.user.email}` : "";
@@ -98,6 +103,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
       </div>
       <Pwa lang={lang} />
+      <CardCelebration />
       {guide && <Onboarding lang={lang} me={me} onClose={closeGuide} />}
     </C.Provider>
   );

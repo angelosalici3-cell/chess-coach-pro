@@ -38,6 +38,13 @@ def health():
     return {"ok": True}
 
 
+def _new_cards(email: str) -> int:
+    try:
+        return sb.table("cards").select("id", count="exact").eq("user_email", email).eq("seen", False).limit(1).execute().count or 0
+    except Exception:  # tabella non ancora creata (006 non eseguito)
+        return 0
+
+
 @app.get("/me")
 def me(u=Depends(current_user)):
     tier = tier_of(u["email"])
@@ -50,6 +57,7 @@ def me(u=Depends(current_user)):
         "profiles": {"used": n, "limit": plan.profiles},
         "lessons": {"used": q[0]["ai_analyses_used"] if q else 0, "limit": plan.gm_lessons_month},
         "auto_sync": plan.auto_sync, "history_games": plan.history_games,
+        "new_cards": _new_cards(u["email"]),
         "bonus_lessons": (sb.table("config_utenti").select("bonus_lessons").eq("user_email", u["email"]).limit(1).execute().data or [{}])[0].get("bonus_lessons") or 0,
     }
 
@@ -247,6 +255,10 @@ def delete_me(u=Depends(current_user)):
     ids = [g["id"] for g in sb.table("games").select("id").eq("user_email", email).execute().data]
     if ids:
         sb.table("moves").delete().in_("game_id", ids).execute()
+    try:
+        sb.table("cards").delete().eq("user_email", email).execute()
+    except Exception:
+        pass  # tabella assente se 006 non è stato eseguito
     for t in ("mistake_cards", "puzzle_attempts", "training_stats", "rewards", "errori_utenti", "ai_usage_log", "games", "storico_rating", "profili_scacchi", "quota_usage", "storico_abbonamenti", "config_utenti"):
         sb.table(t).delete().eq("user_email", email).execute()
     sb.table("user_profiles").delete().eq("user_id", u["id"]).execute()

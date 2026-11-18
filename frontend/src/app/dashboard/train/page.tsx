@@ -4,9 +4,10 @@ import { useApp } from "../../../components/app";
 import MistakeDrill from "../../../components/train/MistakeDrill";
 import PuzzleTrainer from "../../../components/train/PuzzleTrainer";
 import Achievements from "../../../components/train/Achievements";
+import Cards from "../../../components/train/Cards";
 import { tc } from "../../../lib/train-copy";
 
-type Tab = "mistakes" | "puzzles" | "badges";
+type Tab = "mistakes" | "puzzles" | "badges" | "cards";
 
 export default function TrainPage() {
   const { call, lang } = useApp();
@@ -15,7 +16,7 @@ export default function TrainPage() {
 
   useEffect(() => {
     const q = new URLSearchParams(window.location.search).get("tab");
-    if (q === "puzzles" || q === "badges") setTab(q);
+    if (q === "puzzles" || q === "badges" || q === "cards") setTab(q);
   }, []);
   const refresh = useCallback(() => { call("/train/overview").then(setOv).catch(() => {}); }, [call]);
   useEffect(() => { refresh(); }, [refresh]);
@@ -34,15 +35,16 @@ export default function TrainPage() {
         </div>
       )}
       <div className="tabs" role="tablist">
-        {(["mistakes", "puzzles", "badges"] as Tab[]).map((k) => (
+        {(["mistakes", "puzzles", "badges", "cards"] as Tab[]).map((k) => (
           <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? "on" : ""} onClick={() => pick(k)}>
-            {tc(k === "mistakes" ? "tabMistakes" : k === "puzzles" ? "tabPuzzles" : "tabBadges", lang)}
+            {tc(k === "mistakes" ? "tabMistakes" : k === "puzzles" ? "tabPuzzles" : k === "badges" ? "tabBadges" : "tabCards", lang)}
           </button>
         ))}
       </div>
       {tab === "mistakes" && <MistakeDrill onProgress={refresh} />}
       {tab === "puzzles" && <PuzzleTrainer onProgress={refresh} />}
       {tab === "badges" && <Achievements onProgress={refresh} />}
+      {tab === "cards" && <Cards onProgress={refresh} />}
     </>
   );
 }

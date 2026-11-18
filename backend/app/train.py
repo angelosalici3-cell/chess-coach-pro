@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from . import pgnlite
+from . import cardlogic as CL
 from . import trainlogic as T
 from .auth import current_user, tier_of
 from .db import sb
@@ -179,6 +180,46 @@ def _metrics(email: str, st: dict) -> dict:
             "clean": sum(1 for g in analyzed_rows if g["id"] not in with_err)}
 
 
+def _game_rows(email: str) -> list[dict]:
+    cols = "id,played_at,user_color,result,white,black,pgn,accuracy_user,opening_name,source,time_control"
+    def q(c):
+        return (sb.table("games").select(c).eq("user_email", email).not_.is_("user_color", "null")
+                .order("played_at", desc=True).limit(1000).execute().data)
+    try:
+        rows = q(cols + ",highlights")
+    except Exception:  # colonna non ancora creata (007 non eseguito)
+        rows = q(cols)
+    for g in rows:
+        pl = pgnlite.plies(g["pgn"])
+        g["sans"], g["clks"], g["tc"] = [p["san"] for p in pl], [p["clk"] for p in pl], g.get("time_control")
+    return rows
+
+
+def ensure_highlights(email: str, limit: int = 15) -> int:
+    """Calcola rimonta e mosse brillanti per le partite analizzate prima dell'introduzione della funzione (poche alla volta)."""
+    try:
+        todo = (sb.table("games").select("id,user_color").eq("user_email", email).not_.is_("analyzed_at", "null").is_("highlights", "null")
+                .not_.is_("user_color", "null").order("played_at", desc=True).limit(limit).execute().data)
+    except Exception:
+        return 0
+    for g in todo:
+        rows = sb.table("moves").select("ply,eval_cp,fen_after,is_user_move").eq("game_id", g["id"]).order("ply").limit(1000).execute().data
+        sb.table("games").update({"highlights": CL.highlights_from_moves(rows, g["user_color"]) if rows else {"v": 1, "low_cp": None, "brilliant": []}}).eq("id", g["id"]).execute()
+    return len(todo)
+
+
+def _open_wins(email: str) -> dict:
+    """Vittorie per ogni apertura (solo le prime 10 semimosse contano)."""
+    wins = {o["id"]: 0 for o in CL.OPENINGS}
+    for g in _game_rows(email):
+        if CL.outcome(g) != "w":
+            continue
+        for o in CL.OPENINGS:
+            if CL.opening_match(g["sans"], g["user_color"], o):
+                wins[o["id"]] += 1
+    return wins
+
+
 def _ach(email: str) -> dict:
     st = get_stats(email)
     m = _metrics(email, st)
@@ -187,7 +228,9 @@ def _ach(email: str) -> dict:
     claimed = {r["code"] for r in sb.table("rewards").select("code").eq("user_email", email).execute().data}
     bonus = (sb.table("config_utenti").select("bonus_lessons").eq("user_email", email).limit(1).execute().data or [{}])[0].get("bonus_lessons") or 0
     return {"xp": xp, "level": lvl, "level_xp": T.xp_for_level(lvl), "next_xp": T.xp_for_level(lvl + 1), "bonus_lessons": bonus,
-            "shields": [{"id": sid, "value": m[sid], "tiers": tiers, "tier": T.shield_tier(m[sid], tiers)} for sid, tiers in T.SHIELDS],
+            "shields": [{"id": sid, "value": m[sid], "tiers": tiers, "tier": T.shield_tier(m[sid], tiers)} for sid, tiers in T.SHIELDS]
+                       + [{"id": "op_" + oid, "value": n, "tiers": CL.OPEN_TIERS, "tier": CL.tier_of(n), "kind": "opening", "color": next(o["color"] for o in CL.OPENINGS if o["id"] == oid)}
+                          for oid, n in _open_wins(email).items()],
             "rewards": [{**r, "claimed": f"lvl{r['lvl']}" in claimed, "claimable": lvl >= r["lvl"] and f"lvl{r['lvl']}" not in claimed} for r in T.REWARDS],
             "streak": _live_streak(st), "stats": st}
 
@@ -344,3 +387,63 @@ def openings_mine(u=Depends(current_user)):
         out.append({"id": g["id"], "c": "w" if w else "b", "r": r, "d": (g["played_at"] or "")[:10],
                     "o": g["black"] if w else g["white"], "m": [p["san"] for p in pgnlite.plies(g["pgn"])[:30]]})
     return out
+
+
+# ---------------------------------------------------------------- carte collezionabili
+def assign_cards(email: str, rows: list[dict] | None = None, with_progress: bool = False):
+    """Valuta gli obiettivi sulle partite dell'utente e salva le carte nuove. Chiamata subito dopo ogni analisi: la carta è pronta prima che l'utente apra l'app."""
+    if rows is None:
+        if ensure_highlights(email):
+            pass
+        rows = _game_rows(email)
+    with_err = {str(e["game_id"]) for e in sb.table("errori_utenti").select("game_id").eq("user_email", email).limit(5000).execute().data}
+    clean = {g["id"] for g in rows if g.get("accuracy_user") is not None and str(g["id"]) not in with_err}
+    ev = CL.evaluate(rows, clean)
+    have = {(c["goal"], c["game_id"]) for c in sb.table("cards").select("goal,game_id").eq("user_email", email).execute().data}
+    new = [{"user_email": email, **c} for c in ev["cards"] if (c["goal"], c["game_id"]) not in have]
+    if new:
+        sb.table("cards").upsert(new, on_conflict="user_email,goal,game_id", ignore_duplicates=True).execute()
+    return (len(new), ev["progress"]) if with_progress else len(new)
+
+
+@router.get("/cards")
+def cards(u=Depends(current_user)):
+    """Restituisce l'album completo (assegnando prima eventuali carte nuove) con i dati per rigiocare la partita."""
+    email = u["email"]
+    ensure_highlights(email)
+    rows = _game_rows(email)
+    n_new, progress = assign_cards(email, rows, with_progress=True)
+    owned = sb.table("cards").select("*").eq("user_email", email).order("created_at", desc=True).limit(300).execute().data
+    by_id = {str(g["id"]): g for g in rows}
+    missing = [c["game_id"] for c in owned if c["game_id"] not in by_id]
+    if missing:  # partita fuori dalle ultime 1000: la recupero a parte
+        for g in sb.table("games").select("id,played_at,user_color,result,white,black,pgn,accuracy_user,opening_name,source").eq("user_email", email).in_("id", missing[:100]).execute().data:
+            g["sans"] = [p["san"] for p in pgnlite.plies(g["pgn"])]
+            by_id[str(g["id"])] = g
+    out = []
+    for c in owned:
+        g = by_id.get(c["game_id"])
+        if not g:
+            continue
+        w = g["user_color"] == "white"
+        out.append({"id": c["id"], "goal": c["goal"], "rarity": c["rarity"], "new": not c["seen"], "data": c["data"],
+                    "game": {"id": g["id"], "me": g["white"] if w else g["black"], "opp": g["black"] if w else g["white"], "color": g["user_color"],
+                             "result": g["result"], "opening": g.get("opening_name"), "date": (g.get("played_at") or "")[:10], "acc": g.get("accuracy_user"),
+                             "elo": CL.elo(g["pgn"], g["user_color"]), "opp_elo": CL.elo(g["pgn"], "black" if w else "white"), "sans": g["sans"][:160],
+                             "hi": (c["data"] or {}).get("hi")}})
+    have_goals = {c["goal"] for c in owned}
+    have = {}
+    for c in owned:
+        have[c["goal"]] = have.get(c["goal"], 0) + 1
+    goals = [{"goal": k, "rarity": v["rarity"], "max": v["max"], "owned": have.get(k, 0), "group": "single"} for k, v in CL.GOALS.items()]
+    for k, steps in CL.STREAK_STEPS.items():
+        goals += [{"goal": f"streak_{k}_{n}", "rarity": CL.TIER_RARITY[i], "max": 3, "owned": have.get(f"streak_{k}_{n}", 0), "group": f"streak_{k}"} for i, n in enumerate(steps, 1)]
+    for sp in CL.SPEEDS:
+        goals += [{"goal": f"hours_{sp}_{i}", "rarity": CL.TIER_RARITY[i], "max": 1, "owned": have.get(f"hours_{sp}_{i}", 0), "group": "hours"} for i in (1, 2, 3)]
+    return {"cards": out, "goals": goals, "new": n_new, "progress": progress, "hour_steps": CL.HOUR_STEPS}
+
+
+@router.post("/cards/seen")
+def cards_seen(u=Depends(current_user)):
+    sb.table("cards").update({"seen": True}).eq("user_email", u["email"]).eq("seen", False).execute()
+    return {"ok": True}
