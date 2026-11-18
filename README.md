@@ -57,3 +57,17 @@ Le carte vengono assegnate dal backend subito dopo l'analisi di una partita. L'a
 - Nuove carte: serie di vittorie (totali, Bianco, Nero), prima vittoria con una nuova apertura, vittoria lampo precisa (<20 mosse, precisione >90% / >96%), vittoria all'ultimo secondo (usa gli orologi), rivincita contro lo stesso avversario, rimonta (da -3 / -6 pedoni), mossa brillante (badge "!!" sulla scacchiera e pausa nella GIF), traguardi di ore giocate per ritmo (2/10/40 ore, uguali per ogni ritmo).
 - Rimonta e mossa brillante usano le valutazioni già salvate in `moves.eval_cp`: nessun costo motore in più. Per le vecchie partite i dati vengono calcolati 15 partite per volta a ogni apertura dell'album. La mossa brillante è un'euristica (sacrificio di materiale che l'engine conferma valido).
 - Per partite senza orologi la durata è stimata (60% del tempo a disposizione); la vittoria all'ultimo secondo richiede gli orologi (risincronizza le partite vecchie).
+
+## Codici promo per creatori e community (con tracciamento)
+1. Esegui in Supabase `supabase/008_promo.sql` (dopo la 007).
+2. Su Render aggiungi la variabile `ADMIN_EMAILS` con la tua email (più indirizzi separati da virgola). Solo loro vedono "Codici promo" nel menu.
+3. Dal pannello **Codici promo** crei un codice per ogni creatore o gruppo: nome, canale, sconto %, mesi di sconto e percentuale concordata. Lo sconto viene creato su Stripe in automatico (con sconto 0 il codice serve solo a tracciare).
+4. Mandi al creatore il link `https://tuosito/?ref=CODICE` (pulsante "Copia link"). Chi lo apre: il clic viene contato; dopo la registrazione il codice si lega all'account; al pagamento lo sconto è già applicato.
+5. Il pannello mostra per codice: clic, iscritti, paganti, incassi (primo pagamento più rinnovi) e importo da riconoscere. Chi scrive il codice a mano nella pagina di pagamento Stripe viene tracciato lo stesso.
+- Il primo link aperto vale per l'iscrizione (prima attribuzione) e dura 30 giorni nel browser.
+- I dati sono al lordo di IVA e commissioni Stripe: verifica gli importi prima di pagare un creatore.
+- Alla cancellazione dell'account l'email viene tolta dagli eventi promo; restano solo i conteggi.
+
+## Menu laterale e lezioni sulle imprecisioni
+- Il menu a scomparsa (hamburger, in alto a sinistra; su desktop il pulsante "Menu" nella barra laterale) raccoglie consumi AI, scadenza, dati e gestione account, manuale e lingua. La barra in basso resta solo con le funzioni (Home, Partite, Lezioni, Aperture, Allenamento).
+- Nessun SQL da eseguire. Backend: nuovo endpoint `POST /games/{id}/moves/{ply}/lesson` (lezione GM anche per le imprecisioni), `/me` restituisce `renews` e `member_since`.

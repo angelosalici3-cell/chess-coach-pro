@@ -2,6 +2,7 @@ import "./globals.css";
 import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, DM_Sans } from "next/font/google";
 import { LangProvider } from "../components/lang";
+import RefCapture from "../components/RefCapture";
 import { BRAND } from "../lib/brand";
 
 const display = Bricolage_Grotesque({ subsets: ["latin"], variable: "--font-display", display: "swap" });
@@ -20,7 +21,7 @@ export const viewport: Viewport = { themeColor: "#0b0f1e", width: "device-width"
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="it" className={`${display.variable} ${body.variable}`}>
-      <body><LangProvider>{children}</LangProvider></body>
+      <body><RefCapture /><LangProvider>{children}</LangProvider></body>
     </html>
   );
 }

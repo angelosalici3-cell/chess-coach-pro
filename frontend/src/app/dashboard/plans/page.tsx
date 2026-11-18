@@ -12,6 +12,8 @@ const PLANS = [
 
 export default function PlansPage() {
   const { call, t, me, refreshMe, lang } = useApp();
+  const promoTxt = { it: "Codice {c} attivo: -{p}% {m}", en: "Code {c} active: {p}% off {m}", es: "Código {c} activo: -{p}% {m}" } as const;
+  const promoWhen = (m: number) => (m > 1 ? { it: `per i primi ${m} mesi`, en: `for the first ${m} months`, es: `los primeros ${m} meses` } : { it: "sul primo mese", en: "on the first month", es: "el primer mes" })[lang];
   const [err, setErr] = useState("");
   const [flash, setFlash] = useState("");
   useEffect(() => {
@@ -31,6 +33,7 @@ export default function PlansPage() {
     <>
       <div className="pagehead"><h1>{t("navPlans")}</h1></div>
       {flash && <div className="note">{flash}</div>}
+      {me?.promo?.discount_pct > 0 && <div className="note">{promoTxt[lang].replace("{c}", me.promo.code).replace("{p}", String(me.promo.discount_pct)).replace("{m}", promoWhen(me.promo.months))}</div>}
       {err && <div className="note err">{err}</div>}
       <div className="plans">
         {PLANS.map((p) => (
@@ -43,8 +46,9 @@ export default function PlansPage() {
         ))}
       </div>
       {me?.tier !== "Free" && <button onClick={() => go("/billing/portal")}>{t("manage")}</button>}
+      {me?.is_admin && <p><a href="/dashboard/promo" className="small muted">Codici promo</a></p>}
       <hr className="sep" />
-      <button className="danger" onClick={del}>{t("deleteAcc")}</button>
+      <button id="delete" className="danger" onClick={del}>{t("deleteAcc")}</button>
     </>
   );
 }

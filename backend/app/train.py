@@ -172,7 +172,7 @@ def _metrics(email: str, st: dict) -> dict:
     analyzed_rows = sb.table("games").select("id,accuracy_user,opening_name").eq("user_email", email).not_.is_("analyzed_at", "null").limit(1000).execute().data
     all_open = sb.table("games").select("opening_name").eq("user_email", email).limit(1000).execute().data
     openings = {(g["opening_name"] or "").split(":")[0].split(",")[0].strip() for g in all_open if g.get("opening_name")}
-    with_err = {e["game_id"] for e in sb.table("errori_utenti").select("game_id").eq("user_email", email).limit(5000).execute().data}
+    with_err = {e["game_id"] for e in sb.table("errori_utenti").select("game_id").eq("user_email", email).in_("classification", ["mistake", "blunder"]).limit(5000).execute().data}
     accs = [float(g["accuracy_user"]) for g in analyzed_rows if g.get("accuracy_user") is not None]
     return {"games": games, "analyzed": len(analyzed_rows), "puzzles": st["puzzles_solved"], "streak": st["best_streak"],
             "fixed": st["mistakes_fixed"], "lessons": _count(sb.table("errori_utenti").select("id", count="exact").eq("user_email", email).not_.is_("gm_lesson", "null").limit(1)),
@@ -396,7 +396,7 @@ def assign_cards(email: str, rows: list[dict] | None = None, with_progress: bool
         if ensure_highlights(email):
             pass
         rows = _game_rows(email)
-    with_err = {str(e["game_id"]) for e in sb.table("errori_utenti").select("game_id").eq("user_email", email).limit(5000).execute().data}
+    with_err = {str(e["game_id"]) for e in sb.table("errori_utenti").select("game_id").eq("user_email", email).in_("classification", ["mistake", "blunder"]).limit(5000).execute().data}
     clean = {g["id"] for g in rows if g.get("accuracy_user") is not None and str(g["id"]) not in with_err}
     ev = CL.evaluate(rows, clean)
     have = {(c["goal"], c["game_id"]) for c in sb.table("cards").select("goal,game_id").eq("user_email", email).execute().data}

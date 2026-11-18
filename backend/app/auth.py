@@ -16,7 +16,7 @@ def current_user(authorization: str = Header(None)):
         raise HTTPException(401, "invalid_token")
     if not u or not u.email:
         raise HTTPException(401, "invalid_token")
-    return {"id": u.id, "email": u.email}
+    return {"id": u.id, "email": u.email, "created_at": str(getattr(u, "created_at", "") or "")}
 
 
 def tier_of(email: str) -> str:

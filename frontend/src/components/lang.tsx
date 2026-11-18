@@ -29,3 +29,14 @@ export function LangSwitch() {
     </div>
   );
 }
+
+const LANG_NAME: Record<Lang, string> = { it: "Italiano", en: "English", es: "Español" };
+/** Selettore lingua a tendina: occupa poco spazio nella barra in alto. */
+export function LangSelect({ full = false }: { full?: boolean }) {
+  const { lang, setLang } = useLang();
+  return (
+    <select className={"lang-sel" + (full ? " full" : "")} value={lang} onChange={(e) => setLang(e.target.value as Lang)} aria-label="Language">
+      {LANGS.map((l) => <option key={l} value={l}>{full ? LANG_NAME[l] : l.toUpperCase()}</option>)}
+    </select>
+  );
+}

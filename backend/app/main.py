@@ -16,6 +16,7 @@ from .db import sb
 from .engine import analyze_game
 from .auth import current_user, tier_of
 from .sync import analyze_pending, import_history, run_cron, sync_user
+from .promo import attribute_checkout, attribute_renewal, checkout_discount, is_admin, promo_for, router as promo_router
 from .train import router as train_router
 
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "")
@@ -26,6 +27,7 @@ GEMINI_MODEL_FREE = os.environ.get("GEMINI_MODEL_FREE", "gemini-3.5-flash-lite")
 
 app = FastAPI(title="Chess Coach API")
 app.include_router(train_router)
+app.include_router(promo_router)
 app.add_middleware(CORSMiddleware, allow_origins=[FRONTEND_URL], allow_methods=["*"], allow_headers=["*"])
 
 
@@ -52,13 +54,17 @@ def me(u=Depends(current_user)):
     month = datetime.date.today().strftime("%Y-%m")
     q = sb.table("quota_usage").select("ai_analyses_used").eq("user_email", u["email"]).eq("quota_month", month).execute().data
     n = sb.table("profili_scacchi").select("id", count="exact").eq("user_email", u["email"]).execute().count or 0
+    cfg = (sb.table("config_utenti").select("bonus_lessons,data_scadenza").eq("user_email", u["email"]).limit(1).execute().data or [None])[0]
     return {
         "email": u["email"], "tier": tier,
         "profiles": {"used": n, "limit": plan.profiles},
         "lessons": {"used": q[0]["ai_analyses_used"] if q else 0, "limit": plan.gm_lessons_month},
         "auto_sync": plan.auto_sync, "history_games": plan.history_games,
         "new_cards": _new_cards(u["email"]),
-        "bonus_lessons": (sb.table("config_utenti").select("bonus_lessons").eq("user_email", u["email"]).limit(1).execute().data or [{}])[0].get("bonus_lessons") or 0,
+        "is_admin": is_admin(u["email"]), "promo": promo_for(u["email"]),
+        "bonus_lessons": (cfg or {}).get("bonus_lessons") or 0,
+        "renews": (cfg or {}).get("data_scadenza") if tier != "Free" else None,
+        "member_since": u.get("created_at"),
     }
 
 
@@ -151,23 +157,60 @@ def gm_lesson(err: dict, lang: str, tier: str = "Free") -> str:
     return r.text.strip()
 
 
+def _lesson_for(err: dict, lang: str, email: str) -> dict:
+    if err.get("gm_lesson"):  # già generata: non consuma quota
+        return {"lesson": err["gm_lesson"], "cached": True, "error_id": err["id"]}
+    if not sb.rpc("consume_gm_lesson", {"p_email": email}).execute().data:
+        raise HTTPException(402, "quota_exhausted")
+    try:
+        text = gm_lesson(err, lang, tier_of(email))
+    except Exception:
+        sb.rpc("refund_gm_lesson", {"p_email": email}).execute()  # se il GM non risponde, la lezione non conta
+        raise HTTPException(502, "gm_failed")
+    sb.table("errori_utenti").update({"gm_lesson": text, "gm_lesson_at": now_iso()}).eq("id", err["id"]).execute()
+    return {"lesson": text, "cached": False, "error_id": err["id"]}
+
+
 @app.post("/errors/{error_id}/lesson")
 def lesson(error_id: int, body: LessonIn, u=Depends(current_user)):
     rows = sb.table("errori_utenti").select("*").eq("id", error_id).eq("user_email", u["email"]).limit(1).execute().data
     if not rows:
         raise HTTPException(404, "not_found")
-    err = rows[0]
-    if err.get("gm_lesson"):  # già generata: non consuma quota
-        return {"lesson": err["gm_lesson"], "cached": True}
-    if not sb.rpc("consume_gm_lesson", {"p_email": u["email"]}).execute().data:
-        raise HTTPException(402, "quota_exhausted")
-    try:
-        text = gm_lesson(err, body.lang, tier_of(u["email"]))
-    except Exception:
-        sb.rpc("refund_gm_lesson", {"p_email": u["email"]}).execute()  # se il GM non risponde, la lezione non conta
-        raise HTTPException(502, "gm_failed")
-    sb.table("errori_utenti").update({"gm_lesson": text, "gm_lesson_at": now_iso()}).eq("id", error_id).execute()
-    return {"lesson": text, "cached": False}
+    return _lesson_for(rows[0], body.lang, u["email"])
+
+
+START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+
+
+@app.post("/games/{game_id}/moves/{ply}/lesson")
+def move_lesson(game_id: str, ply: int, body: LessonIn, u=Depends(current_user)):
+    """Lezione su una mossa che non è un errore salvato (le imprecisioni): crea la riga al momento della richiesta."""
+    g = sb.table("games").select("id,opening_name").eq("id", game_id).eq("user_email", u["email"]).limit(1).execute().data
+    if not g:
+        raise HTTPException(404, "not_found")
+    ex = sb.table("errori_utenti").select("*").eq("game_id", game_id).eq("user_email", u["email"]).eq("ply", ply).limit(1).execute().data
+    if ex:
+        return _lesson_for(ex[0], body.lang, u["email"])
+    ms = sb.table("moves").select("*").eq("game_id", game_id).in_("ply", [ply - 1, ply]).execute().data
+    cur = next((m for m in ms if m["ply"] == ply), None)
+    if not cur or not cur.get("is_user_move") or cur.get("classification") != "inaccuracy":
+        raise HTTPException(404, "not_found")
+    prev = next((m for m in ms if m["ply"] == ply - 1), None)
+    fen = prev["fen_after"] if prev else START_FEN
+    white = ply % 2 == 1
+    loss = 0
+    if prev and prev.get("eval_cp") is not None and cur.get("eval_cp") is not None:
+        loss = max(0, (prev["eval_cp"] - cur["eval_cp"]) if white else (cur["eval_cp"] - prev["eval_cp"]))
+    pieces = sum(1 for ch in fen.split(" ")[0] if ch.isalpha())
+    cat = "endgame" if pieces <= 10 else "opening" if ply <= 20 else "positional"
+    row = {"user_email": u["email"], "game_id": game_id, "ply": ply, "fen": fen,
+           "mossa_critica": f"{(ply + 1) // 2}{'.' if white else '...'} {cur['san']}", "best_move": cur.get("best_move_san"),
+           "categoria_errore": cat, "classification": "inaccuracy", "eval_loss_cp": int(loss),
+           "apertura": g[0].get("opening_name"), "data": now_iso()}
+    ins = sb.table("errori_utenti").upsert(row, on_conflict="user_email,game_id,ply").execute().data
+    if not ins:
+        raise HTTPException(500, "db_error")
+    return _lesson_for(ins[0], body.lang, u["email"])
 
 
 # ---------- Stripe ----------
@@ -192,9 +235,15 @@ def checkout(body: CheckoutIn, u=Depends(current_user)):
     args = dict(
         mode="subscription", line_items=[{"price": stripe_price_id(body.plan), "quantity": 1}],
         success_url=f"{FRONTEND_URL}/dashboard/plans?checkout=success", cancel_url=f"{FRONTEND_URL}/dashboard/plans?checkout=cancel",
-        allow_promotion_codes=True, metadata={"email": u["email"], "plan": body.plan},
+        metadata={"email": u["email"], "plan": body.plan},
         locale=body.lang if body.lang in ("it", "en", "es") else "auto",
         custom_text={"submit": {"message": LEGAL_TEXT.get(body.lang, LEGAL_TEXT["en"]).format(url=FRONTEND_URL)}})
+    disc = checkout_discount(u["email"])      # codice arrivato dal link del creatore: sconto già applicato
+    if disc:
+        args["discounts"] = [{"promotion_code": disc["pid"]}]
+        args["metadata"]["promo"] = disc["code"]
+    else:
+        args["allow_promotion_codes"] = True
     if os.environ.get("STRIPE_TERMS_CHECKBOX") == "1":
         args["consent_collection"] = {"terms_of_service": "required"}
     if cust:
@@ -230,11 +279,13 @@ async def webhook(request: Request):
         sb.table("storico_abbonamenti").insert({
             "user_email": email, "tier_precedente": prev, "tier_nuovo": plan, "azione": "attivazione",
             "importo": (obj.get("amount_total") or 0) / 100, "stripe_session_id": obj["id"]}).execute()
+        attribute_checkout(obj, email, plan)
     elif ev["type"] == "invoice.paid":
         end = obj["lines"]["data"][0]["period"]["end"]
         sb.table("config_utenti").update({
             "data_scadenza": datetime.date.fromtimestamp(end).isoformat(), "subscription_status": "active",
             "updated_at": now_iso()}).eq("stripe_customer_id", obj["customer"]).execute()
+        attribute_renewal(obj)
     elif ev["type"] == "customer.subscription.deleted":
         sb.table("config_utenti").update({
             "tier": "Free", "subscription_status": "canceled", "data_scadenza": None,
@@ -259,6 +310,10 @@ def delete_me(u=Depends(current_user)):
         sb.table("cards").delete().eq("user_email", email).execute()
     except Exception:
         pass  # tabella assente se 006 non è stato eseguito
+    try:
+        sb.table("promo_events").update({"user_email": None}).eq("user_email", email).execute()   # i conteggi restano, l'email no
+    except Exception:
+        pass
     for t in ("mistake_cards", "puzzle_attempts", "training_stats", "rewards", "errori_utenti", "ai_usage_log", "games", "storico_rating", "profili_scacchi", "quota_usage", "storico_abbonamenti", "config_utenti"):
         sb.table(t).delete().eq("user_email", email).execute()
     sb.table("user_profiles").delete().eq("user_id", u["id"]).execute()
@@ -301,7 +356,7 @@ def stats(u=Depends(current_user)):
             rating.setdefault((g["source"], uname, _speed(g["time_control"])), {})[g["played_at"][:10]] = elo  # un valore al giorno: l'ultimo
         if g["accuracy_user"] is not None:
             accs.append(float(g["accuracy_user"]))
-    cats = Counter(r["categoria_errore"] for r in sb.table("errori_utenti").select("categoria_errore").eq("user_email", u["email"]).execute().data if r["categoria_errore"])
+    cats = Counter(r["categoria_errore"] for r in sb.table("errori_utenti").select("categoria_errore").eq("user_email", u["email"]).in_("classification", ["mistake", "blunder"]).execute().data if r["categoria_errore"])
     # un grafico per account con una serie per ritmo, un punto al giorno (l'ultimo rating del giorno)
     order = ["bullet", "blitz", "rapid", "classical", "daily", "other"]
     accounts = {}

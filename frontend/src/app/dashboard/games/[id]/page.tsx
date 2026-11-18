@@ -33,7 +33,7 @@ export default function GamePage() {
 
   const msg = (e: any) => (e.message === "quota_exhausted" ? t("quota") : e.message === "gm_failed" ? t("gmFailed") : e.message);
 
-  // elenco unico: errori gravi, errori e imprecisioni di chi gioca; la lezione GM esiste solo per errori e errori gravi
+  // elenco unico: errori gravi, errori e imprecisioni di chi gioca; la lezione GM si può chiedere per ogni voce
   const items = useMemo(() => {
     if (!d) return [];
     const byPly: Record<number, any> = Object.fromEntries(d.errors.map((e: any) => [e.ply, e]));
@@ -54,9 +54,13 @@ export default function GamePage() {
   const fenNow = frame?.fen_after || START;
 
   const analyze = async () => { try { await call(`/games/${id}/analyze`, { method: "POST" }); setQueued(true); } catch (e: any) { setErr(msg(e)); } };
-  const lesson = async (eid: number) => {
-    setBusy(eid); setErr("");
-    try { const r = await call(`/errors/${eid}/lesson`, { method: "POST", body: JSON.stringify({ lang }) }); setLessons((s) => ({ ...s, [eid]: r.lesson })); refreshMe(); }
+  // chiave della lezione: id dell'errore salvato, oppure -ply per le imprecisioni (la riga si crea alla richiesta)
+  const lesson = async (key: number, ply: number, hasErr: boolean) => {
+    setBusy(key); setErr("");
+    try {
+      const r = await call(hasErr ? `/errors/${key}/lesson` : `/games/${id}/moves/${ply}/lesson`, { method: "POST", body: JSON.stringify({ lang }) });
+      setLessons((s) => ({ ...s, [key]: r.lesson })); refreshMe();
+    }
     catch (e: any) { setErr(msg(e)); }
     setBusy(null);
   };
@@ -131,10 +135,10 @@ export default function GamePage() {
             </span>
             <span className="row">
               <button onClick={() => setPly(m.ply)} aria-label="Show">♟</button>
-              {e && !lessons[e.id] && <button className="btn btn-primary" disabled={busy === e.id} onClick={() => lesson(e.id)}>{busy === e.id ? t("thinking") : t("askLesson")}</button>}
+              {!lessons[e ? e.id : -m.ply] && <button className="btn btn-primary" disabled={busy === (e ? e.id : -m.ply)} onClick={() => lesson(e ? e.id : -m.ply, m.ply, !!e)}>{busy === (e ? e.id : -m.ply) ? t("thinking") : t("askLesson")}</button>}
             </span>
           </div>
-          {e && lessons[e.id] && <p className="pre">{lessons[e.id]}</p>}
+          {lessons[e ? e.id : -m.ply] && <p className="pre">{lessons[e ? e.id : -m.ply]}</p>}
         </div>
       ))}
     </>
