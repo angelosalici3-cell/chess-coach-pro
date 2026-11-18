@@ -2,7 +2,7 @@ import type { Pos } from "./cardPositions";
 
 export type Rarity = "common" | "rare" | "epic" | "legendary";
 export type CardGame = { me: string; opp: string; color: "white" | "black"; result: string; opening?: string | null; date: string; acc?: number | null; elo?: number | null; opp_elo?: number | null; sans: string[]; hi?: number | null };
-export type CardLabels = { rarity: string; title: string; subtitle: string; me: string; opp: string; win: string; loss: string; draw: string; moves: string; accuracy: string; opening: string; brand: string; ply: string };
+export type CardLabels = { rarity: string; title: string; subtitle: string; me: string; opp: string; win: string; loss: string; draw: string; moves: string; accuracy: string; opening: string; brand: string };
 export type CardView = { rarity: Rarity; game: CardGame; labels: CardLabels };
 export type Fonts = { display: string; body: string };
 
