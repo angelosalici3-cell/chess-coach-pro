@@ -1,15 +1,18 @@
+import { useId } from "react";
 import { BRAND } from "../lib/brand";
 
 export function LogoMark({ size = 36 }: { size?: number }) {
+  const u = useId().replace(/[^a-zA-Z0-9]/g, "");
+  const bg = `lmbg${u}`, pc = `lmpc${u}`;
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true">
       <defs>
-        <linearGradient id="lm-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#222c5e" /><stop offset="1" stopColor="#0b0f1e" /></linearGradient>
-        <linearGradient id="lm-pc" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#ffffff" /><stop offset="1" stopColor="#c9d3f5" /></linearGradient>
+        <linearGradient id={bg} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#222c5e" /><stop offset="1" stopColor="#0b0f1e" /></linearGradient>
+        <linearGradient id={pc} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#ffffff" /><stop offset="1" stopColor="#c9d3f5" /></linearGradient>
       </defs>
-      <rect width="64" height="64" rx="16" fill="url(#lm-bg)" />
+      <rect width="64" height="64" rx="16" fill={`url(#${bg})`} />
       <rect x=".5" y=".5" width="63" height="63" rx="15.5" fill="none" stroke="#fff" strokeOpacity=".14" />
-      <g fill="url(#lm-pc)">
+      <g fill={`url(#${pc})`}>
         <path d="M21 24 L19 11 L26 19 L32 8 L38 19 L45 11 L43 24 Z" />
         <rect x="21.5" y="25" width="21" height="4" rx="2" />
         <path d="M25 29.5 H39 L42.5 46 H21.5 Z" />
