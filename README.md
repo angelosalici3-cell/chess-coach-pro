@@ -38,3 +38,6 @@ Esegui `supabase/005_history.sql`. Free 50 partite, Plus 200, Pro 500, Elite 100
 
 ## Guida / onboarding
 Al primo accesso (una volta per utente, in /dashboard) si apre da sola una guida di 9 passi; si riapre sempre dal pulsante "Guida" (menu laterale e barra in alto su mobile). Testi in `frontend/src/lib/onboarding-copy.ts`.
+
+## App installabile (PWA)
+`public/manifest.webmanifest`, `public/sw.js`, `public/offline.html` e le icone (`icon-192/512`, `maskable-512`, `apple-touch-icon`). Il service worker non mette in cache API, login o dati personali: serve solo per l'installazione e per la pagina offline. Su Android/Chrome compare un banner "Installa"; su iPhone le istruzioni "Condividi → Aggiungi alla schermata Home". Serve HTTPS (su Vercel c'è già). Test: Chrome → DevTools → Application → Manifest / Lighthouse "PWA". Per gli store: PWA impacchettata con Bubblewrap/PWABuilder (Google Play).

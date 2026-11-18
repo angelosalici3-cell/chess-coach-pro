@@ -438,3 +438,10 @@ details.card summary { cursor: pointer; } details.card[open] summary { margin-bo
 @keyframes ob-popin { from { transform: scale(.4); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .ob-back, .ob-body, .ob-logo, .ob-shields, .ob-draw, .ob-bar, .ob-line, .ob-pop { animation: none !important; stroke-dashoffset: 0; } }
 @media (max-width: 520px) { .ob-art { height: 140px; } .ob-body, .ob-foot { padding-left: 1.1rem; padding-right: 1.1rem; } }
+
+/* ===== PWA ===== */
+.pwa { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(76px + env(safe-area-inset-bottom)); z-index: 90; width: min(520px, calc(100% - 1.5rem)); display: flex; align-items: center; gap: .8rem; flex-wrap: wrap; background: var(--ink-2); border: 1px solid var(--line-2); border-radius: 16px; padding: .7rem .9rem; box-shadow: 0 14px 40px rgba(0, 0, 0, .5); animation: ob-rise .4s ease both; }
+.pwa img { border-radius: 10px; } .pwa > div:nth-of-type(1) { flex: 1; min-width: 160px; }
+@media (min-width: 900px) { .pwa { bottom: 1.2rem; left: auto; right: 1.2rem; transform: none; } }
+.topbar, .tabbar { padding-top: env(safe-area-inset-top); }
+.tabbar { padding-bottom: env(safe-area-inset-bottom); }

@@ -9,6 +9,7 @@ import { K, Lang } from "../lib/i18n";
 import { LangSwitch, useLang } from "./lang";
 import { Logo } from "./Logo";
 import Onboarding from "./Onboarding";
+import Pwa from "./Pwa";
 import { ui } from "../lib/onboarding-copy";
 
 type Ctx = { me: any; lang: Lang; t: (k: K) => string; call: <T = any>(path: string, init?: RequestInit) => Promise<T>; refreshMe: () => void; openGuide: () => void };
@@ -96,6 +97,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {NAV.map((n) => <Link key={n.href} href={n.href} className={on(n.href) ? "on" : ""}>{n.icon}<span>{t(n.k)}</span></Link>)}
         </nav>
       </div>
+      <Pwa lang={lang} />
       {guide && <Onboarding lang={lang} me={me} onClose={closeGuide} />}
     </C.Provider>
   );
