@@ -26,6 +26,9 @@ function Art({ id }: { id: string }) {
         {[0, 1, 2, 3, 4].map((i) => <circle key={i} cx={70 + i * 25} cy="122" r="5" fill={i < 3 ? "var(--mint)" : "var(--line-2)"} />)}</>)}
       {id === "atlas" && (<><g stroke="var(--line-2)" strokeWidth="2" fill="none"><path d="M44 65H84M84 65Q104 65 104 38H128M84 65Q104 65 104 92H128M128 38H152M128 92Q148 92 148 112H172" className="ob-draw" /></g>
         {[[22, 65, "var(--ember)"], [86, 38, "var(--mint)"], [86, 92, "var(--amber)"], [150, 38, "var(--bad)"], [150, 112, "var(--mint)"]].map(([x, y, col], i) => <rect key={i} x={Number(x) + 20} y={Number(y) - 12} width="40" height="24" rx="8" fill="var(--ink-3)" stroke={String(col)} strokeWidth="2" />)}</>)}
+      {id === "menu" && (<><rect x="14" y="10" width="86" height="110" rx="12" fill="var(--ink-3)" stroke="var(--line-2)" /><circle cx="36" cy="32" r="10" fill="var(--ember)" />
+        {[0, 1, 2, 3].map((i) => <rect key={i} className="ob-line" style={{ animationDelay: `${i * 140}ms` }} x="24" y={54 + i * 15} width={[60, 48, 56, 40][i]} height="8" rx="4" fill="var(--line-2)" />)}
+        <path d="M130 40h80M130 65h80M130 90h80" {...c} className="ob-draw" /></>)}
       {id === "plans" && [0, 1, 2, 3].map((i) => <g key={i}><rect x={14 + i * 56} y={52 - i * 12} width="48" height={70 + i * 12} rx="10" fill="var(--ink-3)" stroke={i === 3 ? "var(--ember)" : "var(--line-2)"} strokeWidth="2" /><rect x={22 + i * 56} y={62 - i * 12} width="32" height="8" rx="4" fill={i === 3 ? "var(--ember)" : "var(--line-2)"} /></g>)}
     </svg>
   );

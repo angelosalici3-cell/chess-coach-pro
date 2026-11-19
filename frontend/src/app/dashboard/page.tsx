@@ -78,7 +78,7 @@ function RatingCard({ accounts }: { accounts: any[] }) {
 }
 
 export default function Home() {
-  const { call, t, lang, me, refreshMe } = useApp();
+  const { call, t, lang, me, refreshMe, bust } = useApp();
   const [s, setS] = useState<any>(null);
   const [err, setErr] = useState("");
   const [info, setInfo] = useState("");
@@ -110,7 +110,7 @@ export default function Home() {
         <button className="btn btn-primary" onClick={sync} disabled={busy}>{busy ? t("syncing") : t("sync")}</button>
       </div>
       <p className="muted small" style={{ marginTop: 0 }}>{me?.auto_sync ? t("autoSyncOn") : <>{t("autoSyncOff")}. <Link href="/dashboard/plans" className="accent">{t("navPlans")}</Link></>}</p>
-      <InitBanner onDone={() => { load(); refreshMe(); }} />
+      <InitBanner onDone={() => { bust(); load(); refreshMe(); }} />
       <TodayCard />
       {info && <div className="note">{info}</div>}
       {err && <div className="note err">{err}</div>}

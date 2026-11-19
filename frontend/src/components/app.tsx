@@ -1,5 +1,5 @@
 "use client";
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { Session } from "@supabase/supabase-js";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -14,7 +14,7 @@ import Onboarding from "./Onboarding";
 import Pwa from "./Pwa";
 import CardCelebration from "./CardCelebration";
 
-type Ctx = { me: any; lang: Lang; t: (k: K) => string; call: <T = any>(path: string, init?: RequestInit) => Promise<T>; refreshMe: () => void; openGuide: () => void };
+type Ctx = { me: any; lang: Lang; t: (k: K) => string; call: <T = any>(path: string, init?: RequestInit) => Promise<T>; refreshMe: () => void; openGuide: () => void; bust: () => void };
 const C = createContext<Ctx>(null as any);
 export const useApp = () => useContext(C);
 
@@ -30,6 +30,9 @@ const NAV: { href: string; k: K; icon: React.ReactNode }[] = [
 ];
 
 const tMenu: Record<Lang, string> = { it: "Menu", en: "Menu", es: "Menú" };
+
+/** Percorsi di sola lettura che si possono tenere in memoria (non quelli che cambiano a ogni richiesta, come il prossimo puzzle). */
+const CACHEABLE = /^\/(stats(\/time)?|lessons|games(\/[\w-]+(\/time)?)?|openings\/mine|achievements|train\/overview|profiles|cards|admin\/promo)$/;
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { lang, t } = useLang();
@@ -49,7 +52,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => { if (ready && !session) router.replace("/login"); }, [ready, session, router]);
 
   const token = session?.access_token;
-  const call = useCallback(<T,>(p: string, init?: RequestInit) => api<T>(p, token || "", init), [token]);
+  // Dati già scaricati restano in memoria: cambiando pagina compaiono subito e si aggiornano in sottofondo.
+  // Qualsiasi modifica (POST, DELETE...) svuota la memoria, così dopo una sincronizzazione o una lezione si legge il dato nuovo.
+  const store = useRef(new Map<string, { t: number; d: any }>());
+  const call = useCallback(async <T,>(p: string, init?: RequestInit): Promise<T> => {
+    const method = (init?.method || "GET").toUpperCase();
+    if (method !== "GET") { store.current.clear(); return api<T>(p, token || "", init); }
+    if (!CACHEABLE.test(p) || init?.cache === "no-store") return api<T>(p, token || "", init);
+    const hit = store.current.get(p);
+    const fresh = () => api<T>(p, token || "", init).then((d) => { store.current.set(p, { t: Date.now(), d }); return d; });
+    if (hit) { if (Date.now() - hit.t > 15000) fresh().catch(() => {}); return hit.d as T; }
+    return fresh();
+  }, [token]);
+  const bust = useCallback(() => store.current.clear(), []);
   const email = session?.user?.email || "";
   const refreshMe = useCallback(() => {
     if (token) api("/me", token).then((d) => { setMe(d); try { localStorage.setItem("c:me:" + email, JSON.stringify(d)); } catch {} }).catch(() => {});
@@ -86,6 +101,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => { setMenu(false); }, [path]);
   const closeMenu = useCallback(() => setMenu(false), []);
   const logout = () => {
+    store.current.clear();
     try { Object.keys(localStorage).filter((k) => k.startsWith("c:")).forEach((k) => localStorage.removeItem(k)); } catch {}
     return supabase.auth.signOut().then(() => router.replace("/"));
   };
@@ -101,7 +117,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <>
     <Intro ready={!!me} />
-    <C.Provider value={{ me, lang, t, call, refreshMe, openGuide: () => setGuide(true) }}>
+    <C.Provider value={{ me, lang, t, call, refreshMe, bust, openGuide: () => setGuide(true) }}>
       <div className="shell">
         <aside className="side">
           <Link href="/" aria-label="Home"><Logo size={34} /></Link>

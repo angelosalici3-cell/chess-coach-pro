@@ -540,11 +540,9 @@ a.dr-btn { padding: .55rem .8rem; border: 1px solid var(--line-2); border-radius
 
 /* ===== Intro: cerchio che gira e portone che si apre ===== */
 .intro { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; overflow: hidden; }
-.intro-door { position: absolute; top: 0; bottom: 0; width: 50.2%; background:
-  linear-gradient(90deg, rgba(255, 255, 255, .02) 0 1px, transparent 1px) 0 0 / 56px 56px,
-  linear-gradient(180deg, #0f1636, #0b0f1e 70%); transition: transform .9s cubic-bezier(.77, 0, .18, 1); will-change: transform; }
-.intro-door.l { left: 0; border-right: 1px solid rgba(255, 143, 105, .35); box-shadow: inset -18px 0 36px rgba(0, 0, 0, .35); }
-.intro-door.r { right: 0; border-left: 1px solid rgba(255, 143, 105, .35); box-shadow: inset 18px 0 36px rgba(0, 0, 0, .35); }
+.intro-door { position: absolute; top: 0; bottom: 0; width: 50.4%; background: linear-gradient(180deg, #0f1636, #0b0f1e 70%); transition: transform .9s cubic-bezier(.77, 0, .18, 1); will-change: transform; }
+.intro-door.l { left: 0;  }
+.intro-door.r { right: 0;  }
 .intro.open .intro-door.l { transform: translateX(-102%); }
 .intro.open .intro-door.r { transform: translateX(102%); }
 .intro-mark { position: relative; z-index: 2; display: grid; place-items: center; width: 140px; height: 140px; transition: opacity .35s ease, transform .5s ease; }
