@@ -83,8 +83,13 @@ export default function Home() {
   const [info, setInfo] = useState("");
   const [busy, setBusy] = useState(false);
 
-  const load = () => call("/stats").then(setS).catch((e) => setErr(e.message));
-  useEffect(() => { load(); }, [call]);
+  const ck = me?.email ? "c:stats:" + me.email : "";
+  const load = () => call("/stats").then((d) => { setS(d); if (ck) try { localStorage.setItem(ck, JSON.stringify(d)); } catch {} }).catch((e) => setErr(e.message));
+  useEffect(() => {   // ultimi dati salvati subito, poi quelli aggiornati
+    if (!ck) return;
+    try { const c = localStorage.getItem(ck); if (c) setS((x: any) => x || JSON.parse(c)); } catch {}
+  }, [ck]);
+  useEffect(() => { load(); }, [call]); // eslint-disable-line
 
   const sync = async () => {
     setBusy(true); setErr(""); setInfo("");

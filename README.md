@@ -71,3 +71,8 @@ Le carte vengono assegnate dal backend subito dopo l'analisi di una partita. L'a
 ## Menu laterale e lezioni sulle imprecisioni
 - Il menu a scomparsa (hamburger, in alto a sinistra; su desktop il pulsante "Menu" nella barra laterale) raccoglie consumi AI, scadenza, dati e gestione account, manuale e lingua. La barra in basso resta solo con le funzioni (Home, Partite, Lezioni, Aperture, Allenamento).
 - Nessun SQL da eseguire. Backend: nuovo endpoint `POST /games/{id}/moves/{ply}/lesson` (lezione GM anche per le imprecisioni), `/me` restituisce `renews` e `member_since`.
+
+## Velocità di apertura
+- Backend: `/me` esegue le query in parallelo; token verificato e `/me`/`/stats` messi in cache per pochi secondi (`app/cache.py`, si svuota dopo sync, lezioni, piano, profili).
+- Frontend: all'apertura mostra subito gli ultimi dati salvati (localStorage `c:*`) e li aggiorna appena arrivano.
+- Su Render **Free** il server si addormenta dopo ~15 minuti e la prima richiesta impiega 30–60 secondi: tieni sveglio `/health` con un ping ogni 5–10 minuti (UptimeRobot/cron-job.org) oppure passa a un piano a pagamento. Metti Render e Supabase nella stessa regione.

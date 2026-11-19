@@ -49,7 +49,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const token = session?.access_token;
   const call = useCallback(<T,>(p: string, init?: RequestInit) => api<T>(p, token || "", init), [token]);
-  const refreshMe = useCallback(() => { if (token) api("/me", token).then(setMe).catch(() => {}); }, [token]);
+  const email = session?.user?.email || "";
+  const refreshMe = useCallback(() => {
+    if (token) api("/me", token).then((d) => { setMe(d); try { localStorage.setItem("c:me:" + email, JSON.stringify(d)); } catch {} }).catch(() => {});
+  }, [token, email]);
+  useEffect(() => {   // all'apertura mostra subito gli ultimi dati salvati; quelli nuovi li sostituiscono appena arrivano
+    if (!email) return;
+    try { const c = localStorage.getItem("c:me:" + email); if (c) setMe((m: any) => m || JSON.parse(c)); } catch {}
+  }, [email]);
   useEffect(() => { refreshMe(); }, [refreshMe]);
   useEffect(() => {   // codice promo arrivato da un link (?ref=): lo collega all'account una sola volta
     if (!token) return;
@@ -77,7 +84,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => { setMenu(false); }, [path]);
   const closeMenu = useCallback(() => setMenu(false), []);
-  const logout = () => supabase.auth.signOut().then(() => router.replace("/"));
+  const logout = () => {
+    try { Object.keys(localStorage).filter((k) => k.startsWith("c:")).forEach((k) => localStorage.removeItem(k)); } catch {}
+    return supabase.auth.signOut().then(() => router.replace("/"));
+  };
 
   if (!ready || !session) return <div className="splash"><Logo size={48} text={false} /></div>;
 

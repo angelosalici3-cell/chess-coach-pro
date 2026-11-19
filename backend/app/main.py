@@ -1,4 +1,5 @@
 import datetime
+from concurrent.futures import ThreadPoolExecutor
 import os
 
 import stripe
@@ -14,7 +15,8 @@ from fastapi import BackgroundTasks
 from core.plans import get_plan, stripe_price_id
 from .db import sb
 from .engine import analyze_game
-from .auth import current_user, tier_of
+from . import cache
+from .auth import current_user, tier_from, tier_of
 from .sync import analyze_pending, import_history, run_cron, sync_user
 from .promo import attribute_checkout, attribute_renewal, checkout_discount, is_admin, promo_for, router as promo_router
 from .train import router as train_router
@@ -47,25 +49,38 @@ def _new_cards(email: str) -> int:
         return 0
 
 
+_pool = ThreadPoolExecutor(max_workers=8)
+
+
 @app.get("/me")
 def me(u=Depends(current_user)):
-    tier = tier_of(u["email"])
-    plan = get_plan(tier)
+    email = u["email"]
+    hit = cache.get(("me", email))
+    if hit:
+        return hit
     month = datetime.date.today().strftime("%Y-%m")
-    q = sb.table("quota_usage").select("ai_analyses_used").eq("user_email", u["email"]).eq("quota_month", month).execute().data
-    n = sb.table("profili_scacchi").select("id", count="exact").eq("user_email", u["email"]).execute().count or 0
-    cfg = (sb.table("config_utenti").select("bonus_lessons,data_scadenza").eq("user_email", u["email"]).limit(1).execute().data or [None])[0]
-    return {
-        "email": u["email"], "tier": tier,
+    # le query sono indipendenti: partono insieme invece di una dopo l'altra
+    f_cfg = _pool.submit(lambda: (sb.table("config_utenti").select("tier,data_scadenza,bonus_lessons").eq("user_email", email).limit(1).execute().data or [None])[0])
+    f_q = _pool.submit(lambda: sb.table("quota_usage").select("ai_analyses_used").eq("user_email", email).eq("quota_month", month).execute().data)
+    f_n = _pool.submit(lambda: sb.table("profili_scacchi").select("id", count="exact").eq("user_email", email).execute().count or 0)
+    f_c = _pool.submit(_new_cards, email)
+    f_p = _pool.submit(promo_for, email)
+    cfg, q, n = f_cfg.result(), f_q.result(), f_n.result()
+    tier = tier_from(cfg)
+    plan = get_plan(tier)
+    out = {
+        "email": email, "tier": tier,
         "profiles": {"used": n, "limit": plan.profiles},
         "lessons": {"used": q[0]["ai_analyses_used"] if q else 0, "limit": plan.gm_lessons_month},
         "auto_sync": plan.auto_sync, "history_games": plan.history_games,
-        "new_cards": _new_cards(u["email"]),
-        "is_admin": is_admin(u["email"]), "promo": promo_for(u["email"]),
+        "new_cards": f_c.result(),
+        "is_admin": is_admin(email), "promo": f_p.result(),
         "bonus_lessons": (cfg or {}).get("bonus_lessons") or 0,
         "renews": (cfg or {}).get("data_scadenza") if tier != "Free" else None,
         "member_since": u.get("created_at"),
     }
+    cache.put(("me", email), out, 15)
+    return out
 
 
 # ---------- Account scacchistici ----------
@@ -93,12 +108,14 @@ def add_profile(body: ProfileIn, bg: BackgroundTasks, u=Depends(current_user)):
     except Exception:
         raise HTTPException(409, "profile_exists")
     bg.add_task(import_history, u["email"], tier_of(u["email"]))  # storico subito, in background
+    cache.bust(u["email"])
     return r.data[0]
 
 
 @app.delete("/profiles/{profile_id}")
 def delete_profile(profile_id: int, u=Depends(current_user)):
     sb.table("profili_scacchi").delete().eq("id", profile_id).eq("user_email", u["email"]).execute()
+    cache.bust(u["email"])
     return {"deleted": True}
 
 
@@ -168,6 +185,7 @@ def _lesson_for(err: dict, lang: str, email: str) -> dict:
         sb.rpc("refund_gm_lesson", {"p_email": email}).execute()  # se il GM non risponde, la lezione non conta
         raise HTTPException(502, "gm_failed")
     sb.table("errori_utenti").update({"gm_lesson": text, "gm_lesson_at": now_iso()}).eq("id", err["id"]).execute()
+    cache.bust(email)
     return {"lesson": text, "cached": False, "error_id": err["id"]}
 
 
@@ -276,6 +294,7 @@ async def webhook(request: Request):
             "user_email": email, "tier": plan, "subscription_status": "active",
             "stripe_customer_id": obj["customer"], "stripe_subscription_id": obj["subscription"],
             "updated_at": now_iso()}, on_conflict="user_email").execute()
+        cache.bust(email)
         sb.table("storico_abbonamenti").insert({
             "user_email": email, "tier_precedente": prev, "tier_nuovo": plan, "azione": "attivazione",
             "importo": (obj.get("amount_total") or 0) / 100, "stripe_session_id": obj["id"]}).execute()
@@ -338,6 +357,15 @@ def _speed(tc: str | None):
 
 @app.get("/stats")
 def stats(u=Depends(current_user)):
+    hit = cache.get(("stats", u["email"]))
+    if hit:
+        return hit
+    out = _stats(u)
+    cache.put(("stats", u["email"]), out, 60)
+    return out
+
+
+def _stats(u):
     rows = (sb.table("games").select("source,white,black,time_control,pgn,user_color,result,opening_name,played_at,accuracy_user")
             .eq("user_email", u["email"]).order("played_at", desc=True).limit(1000).execute().data)[::-1]
     w = d = l = 0
@@ -393,6 +421,7 @@ def sync_history(bg: BackgroundTasks, u=Depends(current_user)):
 def sync(bg: BackgroundTasks, n: int = 15, u=Depends(current_user)):
     tier = tier_of(u["email"])
     imported = sync_user(u["email"], max(5, min(n, 100)))
+    cache.bust(u["email"])
     limit = 3 if tier == "Free" else 8
     bg.add_task(analyze_pending, u["email"], limit)
     pending = sb.table("games").select("id", count="exact").eq("user_email", u["email"]).is_("analyzed_at", "null").not_.is_("user_color", "null").execute().count or 0
