@@ -76,3 +76,9 @@ Le carte vengono assegnate dal backend subito dopo l'analisi di una partita. L'a
 - Backend: `/me` esegue le query in parallelo; token verificato e `/me`/`/stats` messi in cache per pochi secondi (`app/cache.py`, si svuota dopo sync, lezioni, piano, profili).
 - Frontend: all'apertura mostra subito gli ultimi dati salvati (localStorage `c:*`) e li aggiorna appena arrivano.
 - Su Render **Free** il server si addormenta dopo ~15 minuti e la prima richiesta impiega 30–60 secondi: tieni sveglio `/health` con un ping ogni 5–10 minuti (UptimeRobot/cron-job.org) oppure passa a un piano a pagamento. Metti Render e Supabase nella stessa regione.
+
+## Aggiornamento: lezioni, carte, analisi iniziale, intro
+- **Lezioni GM:** la lezione si genera prima e la quota si scala solo a lezione salvata. Se Gemini è sovraccarico (429/503) l'app lo dice e non conta nulla. Gli errori veri si leggono nei log di Render (cerca "GM"). Le lezioni sono nella tabella `errori_utenti` (colonne `gm_lesson`, `gm_lesson_at`).
+- **Carte:** carosello con filtro per rarità. Nuove carte "Vittoria contro un X+" per ritmo, da 100 a 100 punti, a partire dal rating della prima partita di quel ritmo (nessun SQL da eseguire).
+- **Analisi iniziale:** dopo il collegamento di un account (e dopo un upgrade) si scaricano le partite e si analizzano le più recenti garantite dal piano (`initial_games` in `backend/core/plans.py`: Free 20, Plus 50, Pro 100, Elite 150). Il banner in Home mostra avanzamento e tempo stimato (`/onboarding/status`).
+- **Intro:** cerchio attorno al logo e portone che si apre quando i dati sono pronti (`components/Intro.tsx`).
