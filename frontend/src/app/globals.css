@@ -518,3 +518,44 @@ a.dr-btn { padding: .55rem .8rem; border: 1px solid var(--line-2); border-radius
 .dr-danger { color: var(--bad); }
 .drawer-foot { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .8rem 1rem; border-top: 1px solid var(--line); }
 .ellip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ===== Carosello carte ===== */
+.car-filter { justify-content: center; margin: .6rem 0 1rem; }
+.car-stage { position: relative; width: 100%; max-width: 560px; margin: 0 auto; height: min(96vw, 438px); outline: none; touch-action: pan-y; user-select: none; }
+.car-slot { position: absolute; top: 0; left: 50%; width: min(66vw, 300px); transform: translateX(-50%); transition: transform .38s cubic-bezier(.2, .8, .2, 1), opacity .3s, filter .3s; cursor: pointer; }
+.car-slot .gc { max-width: none; }
+.car-slot.o0 { z-index: 3; }
+.car-slot.o-1, .car-slot.o1 { z-index: 2; opacity: .55; filter: blur(2.5px) saturate(.85); }
+.car-slot.o-1 { transform: translateX(calc(-50% - 62%)) scale(.78); }
+.car-slot.o1 { transform: translateX(calc(-50% + 62%)) scale(.78); }
+.car-slot.o-2, .car-slot.o2 { z-index: 1; opacity: 0; pointer-events: none; }
+.car-slot.o-2 { transform: translateX(calc(-50% - 90%)) scale(.6); }
+.car-slot.o2 { transform: translateX(calc(-50% + 90%)) scale(.6); }
+.car-stage:focus-visible { box-shadow: 0 0 0 2px var(--ember); border-radius: 12px; }
+.car-bar { display: flex; align-items: center; justify-content: center; gap: 1rem; margin-top: .4rem; }
+.car-info { display: flex; flex-direction: column; align-items: center; min-width: 0; text-align: center; }
+.car-btn { width: 44px; height: 44px; padding: 0; border-radius: 50%; font-size: 1.5rem; line-height: 1; background: var(--ink-3); border: 1px solid var(--line-2); color: var(--ice); }
+.car-btn:disabled { opacity: .35; }
+@media (prefers-reduced-motion: reduce) { .car-slot { transition: none; } }
+
+/* ===== Intro: cerchio che gira e portone che si apre ===== */
+.intro { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; overflow: hidden; }
+.intro-door { position: absolute; top: 0; bottom: 0; width: 50.2%; background:
+  linear-gradient(90deg, rgba(255, 255, 255, .02) 0 1px, transparent 1px) 0 0 / 56px 56px,
+  linear-gradient(180deg, #0f1636, #0b0f1e 70%); transition: transform .9s cubic-bezier(.77, 0, .18, 1); will-change: transform; }
+.intro-door.l { left: 0; border-right: 1px solid rgba(255, 143, 105, .35); box-shadow: inset -18px 0 36px rgba(0, 0, 0, .35); }
+.intro-door.r { right: 0; border-left: 1px solid rgba(255, 143, 105, .35); box-shadow: inset 18px 0 36px rgba(0, 0, 0, .35); }
+.intro.open .intro-door.l { transform: translateX(-102%); }
+.intro.open .intro-door.r { transform: translateX(102%); }
+.intro-mark { position: relative; z-index: 2; display: grid; place-items: center; width: 140px; height: 140px; transition: opacity .35s ease, transform .5s ease; }
+.intro.open .intro-mark { opacity: 0; transform: scale(1.12); }
+.intro-ring { position: absolute; inset: 0; width: 100%; height: 100%; }
+.intro-arc { transform-origin: 70px 70px; animation: intro-spin 1.1s linear infinite; }
+.intro-logo { display: grid; place-items: center; }
+.intro-name { position: absolute; top: calc(100% + 18px); left: 50%; transform: translateX(-50%); white-space: nowrap; font-family: var(--f-display); font-weight: 800; letter-spacing: -.02em; font-size: 1.15rem; color: var(--ice); }
+@keyframes intro-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .intro-arc { animation: none; }
+  .intro-door { transition: opacity .3s; }
+  .intro.open .intro-door.l, .intro.open .intro-door.r { transform: none; opacity: 0; }
+}

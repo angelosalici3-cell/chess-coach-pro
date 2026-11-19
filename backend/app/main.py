@@ -1,4 +1,6 @@
 import datetime
+import logging
+import time
 from concurrent.futures import ThreadPoolExecutor
 import os
 
@@ -17,7 +19,7 @@ from .db import sb
 from .engine import analyze_game
 from . import cache
 from .auth import current_user, tier_from, tier_of
-from .sync import analyze_pending, import_history, run_cron, sync_user
+from .sync import SECONDS_PER_GAME, analyze_initial, analyze_pending, import_history, initial_rows, is_running, onboard, run_cron, sync_user
 from .promo import attribute_checkout, attribute_renewal, checkout_discount, is_admin, promo_for, router as promo_router
 from .train import router as train_router
 
@@ -26,6 +28,8 @@ FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
 GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
 # Free usa il modello più economico; se non esiste o fallisce si ripiega su GEMINI_MODEL
 GEMINI_MODEL_FREE = os.environ.get("GEMINI_MODEL_FREE", "gemini-3.5-flash-lite")
+
+log = logging.getLogger("main")
 
 app = FastAPI(title="Chess Coach API")
 app.include_router(train_router)
@@ -107,7 +111,7 @@ def add_profile(body: ProfileIn, bg: BackgroundTasks, u=Depends(current_user)):
             {"user_email": u["email"], "piattaforma": body.piattaforma, "username": body.username.strip()}).execute()
     except Exception:
         raise HTTPException(409, "profile_exists")
-    bg.add_task(import_history, u["email"], tier_of(u["email"]))  # storico subito, in background
+    bg.add_task(onboard, u["email"], tier_of(u["email"]))  # storico e analisi iniziale, in background
     cache.bust(u["email"])
     return r.data[0]
 
@@ -153,38 +157,78 @@ class LessonIn(BaseModel):
 LANG_NAMES = {"it": "italiano", "en": "English", "es": "español"}
 
 
+class GmBusy(Exception):
+    """Gemini sovraccarico o limite gratuito raggiunto: riprovare tra poco."""
+
+
+def _is_busy(e: Exception) -> bool:
+    t = (str(e) + type(e).__name__).lower()
+    return any(k in t for k in ("429", "503", "resource_exhausted", "unavailable", "overloaded", "quota", "rate"))
+
+
 def gm_lesson(err: dict, lang: str, tier: str = "Free") -> str:
     from google import genai
-    client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
+    client = genai.Client(api_key=os.environ["GEMINI_API_KEY"], http_options={"timeout": 45000})
     prompt = (f"Posizione (FEN) prima della mossa: {err['fen']}\n"
               f"Mossa giocata: {err['mossa_critica']}\nMossa migliore: {err.get('best_move') or 'sconosciuta'}")
     system = (f"Sei un Gran Maestro di scacchi e un ottimo insegnante. Rispondi solo in {LANG_NAMES.get(lang, 'italiano')}, "
               "in markdown semplice, con 3 punti: **Errore**, **Idea corretta**, **Regola pratica**. Max 120 parole.")
     cfg = {"system_instruction": system}
-    r = None
-    if tier == "Free" and GEMINI_MODEL_FREE != GEMINI_MODEL:
-        try:
-            r = client.models.generate_content(model=GEMINI_MODEL_FREE, contents=prompt, config=cfg)
-        except Exception:
-            r = None
-    if r is None or not r.text:
-        r = client.models.generate_content(model=GEMINI_MODEL, contents=prompt, config=cfg)
-    if not r.text:
-        raise RuntimeError("empty")
-    return r.text.strip()
+    models = [GEMINI_MODEL_FREE, GEMINI_MODEL] if tier == "Free" else [GEMINI_MODEL, GEMINI_MODEL_FREE]
+    models = list(dict.fromkeys(m for m in models if m))
+    busy, last = False, None
+    for model in models:
+        for attempt in range(2):  # un secondo tentativo dopo una breve pausa, poi si passa al modello successivo
+            try:
+                r = client.models.generate_content(model=model, contents=prompt, config=cfg)
+                if r.text and r.text.strip():
+                    return r.text.strip()
+                last = RuntimeError("risposta vuota")
+                log.warning("GM %s: risposta vuota", model)
+                break
+            except Exception as e:
+                last = e
+                log.warning("GM %s tentativo %s fallito: %s: %s", model, attempt + 1, type(e).__name__, str(e)[:300])
+                if _is_busy(e):
+                    busy = True
+                    time.sleep(1.5 * (attempt + 1))
+                    continue
+                break
+    if busy:
+        raise GmBusy(str(last))
+    raise RuntimeError(str(last))
+
+
+def _quota_left(email: str, tier: str) -> bool:
+    """Controllo veloce senza consumare nulla: la quota si scala solo a lezione generata."""
+    plan = get_plan(tier)
+    if plan.gm_lessons_month is None:
+        return True
+    month = datetime.date.today().strftime("%Y-%m")
+    q = sb.table("quota_usage").select("ai_analyses_used").eq("user_email", email).eq("quota_month", month).execute().data
+    if (q[0]["ai_analyses_used"] if q else 0) < plan.gm_lessons_month:
+        return True
+    b = sb.table("config_utenti").select("bonus_lessons").eq("user_email", email).limit(1).execute().data
+    return bool(b and (b[0].get("bonus_lessons") or 0) > 0)
 
 
 def _lesson_for(err: dict, lang: str, email: str) -> dict:
     if err.get("gm_lesson"):  # già generata: non consuma quota
         return {"lesson": err["gm_lesson"], "cached": True, "error_id": err["id"]}
-    if not sb.rpc("consume_gm_lesson", {"p_email": email}).execute().data:
+    tier = tier_of(email)
+    if not _quota_left(email, tier):
         raise HTTPException(402, "quota_exhausted")
+    # prima si genera la lezione, poi si scala la quota: se il GM non risponde, il contatore non si muove mai
     try:
-        text = gm_lesson(err, lang, tier_of(email))
-    except Exception:
-        sb.rpc("refund_gm_lesson", {"p_email": email}).execute()  # se il GM non risponde, la lezione non conta
+        text = gm_lesson(err, lang, tier)
+    except GmBusy:
+        raise HTTPException(503, "gm_busy")
+    except Exception as e:
+        log.exception("GM fallito: %s", e)
         raise HTTPException(502, "gm_failed")
-    sb.table("errori_utenti").update({"gm_lesson": text, "gm_lesson_at": now_iso()}).eq("id", err["id"]).execute()
+    sb.table("errori_utenti").update({"gm_lesson": text, "gm_lesson_at": now_iso()}).eq("id", err["id"]).execute()  # la lezione si salva sempre
+    if not sb.rpc("consume_gm_lesson", {"p_email": email}).execute().data:
+        log.warning("quota esaurita durante la generazione per %s: lezione salvata comunque", email)
     cache.bust(email)
     return {"lesson": text, "cached": False, "error_id": err["id"]}
 
@@ -280,7 +324,7 @@ def portal(u=Depends(current_user)):
 
 
 @app.post("/billing/webhook")
-async def webhook(request: Request):
+async def webhook(request: Request, bg: BackgroundTasks):
     try:
         ev = stripe.Webhook.construct_event(
             await request.body(), request.headers.get("stripe-signature", ""), os.environ["STRIPE_WEBHOOK_SECRET"])
@@ -299,6 +343,7 @@ async def webhook(request: Request):
             "user_email": email, "tier_precedente": prev, "tier_nuovo": plan, "azione": "attivazione",
             "importo": (obj.get("amount_total") or 0) / 100, "stripe_session_id": obj["id"]}).execute()
         attribute_checkout(obj, email, plan)
+        bg.add_task(onboard, email, plan)  # più storico e più partite analizzate col nuovo piano
     elif ev["type"] == "invoice.paid":
         end = obj["lines"]["data"][0]["period"]["end"]
         sb.table("config_utenti").update({
@@ -409,11 +454,30 @@ def all_lessons(u=Depends(current_user)):
             .eq("user_email", u["email"]).not_.is_("gm_lesson", "null").order("gm_lesson_at", desc=True).limit(300).execute().data)
 
 
+@app.get("/onboarding/status")
+def onboarding_status(bg: BackgroundTasks, u=Depends(current_user)):
+    """Avanzamento dell'analisi iniziale: quante delle partite garantite dal piano sono già analizzate."""
+    email = u["email"]
+    tier = tier_of(email)
+    profs = sb.table("profili_scacchi").select("id,last_sync_at").eq("user_email", email).execute().data
+    if not profs:
+        return {"state": "no_profile"}
+    rows = initial_rows(email, tier)
+    target = get_plan(tier).initial_games
+    pending = sum(1 for r in rows if not r["analyzed_at"])
+    importing = any(not p.get("last_sync_at") for p in profs)
+    if not importing and pending and not is_running(email):
+        bg.add_task(analyze_initial, email, tier)  # se il server era stato riavviato, riprende da dove era rimasto
+    state = "working" if (importing or pending) else "done"
+    return {"state": state, "target": target, "total": len(rows), "analyzed": len(rows) - pending, "pending": pending,
+            "importing": importing, "eta_min": max(1, round(pending * SECONDS_PER_GAME / 60)) if pending else 0}
+
+
 @app.post("/sync/history")
 def sync_history(bg: BackgroundTasks, u=Depends(current_user)):
     """Importa (o amplia dopo un upgrade) lo storico previsto dal piano."""
     tier = tier_of(u["email"])
-    bg.add_task(import_history, u["email"], tier)
+    bg.add_task(onboard, u["email"], tier)
     return {"started": True, "games": get_plan(tier).history_games}
 
 

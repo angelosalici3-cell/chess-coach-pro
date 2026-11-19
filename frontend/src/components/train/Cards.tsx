@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useApp } from "../app";
 import GameCard, { ApiCard } from "../GameCard";
+import CardCarousel from "./CardCarousel";
 import { rarityColor } from "../../lib/cardArt";
 import { goalCopy, rarityName, speedName, tc } from "../../lib/train-copy";
 
@@ -30,13 +31,7 @@ export default function Cards({ onProgress }: { onProgress: () => void }) {
       <p className="muted" style={{ marginTop: 0 }}>{tc("cardsSub", lang)}</p>
       {data.new > 0 && <div className="note ok">{tc("cardsNew", lang, { n: data.new })}</div>}
       {cards.length === 0 ? <div className="card"><p style={{ margin: 0 }}>{tc("cardsEmpty", lang)}</p></div> : (
-        <div className="cards-grid">
-          {cards.map((c) => (
-            <button key={c.id} className="cards-item" onClick={() => setOpen(c)} aria-label={goalCopy(c.goal, lang).title}>
-              <GameCard card={c} still />
-            </button>
-          ))}
-        </div>
+        <CardCarousel cards={cards} onOpen={setOpen} />
       )}
       <h2>{tc("cardsProgress", lang)}</h2>
       <div className="card prog">
@@ -55,6 +50,15 @@ export default function Cards({ onProgress }: { onProgress: () => void }) {
           })}
         </div>
         <p className="muted small" style={{ margin: ".6rem 0 0" }}>{tc("hoursNote", lang)}</p>
+        {pr.vs && Object.keys(pr.vs).length > 0 && (
+          <div style={{ marginTop: ".8rem" }}>
+            <div className="muted small">{tc("vsGroup", lang)}</div>
+            <div className="chips" style={{ marginTop: ".3rem" }}>
+              {Object.entries(pr.vs).map(([sp, v]: any) => <span key={sp} className="chip">{tc("vsNext", lang, { sp: speedName(sp, lang), n: v.next })}</span>)}
+            </div>
+            <p className="muted small" style={{ margin: ".4rem 0 0" }}>{tc("vsNote", lang)}</p>
+          </div>
+        )}
         <div className="chips" style={{ marginTop: ".7rem" }}>
           {(["all", "w", "b"] as const).map((k) => <span key={k} className="chip">{tc(k === "all" ? "streakAll" : k === "w" ? "streakW" : "streakB", lang)}: {tc("streakNow", lang, { n: pr.runs[k], b: pr.best_runs[k] })}</span>)}
         </div>
@@ -71,7 +75,7 @@ export default function Cards({ onProgress }: { onProgress: () => void }) {
             </div>
           );
         })}
-        {([["streak_all", "streakAll"], ["streak_w", "streakW"], ["streak_b", "streakB"], ["hours", "hoursTitle"]] as const).map(([grp, label]) => (
+        {([["streak_all", "streakAll"], ["streak_w", "streakW"], ["streak_b", "streakB"], ["hours", "hoursTitle"], ["vs", "vsGroup"]] as const).filter(([grp]) => grp !== "vs" || goals.some((g) => g.group === "vs")).map(([grp, label]) => (
           <div key={grp} className="card goal grp">
             <div style={{ flex: 1 }}>
               <b>{tc(label, lang)}</b>

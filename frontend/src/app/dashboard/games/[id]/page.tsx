@@ -31,7 +31,7 @@ export default function GamePage() {
     call(`/games/${id}/time`).then(setTimeData).catch(() => setTimeData({ available: false }));
   }, [id, call]);
 
-  const msg = (e: any) => (e.message === "quota_exhausted" ? t("quota") : e.message === "gm_failed" ? t("gmFailed") : e.message);
+  const msg = (e: any) => (e.message === "quota_exhausted" ? t("quota") : e.message === "gm_busy" ? t("gmBusy") : e.message === "gm_failed" ? t("gmFailed") : e.message);
 
   // elenco unico: errori gravi, errori e imprecisioni di chi gioca; la lezione GM si può chiedere per ogni voce
   const items = useMemo(() => {

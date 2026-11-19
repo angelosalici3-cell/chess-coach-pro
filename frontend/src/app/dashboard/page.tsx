@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import InitBanner from "../../components/InitBanner";
 import { useApp } from "../../components/app";
 import { Bar, MultiLineChart } from "../../components/Charts";
 import { K, tr } from "../../lib/i18n";
@@ -109,6 +110,7 @@ export default function Home() {
         <button className="btn btn-primary" onClick={sync} disabled={busy}>{busy ? t("syncing") : t("sync")}</button>
       </div>
       <p className="muted small" style={{ marginTop: 0 }}>{me?.auto_sync ? t("autoSyncOn") : <>{t("autoSyncOff")}. <Link href="/dashboard/plans" className="accent">{t("navPlans")}</Link></>}</p>
+      <InitBanner onDone={() => { load(); refreshMe(); }} />
       <TodayCard />
       {info && <div className="note">{info}</div>}
       {err && <div className="note err">{err}</div>}

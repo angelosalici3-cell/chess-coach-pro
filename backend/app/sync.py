@@ -1,5 +1,6 @@
 """Download partite da Lichess / Chess.com, import in `games`, analisi in coda."""
 import datetime
+import threading
 import io
 import logging
 import re
@@ -73,6 +74,7 @@ def _sync_profile(email: str, p: dict, n: int) -> int:
         pgns = fetch_lichess(p["username"], n) if src == "lichess" else fetch_chesscom(p["username"], n)
     except Exception as e:
         log.warning("fetch %s/%s: %s", src, p["username"], e)
+        sb.table("profili_scacchi").update({"last_sync_at": datetime.datetime.now(datetime.timezone.utc).isoformat()}).eq("id", p["id"]).execute()
         return 0
     rows = [r for r in (to_row(email, src, x, p["username"]) for x in pgns) if r]
     if rows:
@@ -125,6 +127,59 @@ def analyze_pending(email: str, limit: int) -> None:
         assign_cards(email)
     except Exception as e:
         log.warning("carte %s: %s", email, e)
+
+
+_running: set = set()
+_lock = threading.Lock()
+SECONDS_PER_GAME = 35      # stima per il tempo mostrato all'utente
+
+
+def initial_rows(email: str, tier: str) -> list[dict]:
+    """Le partite più recenti che il piano garantisce di analizzare subito."""
+    n = get_plan(tier).initial_games
+    return (sb.table("games").select("id,analyzed_at").eq("user_email", email).not_.is_("user_color", "null")
+            .order("played_at", desc=True).limit(n).execute().data)
+
+
+def is_running(email: str) -> bool:
+    return email in _running
+
+
+def analyze_initial(email: str, tier: str) -> None:
+    """Analizza TUTTE le partite iniziali del piano, dalla più recente, a piccoli gruppi. Una sola esecuzione per utente."""
+    with _lock:
+        if email in _running:
+            return
+        _running.add(email)
+    tried: set = set()
+    try:
+        while True:
+            todo = [r["id"] for r in initial_rows(email, tier) if not r["analyzed_at"] and r["id"] not in tried][:4]
+            if not todo:
+                break
+            tried.update(todo)
+            for g in sorted(sb.table("games").select("*").in_("id", todo).execute().data, key=lambda x: x.get("played_at") or "", reverse=True):
+                try:
+                    analyze_game(g)
+                except Exception as e:
+                    log.warning("analisi iniziale %s fallita: %s", g["id"], e)
+            try:  # le carte si assegnano man mano
+                from .train import assign_cards
+                assign_cards(email)
+            except Exception as e:
+                log.warning("carte %s: %s", email, e)
+    finally:
+        with _lock:
+            _running.discard(email)
+
+
+def onboard(email: str, tier: str) -> None:
+    """Dopo il collegamento di un account (o un upgrade): scarica lo storico e analizza le partite garantite dal piano."""
+    try:
+        import_history(email, tier)
+    except Exception as e:
+        log.warning("storico %s: %s", email, e)
+    analyze_initial(email, tier)
 
 
 def run_cron() -> None:

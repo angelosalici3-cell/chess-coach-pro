@@ -440,6 +440,11 @@ def cards(u=Depends(current_user)):
         goals += [{"goal": f"streak_{k}_{n}", "rarity": CL.TIER_RARITY[i], "max": 3, "owned": have.get(f"streak_{k}_{n}", 0), "group": f"streak_{k}"} for i, n in enumerate(steps, 1)]
     for sp in CL.SPEEDS:
         goals += [{"goal": f"hours_{sp}_{i}", "rarity": CL.TIER_RARITY[i], "max": 1, "owned": have.get(f"hours_{sp}_{i}", 0), "group": "hours"} for i in (1, 2, 3)]
+    seen_vs = {}
+    for c in owned:
+        if c["goal"].startswith("vs_"):
+            seen_vs[c["goal"]] = c["rarity"]
+    goals += [{"goal": k, "rarity": r, "max": 1, "owned": 1, "group": "vs"} for k, r in sorted(seen_vs.items(), key=lambda kv: (kv[0].split("_")[1], int(kv[0].split("_")[2])))]
     return {"cards": out, "goals": goals, "new": n_new, "progress": progress, "hour_steps": CL.HOUR_STEPS}
 
 

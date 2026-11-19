@@ -26,6 +26,7 @@ const S = {
   send: { it: "Invia", en: "Send", es: "Enviar" },
   thinking: { it: "Il GM sta pensando…", en: "The GM is thinking…", es: "El GM está pensando…" },
   quota: { it: "Hai finito le lezioni GM di questo mese. Passa a un piano superiore.", en: "You've used all your GM lessons this month. Upgrade your plan.", es: "Has agotado las lecciones GM de este mes. Mejora tu plan." },
+  gmBusy: { it: "Il GM è molto richiesto in questo momento. Riprova tra un minuto: la lezione non è stata conteggiata.", en: "The GM is very busy right now. Try again in a minute: this lesson was not counted.", es: "El GM está muy solicitado ahora. Inténtalo en un minuto: la lección no se ha contado." },
   gmFailed: { it: "Il GM non ha risposto: la lezione non è stata conteggiata. Riprova.", en: "The GM did not answer: this lesson was not counted. Try again.", es: "El GM no respondió: la lección no se ha contado. Inténtalo de nuevo." },
   platform: { it: "Piattaforma", en: "Platform", es: "Plataforma" },
   username: { it: "Nome utente", en: "Username", es: "Usuario" },

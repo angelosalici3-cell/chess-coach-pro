@@ -8,6 +8,7 @@ import { supabase } from "../lib/supabase";
 import { K, Lang } from "../lib/i18n";
 import { LangSelect, useLang } from "./lang";
 import Drawer from "./Drawer";
+import Intro from "./Intro";
 import { Logo } from "./Logo";
 import Onboarding from "./Onboarding";
 import Pwa from "./Pwa";
@@ -89,7 +90,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return supabase.auth.signOut().then(() => router.replace("/"));
   };
 
-  if (!ready || !session) return <div className="splash"><Logo size={48} text={false} /></div>;
+  if (!ready || !session) return <><Intro ready={false} /></>;
 
   const on = (h: string) => (h === "/dashboard" ? path === "/dashboard" : path.startsWith(h));
   const burger = (
@@ -98,6 +99,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     </button>
   );
   return (
+    <>
+    <Intro ready={!!me} />
     <C.Provider value={{ me, lang, t, call, refreshMe, openGuide: () => setGuide(true) }}>
       <div className="shell">
         <aside className="side">
@@ -124,5 +127,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <CardCelebration />
       {guide && <Onboarding lang={lang} me={me} onClose={closeGuide} />}
     </C.Provider>
+    </>
   );
 }

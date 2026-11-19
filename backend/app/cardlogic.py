@@ -51,6 +51,15 @@ GOALS = {
 }
 
 
+VS_STEP = 100                      # traguardi "prima vittoria contro un X+": uno ogni 100 punti
+VS_MIN_PLIES = 16
+
+
+def vs_rarity(gap: int) -> str:
+    """Più il traguardo è lontano dal rating di partenza, più la carta è rara."""
+    return "common" if gap <= 100 else "rare" if gap <= 300 else "epic" if gap <= 500 else "legendary"
+
+
 def norm(s: str) -> str:
     return (s or "").replace("+", "").replace("#", "").replace("!", "").replace("?", "").strip()
 
@@ -148,6 +157,8 @@ def evaluate(games: list[dict], clean_ids: set) -> dict:
     best_runs = dict(runs)
     won_families: set = set()
     last_vs: dict = {}
+    vs_base: dict = {}      # ritmo -> rating di chi gioca alla prima partita di quel ritmo (punto di partenza)
+    vs_best: dict = {}      # ritmo -> ultimo traguardo raggiunto (multiplo di 100)
     secs = {k: 0.0 for k in SPEEDS}
     cnt = {k: 0 for k in SPEEDS}
 
@@ -188,6 +199,16 @@ def evaluate(games: list[dict], clean_ids: set) -> dict:
         if o == "w" and acc is not None and acc >= 97 and n >= 50 and (not (mine and opp) or opp >= mine):
             hit("masterpiece")
 
+        # --- prima vittoria contro un avversario forte, da 100 a 100 punti, a partire dal livello con cui l'utente è arrivato
+        spd = speed_of(g.get("tc"))
+        if spd and mine and spd not in vs_base:
+            vs_base[spd] = mine
+            vs_best[spd] = -(-mine // VS_STEP) * VS_STEP - VS_STEP    # i traguardi sotto il suo livello iniziale non esistono
+        if o == "w" and spd in vs_base and opp and n >= VS_MIN_PLIES:
+            top = opp // VS_STEP * VS_STEP
+            if top > vs_best[spd] and top <= 3000:
+                vs_best[spd] = top      # una vittoria che supera più traguardi assegna solo il più alto
+                give(f"vs_{spd}_{top}", vs_rarity(max(0, top - vs_base[spd])), g, **base, speed=spd, target=top, start=vs_base[spd])
         # --- serie di vittorie (totali, Bianco, Nero): una patta o una sconfitta la interrompe
         if o:
             keys = ["all", "w" if col == "white" else "b"]
@@ -245,5 +266,6 @@ def evaluate(games: list[dict], clean_ids: set) -> dict:
                     after = tier_of(wins[op["id"]])
                     if after > before:
                         give(f"op_{op['id']}_{after}", OPEN_RARITY[after], g, **base, opening=op["id"], tier=after)
-    progress = {"hours": {k: round(secs[k] / 3600, 1) for k in SPEEDS}, "games": cnt, "runs": runs, "best_runs": best_runs}
+    progress = {"hours": {k: round(secs[k] / 3600, 1) for k in SPEEDS}, "games": cnt, "runs": runs, "best_runs": best_runs,
+                "vs": {k: {"start": vs_base[k], "next": vs_best[k] + VS_STEP} for k in vs_base}}
     return {"cards": cards, "open_wins": wins, "progress": progress}

@@ -125,6 +125,14 @@ const C = {
   // carte collezionabili
   tabCards: x("Carte", "Cards", "Cartas"),
   cardsTitle: x("Le tue carte", "Your cards", "Tus cartas"),
+  vsGroup: x("Vittorie contro avversari forti", "Wins against strong opponents", "Victorias contra rivales fuertes"),
+  vsNext: x("Prossimo traguardo {sp}: vincere contro un {n}+", "Next {sp} target: beat a {n}+", "Próximo objetivo {sp}: ganar a un {n}+"),
+  vsNote: x("Partono dal tuo livello di quando ti sei iscritto: niente carte per avversari più deboli di te.", "They start from your level when you joined: no cards for opponents weaker than you.", "Parten de tu nivel al registrarte: no hay cartas por rivales más débiles que tú."),
+  carAll: x("Tutte", "All", "Todas"),
+  carOf: x("{a} di {b}", "{a} of {b}", "{a} de {b}"),
+  carPrev: x("Carta precedente", "Previous card", "Carta anterior"),
+  carNext: x("Carta successiva", "Next card", "Carta siguiente"),
+  carOpen: x("Tocca la carta per aprirla e condividerla", "Tap the card to open and share it", "Toca la carta para abrirla y compartirla"),
   cardsSub: x("Ogni carta racconta una tua partita speciale. Rigiocala e condividila.", "Every card tells one of your special games. Replay it and share it.", "Cada carta cuenta una de tus partidas especiales. Reprodúcela y compártela."),
   cardsEmpty: x("Ancora nessuna carta. Sincronizza le partite e fai analizzare le più belle: la prima carta arriva con la tua prima vittoria di almeno 10 mosse a testa.", "No cards yet. Sync your games and get your best ones analyzed: your first card comes with your first win of at least 10 moves each.", "Aún no hay cartas. Sincroniza tus partidas y analiza las mejores: tu primera carta llega con tu primera victoria de al menos 10 jugadas por bando."),
   cardsNew: x("{n} carte nuove!", "{n} new cards!", "¡{n} cartas nuevas!"),
@@ -229,6 +237,13 @@ export function goalCopy(goal: string, lang: Lang, data: Record<string, any> = {
     const n = st[2], who = st[1];
     const t = { it: who === "all" ? `Serie di ${n}` : `Serie di ${n} col ${who === "w" ? "Bianco" : "Nero"}`, en: who === "all" ? `${n}-win streak` : `${n}-win streak as ${who === "w" ? "White" : "Black"}`, es: who === "all" ? `Racha de ${n}` : `Racha de ${n} con ${who === "w" ? "Blancas" : "Negras"}` };
     const s = { it: `${n} vittorie di fila${who === "all" ? "" : who === "w" ? " giocando col Bianco" : " giocando col Nero"}`, en: `${n} wins in a row${who === "all" ? "" : who === "w" ? " playing White" : " playing Black"}`, es: `${n} victorias seguidas${who === "all" ? "" : who === "w" ? " con Blancas" : " con Negras"}` };
+    return { title: t[lang], sub: s[lang] };
+  }
+  const vs = goal.match(/^vs_(\w+)_(\d+)$/);
+  if (vs) {
+    const sp = speedName(vs[1], lang), n = vs[2];
+    const t = { it: `Vittoria contro un ${n}+`, en: `Win against a ${n}+`, es: `Victoria contra un ${n}+` };
+    const s = { it: `Prima vittoria a ${sp} contro un giocatore di ${n} punti o più`, en: `First ${sp} win against a player rated ${n} or higher`, es: `Primera victoria en ${sp} contra un jugador de ${n} puntos o más` };
     return { title: t[lang], sub: s[lang] };
   }
   const hr = goal.match(/^hours_(\w+)_(\d)$/);
