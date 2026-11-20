@@ -14,6 +14,42 @@ from .db import sb
 log = logging.getLogger("engine")
 API = "https://chess-api.com/v1"
 DEPTH = 12
+_off_until = 0.0   # se la tabella eval_cache non c'è ancora (o il database non risponde) si analizza come prima, senza memoria condivisa
+
+
+def fkey(fen: str) -> str:
+    """Chiave della posizione: i primi 4 campi del FEN (senza contatori delle mosse), così la stessa posizione di partite diverse coincide."""
+    return " ".join(fen.split()[:4])
+
+
+def cache_get(keys: list[str]) -> dict:
+    """{chiave: (valutazione, miglior mossa SAN)} per le posizioni già calcolate in passato da chiunque."""
+    global _off_until
+    if time.time() < _off_until or not keys:
+        return {}
+    out: dict = {}
+    try:
+        for i in range(0, len(keys), 100):
+            for r in sb.table("eval_cache").select("fen,eval_pawns,best_san").in_("fen", keys[i:i + 100]).execute().data:
+                out[r["fen"]] = (float(r["eval_pawns"]), r.get("best_san"))
+    except Exception as e:
+        log.warning("eval_cache non leggibile: %s", e)
+        _off_until = time.time() + 600
+    return out
+
+
+def cache_put(rows: dict) -> None:
+    """Salva le valutazioni nuove: una posizione già presente (magari più profonda, da altra fonte) non si sovrascrive."""
+    global _off_until
+    if time.time() < _off_until or not rows:
+        return
+    data = [{"fen": k, "eval_pawns": v[0], "best_san": v[1], "depth": DEPTH, "src": "chess_api"} for k, v in rows.items()]
+    try:
+        for i in range(0, len(data), 200):
+            sb.table("eval_cache").upsert(data[i:i + 200], on_conflict="fen", ignore_duplicates=True).execute()
+    except Exception as e:
+        log.warning("eval_cache non scrivibile: %s", e)
+        _off_until = time.time() + 600
 
 
 def eval_fen(client: httpx.Client, fen: str):
@@ -45,12 +81,25 @@ def analyze_game(game: dict) -> None:
         sb.table("games").update({"analyzed_at": now}).eq("id", game["id"]).execute()
         return
     board, moves, cache = pg.board(), list(pg.mainline_moves()), {}
+    # posizioni già valutate (da questo o da altri utenti, o dal motore in passato): niente nuova chiamata
+    keys, b2 = [fkey(board.fen())], pg.board()
+    for mv in moves:
+        b2.push(mv)
+        keys.append(fkey(b2.fen()))
+    shared = cache_get(list(dict.fromkeys(keys)))
+    fresh: dict = {}
     move_rows, err_rows, losses, prev = [], [], [], 0.0
     miss = 0  # valutazioni non ricevute dal motore (limite di richieste, rete)
     with httpx.Client(headers={"User-Agent": "ChessCoachPro/1.0"}) as c:
         def ev(fen):
             if fen not in cache:
-                cache[fen] = eval_fen(c, fen)
+                k = fkey(fen)
+                if k in shared:
+                    cache[fen] = shared[k]
+                else:
+                    cache[fen] = eval_fen(c, fen)
+                    if cache[fen][0] is not None:
+                        fresh[k] = cache[fen]
             return cache[fen]
 
         for i, mv in enumerate(moves):
@@ -89,6 +138,7 @@ def analyze_game(game: dict) -> None:
                     "mossa_critica": f"{i // 2 + 1}{'.' if white else '...'} {san}", "best_move": best,
                     "categoria_errore": cat, "classification": cls, "eval_loss_cp": int(delta * 100),
                     "apertura": game.get("opening_name"), "data": now})
+    cache_put(fresh)   # anche se l'analisi risulta incompleta: le valutazioni arrivate non vanno rifatte al prossimo tentativo
     if moves and miss > max(2, 0.1 * len(moves)):
         # troppe valutazioni mancanti: non si salva niente e la partita resta "da analizzare", così riprova alla prossima esecuzione
         raise RuntimeError(f"analisi incompleta: {miss}/{len(moves)} mosse senza valutazione")
@@ -102,4 +152,4 @@ def analyze_game(game: dict) -> None:
         sb.table("games").update({**upd, "highlights": highlights_from_moves(move_rows, color)}).eq("id", game["id"]).execute()
     except Exception:
         sb.table("games").update(upd).eq("id", game["id"]).execute()
-    log.info("analizzata %s: %d errori", game["id"], len(err_rows))
+    log.info("analizzata %s: %d errori; posizioni %d, dalla memoria %d, dal motore %d", game["id"], len(err_rows), len(set(keys)), len(set(keys) & set(shared)), len(fresh))
