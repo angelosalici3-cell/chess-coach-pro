@@ -40,14 +40,22 @@ def sign_check(rows):
 
 
 def our_positions(email):
-    from app.patterns import load
-    games, by = load(email, 150)
+    """Posizioni (4 campi del FEN) delle tue ultime partite analizzate, con la semimossa più bassa in cui compaiono."""
+    from app.db import sb
+    ids = [g["id"] for g in sb.table("games").select("id").eq("user_email", email).not_.is_("analyzed_at", "null")
+           .order("played_at", desc=True).limit(150).execute().data]
     pos = {key4("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"): 0}
-    for rows in by.values():
-        for r in rows:
-            if r.get("fen_after"):
-                k = key4(r["fen_after"])
-                pos[k] = min(pos.get(k, 999), r["ply"])
+    for i in range(0, len(ids), 10):
+        start = 0
+        while True:
+            rows = sb.table("moves").select("ply,fen_after").in_("game_id", ids[i:i + 10]).range(start, start + 999).execute().data
+            for r in rows:
+                if r.get("fen_after"):
+                    k = key4(r["fen_after"])
+                    pos[k] = min(pos.get(k, 999), r["ply"])
+            if len(rows) < 1000:
+                break
+            start += 1000
     return pos
 
 
