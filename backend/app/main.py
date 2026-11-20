@@ -450,7 +450,7 @@ def _stats(u):
     mine = _mine(u)
     rows = [g for g in rows if _is_mine(g, mine)]
     w = d = l = 0
-    ops, rating, accs, disp = {}, {}, [], {}
+    ops, rating, accs, disp, cnt = {}, {}, [], {}, {}
     for g in rows:
         c, res = g["user_color"], g["result"]
         if c and res in ("1-0", "0-1", "1/2-1/2"):
@@ -463,7 +463,9 @@ def _stats(u):
         if c and g["played_at"] and (elo := _elo(g["pgn"], c)):
             uname = g["white"] if c == "white" else g["black"]
             disp.setdefault((g["source"], (uname or "").lower()), uname)
-            rating.setdefault((g["source"], (uname or "").lower(), _speed(g["time_control"])), {})[g["played_at"][:10]] = elo  # un valore al giorno: l'ultimo
+            k3 = (g["source"], (uname or "").lower(), _speed(g["time_control"]))
+            rating.setdefault(k3, {})[g["played_at"][:10]] = elo  # un valore al giorno: l'ultimo
+            cnt[k3] = cnt.get(k3, 0) + 1                          # partite per ritmo: serve a scegliere il grafico predefinito
         if g["accuracy_user"] is not None:
             accs.append(float(g["accuracy_user"]))
     cats = Counter(r["categoria_errore"] for r in sb.table("errori_utenti").select("categoria_errore").eq("user_email", u["email"]).in_("classification", ["mistake", "blunder"]).execute().data if r["categoria_errore"])
@@ -473,7 +475,7 @@ def _stats(u):
     for (src, uname, sp), days in rating.items():
         accounts.setdefault((src, uname), []).append((sp, days))
     rating_out = [{"source": src, "username": disp.get((src, uname), uname),
-                   "series": [{"speed": sp, "points": [{"d": d_, "r": r_} for d_, r_ in sorted(days.items())]}
+                   "series": [{"speed": sp, "n": cnt.get((src, uname, sp), 0), "points": [{"d": d_, "r": r_} for d_, r_ in sorted(days.items())]}
                               for sp, days in sorted(ser, key=lambda x: order.index(x[0]))]}
                   for (src, uname), ser in accounts.items()]
     n = w + d + l

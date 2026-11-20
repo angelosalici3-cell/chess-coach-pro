@@ -121,11 +121,13 @@ export function MultiLineChart({ series, days }: { series: Series[]; days: numbe
   const H = W < 480 ? 250 : 280, L = 50, R = 14, T = 14, B = 30;
   const rs = vis.flatMap((s) => s.pts.map((p) => p.r));
   const lo = Math.min(...rs), hi = Math.max(...rs), pad = Math.max(12, (hi - lo) * 0.12);
-  const yMin = lo - pad, yMax = hi + pad, span = Math.max(1, tMax - tMin);
+  // asse del punteggio con righe a multipli di 50 (100 solo se l'intervallo è molto ampio)
+  const step = (Math.ceil((hi + pad) / 50) * 50 - Math.floor((lo - pad) / 50) * 50) / 50 > 9 ? 100 : 50;
+  const yMin = Math.floor((lo - pad) / step) * step, yMax = Math.ceil((hi + pad) / step) * step, span = Math.max(1, tMax - tMin);
   const x = (t: number) => L + ((t - tMin) / span) * (W - L - R);
   const y = (r: number) => H - B - ((r - yMin) / (yMax - yMin)) * (H - B - T);
   const dates = Array.from(new Set(vis.flatMap((s) => s.pts.map((p) => ts(p.d))))).sort((a, b) => a - b);
-  const grid = [0, 1, 2, 3].map((i) => Math.round(yMin + (i * (yMax - yMin)) / 3));
+  const grid = Array.from({ length: Math.round((yMax - yMin) / step) + 1 }, (_, i) => yMin + i * step);
   const fmt = (t: number) => new Date(t).toISOString().slice(5, 10).split("-").reverse().join("/");
   const at = (s: (typeof vis)[number], t: number) => { let v: number | null = null; for (const p of s.pts) { if (ts(p.d) <= t) v = p.r; else break; } return v; };
   const onMove = (e: React.PointerEvent<SVGSVGElement>) => {

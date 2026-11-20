@@ -6,7 +6,7 @@ import re
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from . import pgnlite
+from . import cache, pgnlite
 from . import cardlogic as CL
 from . import trainlogic as T
 from .auth import current_user, tier_of
@@ -237,7 +237,13 @@ def _ach(email: str) -> dict:
 
 @router.get("/achievements")
 def achievements(u=Depends(current_user)):
-    return _ach(u["email"])
+    key = ("ach", u["email"])
+    hit = cache.get(key)
+    if hit is not None:
+        return hit
+    out = _ach(u["email"])
+    cache.put(key, out, 90)
+    return out
 
 
 class ClaimIn(BaseModel):
@@ -275,6 +281,7 @@ def claim(body: ClaimIn, u=Depends(current_user)):
             sb.table("config_utenti").update({"bonus_lessons": bonus + granted["amount"]}).eq("user_email", email).execute()
         else:
             sb.table("config_utenti").insert({"user_email": email, "tier": "Free", "bonus_lessons": granted["amount"]}).execute()
+    cache.bust(email)
     return {"granted": granted, "tier": tier_of(email)}
 
 
@@ -408,6 +415,17 @@ def assign_cards(email: str, rows: list[dict] | None = None, with_progress: bool
 
 @router.get("/cards")
 def cards(u=Depends(current_user)):
+    """Album carte: il calcolo legge fino a 1000 partite con PGN, quindi il risultato resta in memoria 90 secondi per utente."""
+    key = ("cards", u["email"])
+    hit = cache.get(key)
+    if hit is not None:
+        return hit
+    out = _cards_build(u)
+    cache.put(key, out, 90)
+    return out
+
+
+def _cards_build(u):
     """Restituisce l'album completo (assegnando prima eventuali carte nuove) con i dati per rigiocare la partita."""
     email = u["email"]
     ensure_highlights(email)
@@ -451,4 +469,5 @@ def cards(u=Depends(current_user)):
 @router.post("/cards/seen")
 def cards_seen(u=Depends(current_user)):
     sb.table("cards").update({"seen": True}).eq("user_email", u["email"]).eq("seen", False).execute()
+    cache.bust(u["email"])
     return {"ok": True}

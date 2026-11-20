@@ -118,3 +118,13 @@ select id, piattaforma, username from profili_scacchi where user_email = 'TUA_EM
 delete from games where user_email = 'TUA_EMAIL' and source = 'chesscom';
 delete from profili_scacchi where user_email = 'TUA_EMAIL' and piattaforma = 'chesscom';
 ```
+
+## Partite "senza errori" analizzate male (v3.1)
+
+Se il motore non rispondeva (limite di richieste), la mossa contava come perfetta e la partita risultava al 100% senza errori. Ora una partita con troppe valutazioni mancanti non viene salvata e resta "da analizzare" per il giro successivo.
+Per rianalizzare quelle già salvate male, in Supabase (SQL editor):
+
+```sql
+update games set analyzed_at = null, accuracy_user = null
+where user_email = 'TUA_EMAIL' and analyzed_at is not null and accuracy_user >= 99;
+```

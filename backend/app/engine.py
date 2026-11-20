@@ -46,6 +46,7 @@ def analyze_game(game: dict) -> None:
         return
     board, moves, cache = pg.board(), list(pg.mainline_moves()), {}
     move_rows, err_rows, losses, prev = [], [], [], 0.0
+    miss = 0  # valutazioni non ricevute dal motore (limite di richieste, rete)
     with httpx.Client(headers={"User-Agent": "ChessCoachPro/1.0"}) as c:
         def ev(fen):
             if fen not in cache:
@@ -56,15 +57,18 @@ def analyze_game(game: dict) -> None:
             white = i % 2 == 0
             fen_b, san = board.fen(), board.san(mv)
             e0, best = ev(fen_b)
+            ok = e0 is not None
             e0 = prev if e0 is None else e0
             board.push(mv)
             fen_a = board.fen()
             e1, _ = ev(fen_a)
+            ok = ok and e1 is not None
+            miss += (not ok)
             e1 = e0 if e1 is None else e1
             prev = e1
             is_user = (white and color == "white") or (not white and color == "black")
             cls, delta = None, 0.0
-            if is_user:
+            if is_user and ok:  # senza valutazione la mossa non si giudica: prima diventava "migliore" e la partita 100%
                 delta = (e0 - e1) if white else (e1 - e0)
                 cls = ("blunder" if delta >= 2 else "mistake" if delta >= 1 else "inaccuracy" if delta >= 0.5
                        else "best" if delta <= 0.1 else "good")
@@ -85,6 +89,9 @@ def analyze_game(game: dict) -> None:
                     "mossa_critica": f"{i // 2 + 1}{'.' if white else '...'} {san}", "best_move": best,
                     "categoria_errore": cat, "classification": cls, "eval_loss_cp": int(delta * 100),
                     "apertura": game.get("opening_name"), "data": now})
+    if moves and miss > max(2, 0.1 * len(moves)):
+        # troppe valutazioni mancanti: non si salva niente e la partita resta "da analizzare", così riprova alla prossima esecuzione
+        raise RuntimeError(f"analisi incompleta: {miss}/{len(moves)} mosse senza valutazione")
     if move_rows:
         sb.table("moves").upsert(move_rows, on_conflict="game_id,ply").execute()
     if err_rows:

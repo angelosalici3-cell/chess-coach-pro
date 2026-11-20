@@ -18,7 +18,12 @@ const plat = (src: string) => (src === "lichess" ? "Lichess" : "Chess.com");
 function RatingCard({ accounts }: { accounts: any[] }) {
   const { t, lang } = useApp();
   const [acc, setAcc] = useState<string>("all");
-  const [speed, setSpeed] = useState<string>("all");
+  // grafico di partenza: il ritmo con più partite registrate (poi si cambia coi filtri)
+  const [speed, setSpeed] = useState<string>(() => {
+    const tot: Record<string, number> = {};
+    accounts.forEach((a) => a.series.forEach((s: any) => { tot[s.speed] = (tot[s.speed] || 0) + (s.n ?? s.points.length); }));
+    return Object.entries(tot).sort((x, y) => y[1] - x[1])[0]?.[0] || "all";
+  });
   const [range, setRange] = useState<number | null>(null);
   const aKey = (a: any) => a.source + ":" + a.username;
   const label = (sp: string) => tr(("speed" + sp[0].toUpperCase() + sp.slice(1)) as K, lang);

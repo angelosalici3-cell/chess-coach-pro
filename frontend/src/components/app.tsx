@@ -55,16 +55,43 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Dati già scaricati restano in memoria: cambiando pagina compaiono subito e si aggiornano in sottofondo.
   // Qualsiasi modifica (POST, DELETE...) svuota la memoria, così dopo una sincronizzazione o una lezione si legge il dato nuovo.
   const store = useRef(new Map<string, { t: number; d: any }>());
+  const lsKey = (p: string) => "c:api:" + (session?.user?.email || "") + ":" + p;
   const call = useCallback(async <T,>(p: string, init?: RequestInit): Promise<T> => {
     const method = (init?.method || "GET").toUpperCase();
-    if (method !== "GET") { store.current.clear(); return api<T>(p, token || "", init); }
+    if (method !== "GET") {
+      if (p === "/cards/seen") {   // segnare le carte come viste non deve buttare via tutta la memoria: si aggiorna solo l'album
+        const c = store.current.get("/cards");
+        if (c) store.current.set("/cards", { t: c.t, d: { ...c.d, new: 0, cards: (c.d.cards || []).map((x: any) => ({ ...x, new: false })) } });
+        return api<T>(p, token || "", init);
+      }
+      store.current.clear();
+      try { Object.keys(localStorage).filter((k) => k.startsWith("c:api:")).forEach((k) => localStorage.removeItem(k)); } catch {}
+      return api<T>(p, token || "", init);
+    }
     if (!CACHEABLE.test(p) || init?.cache === "no-store") return api<T>(p, token || "", init);
-    const hit = store.current.get(p);
-    const fresh = () => api<T>(p, token || "", init).then((d) => { store.current.set(p, { t: Date.now(), d }); return d; });
+    let hit = store.current.get(p);
+    if (!hit) {   // dopo una nuova apertura dell'app: ultimi dati salvati sul telefono, poi si aggiornano in sottofondo
+      try { const raw = localStorage.getItem(lsKey(p)); if (raw) { hit = { t: 0, d: JSON.parse(raw) }; store.current.set(p, hit); } } catch {}
+    }
+    const fresh = () => api<T>(p, token || "", init).then((d) => {
+      store.current.set(p, { t: Date.now(), d });
+      try { const raw = JSON.stringify(d); if (raw.length < 600000) localStorage.setItem(lsKey(p), raw); } catch {}
+      return d;
+    });
+    if (hit && hit.t === 0) {   // dato del giro precedente: se il server risponde entro 1,2 s mostra quello nuovo, altrimenti subito il salvato
+      const stale = hit.d as T;
+      const f = fresh();
+      f.catch(() => {});
+      return Promise.race([f, new Promise<T>((r) => setTimeout(() => r(stale), 1200))]).catch(() => stale);
+    }
     if (hit) { if (Date.now() - hit.t > 15000) fresh().catch(() => {}); return hit.d as T; }
     return fresh();
-  }, [token]);
-  const bust = useCallback(() => store.current.clear(), []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, session?.user?.email]);
+  const bust = useCallback(() => {
+    store.current.clear();
+    try { Object.keys(localStorage).filter((k) => k.startsWith("c:api:")).forEach((k) => localStorage.removeItem(k)); } catch {}
+  }, []);
   const email = session?.user?.email || "";
   const refreshMe = useCallback(() => {
     if (token) api("/me?lang=" + lang, token).then((d) => { setMe(d); try { localStorage.setItem("c:me:" + email, JSON.stringify(d)); } catch {} }).catch(() => {});
@@ -74,6 +101,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     try { const c = localStorage.getItem("c:me:" + email); if (c) setMe((m: any) => m || JSON.parse(c)); } catch {}
   }, [email]);
   useEffect(() => { refreshMe(); }, [refreshMe]);
+  useEffect(() => {   // appena l'app è aperta scarica in sottofondo le schermate principali, una alla volta: quando le apri sono già pronte
+    if (!token) return;
+    let stop = false;
+    const id = setTimeout(async () => {
+      for (const p of ["/stats", "/games", "/cards", "/achievements", "/train/overview"]) {
+        if (stop) return;
+        try { await call(p); } catch {}
+      }
+    }, 1200);
+    return () => { stop = true; clearTimeout(id); };
+  }, [token, call]);
   useEffect(() => {   // codice promo arrivato da un link (?ref=): lo collega all'account una sola volta
     if (!token) return;
     let code = "";
