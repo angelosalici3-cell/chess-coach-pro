@@ -1,0 +1,29 @@
+name: lichess-eval-probe
+# Sonda sul dataset Lichess/chess-position-evaluations: copertura, segno delle valutazioni, ordinamento. A mano da Actions → Run workflow.
+on:
+  workflow_dispatch:
+    inputs:
+      email:
+        description: "Email dell'account di cui usare le posizioni"
+        required: true
+      files:
+        description: "Quanti file del dataset leggere (numero oppure all)"
+        default: "3"
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r backend/requirements.txt duckdb huggingface_hub
+      - name: Sonda
+        working-directory: backend
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PROBE_EMAIL: ${{ github.event.inputs.email }}
+          PROBE_FILES: ${{ github.event.inputs.files }}
+        run: python -m scripts.lichess_eval_probe --email "$PROBE_EMAIL" --files "$PROBE_FILES"
