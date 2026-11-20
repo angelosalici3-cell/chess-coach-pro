@@ -95,6 +95,18 @@ class ProfileIn(BaseModel):
     username: str
 
 
+def _mine(u):
+    """Account attualmente collegati: le partite di un profilo rimosso non devono più comparire in elenco e grafici."""
+    pr = sb.table("profili_scacchi").select("piattaforma,username").eq("user_email", u["email"]).execute().data
+    return {(p["piattaforma"], (p["username"] or "").lower()) for p in pr}
+
+
+def _is_mine(g, mine):
+    c = g.get("user_color")
+    uname = g.get("white") if c == "white" else g.get("black") if c == "black" else None
+    return not mine or uname is None or (g["source"], uname.lower()) in mine
+
+
 @app.get("/profiles")
 def list_profiles(u=Depends(current_user)):
     return sb.table("profili_scacchi").select("*").eq("user_email", u["email"]).execute().data
@@ -132,6 +144,8 @@ def list_games(u=Depends(current_user)):
     rows = (sb.table("games")
             .select("id,white,black,user_color,result,opening_name,played_at,accuracy_user,analyzed_at,source,time_control")
             .eq("user_email", u["email"]).order("played_at", desc=True).limit(300).execute().data)
+    mine = _mine(u)
+    rows = [g for g in rows if _is_mine(g, mine)]
     errs: dict = {}
     for e in sb.table("errori_utenti").select("game_id,classification").eq("user_email", u["email"]).in_("classification", ["mistake", "blunder"]).limit(5000).execute().data:
         c = errs.setdefault(e["game_id"], {"blunder": 0, "mistake": 0})
@@ -433,6 +447,8 @@ def stats(u=Depends(current_user)):
 def _stats(u):
     rows = (sb.table("games").select("source,white,black,time_control,pgn,user_color,result,opening_name,played_at,accuracy_user")
             .eq("user_email", u["email"]).order("played_at", desc=True).limit(1000).execute().data)[::-1]
+    mine = _mine(u)
+    rows = [g for g in rows if _is_mine(g, mine)]
     w = d = l = 0
     ops, rating, accs, disp = {}, {}, [], {}
     for g in rows:
