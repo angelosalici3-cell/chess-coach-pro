@@ -136,3 +136,12 @@ Home mostra la scheda "Il tuo schema di errore": dalle partite analizzate (almen
 probabilità di vittoria, e non conta se la mossa giocata è uguale alla migliore. Il calcolo è in `backend/app/patterns.py` (nessuna IA, nessuna
 nuova tabella); il risultato resta in memoria 10 minuti per utente. "Allenati su questo" apre il ripasso solo con gli errori di quello schema
 (`/train/mistakes/next?tag=...`). Per vedere cosa emerge su un account senza aprire l'app: workflow `pattern-probe`.
+
+## Memoria condivisa delle valutazioni (v3.3)
+
+`eval_cache` (SQL `supabase/011_eval_cache.sql`) tiene una riga per posizione (4 campi del FEN) con valutazione e miglior mossa.
+`engine.analyze_game` la legge prima di chiamare il motore e vi salva le valutazioni nuove (senza sovrascrivere quelle già presenti,
+anche se arrivano da una fonte più profonda). Così le aperture comuni, le partite di giocatori già aggiunti da altri utenti e le partite
+tra due utenti dell'app si analizzano una volta sola. Nel log dell'analisi ogni partita riporta "posizioni N, dalla memoria M, dal motore K".
+Finché la tabella non esiste, l'analisi funziona come prima.
+Sonda sul dataset Lichess/chess-position-evaluations: workflow `lichess-eval-probe` (copertura, segno delle valutazioni, ordinamento).
