@@ -106,3 +106,15 @@ Le carte vengono assegnate dal backend subito dopo l'analisi di una partita. L'a
 - **Fase 2, analisi** (`analyze.yml`, 02:30 UTC): gira su GitHub Actions, non su Render, quindi non si interrompe quando il server si addormenta. Analizza **tutte** le partite in attesa degli abbonati, a giri equi tra utenti (Elite e Pro per primi, le partite più recenti prima), con 3 analisi in parallelo e un massimo di 5 ore. Quello che resta si riprende la notte dopo.
 - Secrets GitHub richiesti: `API_URL`, `CRON_SECRET` (fase 1), `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (fase 2). Per provare subito: Actions > nightly-analysis > Run workflow.
 - Il pulsante "Sincronizza partite" resta per chi vuole subito le partite appena giocate.
+
+## Revisione dell'interfaccia (v3)
+- **Menù a 5 voci**: Home, Partite (con le Lezioni GM come seconda scheda), Aperture, Allenamento, Premi (Carte e Traguardi). I vecchi indirizzi `/dashboard/lessons` e `/dashboard/train?tab=cards|badges` reindirizzano alla scheda nuova.
+- **Grafici**: si disegnano alla larghezza reale dello schermo, con assi a 13 px, anche su telefono. Nuovo grafico "Chi sta meglio" nella partita, con la **mossa critica** segnata e un riquadro che la spiega (la tua mossa che ha fatto perdere più valutazione, se supera 1 pedone).
+- **Partite**: riepilogo, punti deboli, filtri (risultato, colore, ritmo, ricerca), raggruppamento per giorno, errori per partita. `/games` ora restituisce esito, ritmo ed errori già calcolati (fino a 300 partite).
+- **Account duplicato in Home**: i nomi utente ora si raggruppano senza distinguere maiuscole. Se vedi ancora due account, esiste davvero un profilo Chess.com con quel nome: toglilo da Account scacchi (o con l'SQL qui sotto).
+```sql
+select id, piattaforma, username from profili_scacchi where user_email = 'TUA_EMAIL';
+-- elimina il profilo sbagliato e le sue partite
+delete from games where user_email = 'TUA_EMAIL' and source = 'chesscom';
+delete from profili_scacchi where user_email = 'TUA_EMAIL' and piattaforma = 'chesscom';
+```
