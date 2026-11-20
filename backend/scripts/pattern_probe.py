@@ -17,8 +17,15 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 from app import pgnlite  # noqa: E402
 
-ERR_CP = 100          # perdita di almeno 1 pedone = errore (come "mistake" in engine.py)
-BLUNDER_CP = 200
+ERR_WIN = 15          # errore = perdita di almeno 15 punti di probabilità di vittoria (non pedoni: perdere 5 pedoni a +10 non conta)
+BLUNDER_WIN = 30
+
+
+def win(cp):
+    """Probabilità di vittoria 0-100 dal punto di vista di chi gioca (formula di Lichess)."""
+    return 50 + 50 * (2 / (1 + math.exp(-0.00368208 * max(-1500, min(1500, cp)))) - 1)
+
+
 MIN_MOVES, MIN_ERRS, MIN_GAMES, MIN_Z, MIN_LIFT = 30, 5, 3, 2.0, 1.4
 
 
@@ -91,17 +98,20 @@ def analyze(games, moves_by_game):
             before, after = sgn * prev, sgn * r["eval_cp"]
             best_pov = max(best_pov, after)
             loss = before - after
+            wl = win(before) - win(after)
             m = mt[p - 1] if mt and p - 1 < len(mt) else None
             nxt = by_ply.get(p + 1) or {}
             reply = nxt.get("san") or ""
             best = r.get("best_move_san") or ""
             recs.append({
-                "game": g["id"], "ply": p, "san": r.get("san"), "best": best, "loss": loss, "err": loss >= ERR_CP,
+                "game": g["id"], "ply": p, "san": r.get("san"), "best": best, "loss": loss, "wl": wl, "err": wl >= ERR_WIN, "before": before,
+                "spent": m["spent"] if m else None,
                 "phase": "apertura" if p <= 20 else "finale" if pieces(r.get("fen_after")) <= 10 else "mediogioco",
                 "clock": m["clock"] if m else None,
                 "low": bool(m and m["clock"] is not None and m["clock"] < thr),
                 "fast": bool(m and m["spent"] is not None and m["spent"] <= 3 and p > 2),
-                "state": "in vantaggio (≥ +2)" if before >= 200 else "in svantaggio (≤ −2)" if before <= -200 else "in equilibrio",
+                "state": ("già vinta (> +5)" if before > 500 else "in vantaggio (+2…+5)" if before >= 200 else "leggero vantaggio (+1…+2)" if before >= 100
+                          else "già persa (< −5)" if before < -500 else "in svantaggio (−5…−2)" if before <= -200 else "leggero svantaggio (−2…−1)" if before <= -100 else "in equilibrio"),
                 "after_loss": after_loss, "color": "bianco" if white else "nero", "speed": sp, "fam": fam,
                 "piece": piece_of(r.get("san")), "opp_cap": "x" in reply, "opp_chk": ("+" in reply or "#" in reply),
                 "missed": any(c in best for c in "x+#"),
@@ -109,7 +119,7 @@ def analyze(games, moves_by_game):
         per_game[g["id"]] = {"best": best_pov, "won": won, "lost": lost, "date": (g.get("played_at") or "")[:10], "opp": g["black"] if white else g["white"]}
 
     n, e = len(recs), sum(r["err"] for r in recs)
-    out = {"games_used": len(per_game), "games_skipped": len(suspicious), "suspicious_ids": suspicious[:20],
+    out = {"games_used": len(per_game), "games_skipped": len(suspicious), "suspicious_ids": suspicious,
            "moves": n, "errors": e, "base_rate": round(e / n, 4) if n else None,
            "with_clock": sum(1 for r in recs if r["clock"] is not None)}
     if not n or not e:
@@ -148,8 +158,8 @@ def analyze(games, moves_by_game):
         z = (rate - p0) / math.sqrt(p0 * (1 - p0) / g["n"])
         item = {"dim": dim, "label": lab, "moves": g["n"], "errors": g["e"], "games": len(g["games"]), "rate": round(rate, 3),
                 "lift": round(rate / p0, 2), "z": round(z, 1),
-                "examples": [{"game": x["game"], "ply": x["ply"], "move": x["san"], "best": x["best"], "loss_cp": x["loss"]}
-                             for x in sorted(g["ex"], key=lambda x: -x["loss"])[:3]]}
+                "examples": [{"game": x["game"], "ply": x["ply"], "move": x["san"], "best": x["best"], "loss_cp": x["loss"], "win_loss": round(x["wl"])}
+                             for x in sorted(g["ex"], key=lambda x: -x["wl"])[:3]]}
         if g["e"] >= MIN_ERRS and len(g["games"]) >= MIN_GAMES and z >= MIN_Z and item["lift"] >= MIN_LIFT:
             found.append(item)
         elif z <= -MIN_Z and item["lift"] <= 0.7 and g["n"] >= 2 * MIN_MOVES:
@@ -159,22 +169,43 @@ def analyze(games, moves_by_game):
 
     errs = [r for r in recs if r["err"]]
     out["anatomy"] = {
-        "gravi (≥ 2 pedoni)": round(100 * sum(r["loss"] >= BLUNDER_CP for r in errs) / len(errs)),
+        "gravi (≥ 30 punti di probabilità)": round(100 * sum(r["wl"] >= BLUNDER_WIN for r in errs) / len(errs)),
         "l'avversario cattura subito": round(100 * sum(r["opp_cap"] for r in errs) / len(errs)),
         "l'avversario risponde con scacco": round(100 * sum(r["opp_chk"] for r in errs) / len(errs)),
         "il motore aveva una cattura/scacco/matto": round(100 * sum(r["missed"] for r in errs) / len(errs)),
     }
-    reached = [v for v in per_game.values() if v["best"] >= 300]
-    thrown = [v for v in reached if not v["won"]]
-    out["advantage"] = {"reached_plus3": len(reached), "not_won": len(thrown),
-                        "examples": [{"date": v["date"], "opp": v["opp"]} for v in thrown[:3]]}
+    mine_by_game = collections.defaultdict(list)
+    for r in recs:
+        mine_by_game[r["game"]].append(r)
+    reached, thrown = [], []
+    for gid, v in per_game.items():
+        if v["best"] < 300:
+            continue
+        reached.append(v)
+        if v["won"]:
+            continue
+        rs = mine_by_game[gid]
+        peak_ply = max((r["ply"] for r in rs if r["before"] + 0 >= 0), default=0)
+        peak = max(rs, key=lambda r: r["before"])
+        after_peak = [r for r in rs if r["ply"] >= peak["ply"]]
+        worst = max(after_peak, key=lambda r: r["wl"]) if after_peak else None
+        thrown.append({"date": v["date"], "opp": v["opp"], "result": "persa" if v["lost"] else "patta", "peak": round(v["best"] / 100, 1),
+                       "move": (worst["ply"] + 1) // 2 if worst else None, "played": worst["san"] if worst else None,
+                       "best": worst["best"] if worst else None, "clock": worst["clock"] if worst else None,
+                       "hung": bool(worst and worst["opp_cap"])})
+    out["advantage"] = {"reached_plus3": len(reached), "not_won": len(thrown), "lost": sum(t["result"] == "persa" for t in thrown),
+                        "examples": thrown[:12]}
+    ahead = [r["spent"] for r in recs if r["spent"] is not None and r["state"].startswith(("in vantaggio", "leggero vantaggio")) and r["ply"] > 2]
+    even = [r["spent"] for r in recs if r["spent"] is not None and r["state"] == "in equilibrio" and r["ply"] > 2]
+    med = lambda a: sorted(a)[len(a) // 2] if a else None
+    out["time_when_ahead"] = {"median_s_ahead": med(ahead), "median_s_even": med(even)}
     return out
 
 
 def report(o):
     L = []
     w = L.append
-    w(f"Partite usate: {o['games_used']}  ·  mosse tue: {o['moves']}  ·  errori (≥ 1 pedone): {o['errors']}"
+    w(f"Partite usate: {o['games_used']}  ·  mosse tue: {o['moves']}  ·  errori (≥ 15 punti di probabilità di vittoria): {o['errors']}"
       + (f"  ·  tasso base: {100 * o['base_rate']:.1f}% delle mosse" if o.get("base_rate") else ""))
     w(f"Mosse con orologio: {o['with_clock']}")
     if o["games_skipped"]:
@@ -188,7 +219,7 @@ def report(o):
             w(f"• {p['dim']}: {p['label']} — {p['errors']} errori su {p['moves']} mosse ({100 * p['rate']:.0f}%, "
               f"{p['lift']}× il tuo normale), in {p['games']} partite  [z={p['z']}]")
             for x in p["examples"]:
-                w(f"    es. partita {x['game']} mossa {(x['ply'] + 1) // 2}: {x['move']} (meglio {x['best'] or '?'}), −{x['loss_cp'] / 100:.1f}")
+                w(f"    es. partita {x['game']} mossa {(x['ply'] + 1) // 2}: {x['move']} (meglio {x['best'] or '?'}), −{x['win_loss']} punti di probabilità")
     if o.get("strengths"):
         w("\n=== PUNTI DI FORZA ===")
         for p in o["strengths"]:
@@ -199,9 +230,13 @@ def report(o):
             w(f"• {k}: {v}%")
     a = o.get("advantage")
     if a:
-        w(f"\n=== VANTAGGIO ===\nPartite in cui hai raggiunto almeno +3: {a['reached_plus3']}, non vinte: {a['not_won']}")
+        w(f"\n=== VANTAGGIO ===\nPartite in cui hai raggiunto almeno +3: {a['reached_plus3']}; non vinte: {a['not_won']} (di cui perse: {a['lost']})")
         for x in a["examples"]:
-            w(f"    es. {x['date']} contro {x['opp']}")
+            w(f"    {x['date']} contro {x['opp']} ({x['result']}, picco +{x['peak']}): il crollo alla mossa {x['move']} con {x['played']} (meglio {x['best'] or '?'})"
+              + (f", orologio {x['clock']:.0f} s" if x["clock"] is not None else "") + (", pezzo catturato subito" if x["hung"] else ""))
+    t = o.get("time_when_ahead")
+    if t and t["median_s_ahead"] is not None and t["median_s_even"] is not None:
+        w(f"Tempo per mossa (mediana): in vantaggio {t['median_s_ahead']:.1f} s, in equilibrio {t['median_s_even']:.1f} s")
     return "\n".join(L)
 
 
@@ -263,6 +298,7 @@ if __name__ == "__main__":
     ap.add_argument("--email")
     ap.add_argument("--limit", type=int, default=400)
     ap.add_argument("--selftest", action="store_true")
+    ap.add_argument("--reset", action="store_true", help="rimette 'da analizzare' le partite analizzate male (le rifà l'analisi notturna)")
     a = ap.parse_args()
     if a.selftest:
         selftest()
@@ -274,3 +310,8 @@ if __name__ == "__main__":
     with open("pattern_probe.json", "w", encoding="utf-8") as f:
         json.dump(res, f, ensure_ascii=False, indent=1)
     print("\nDettagli completi in pattern_probe.json")
+    if a.reset and res["suspicious_ids"]:
+        from app.db import sb
+        ids = res["suspicious_ids"]
+        sb.table("games").update({"analyzed_at": None, "accuracy_user": None}).eq("user_email", a.email).in_("id", ids).execute()
+        print(f"Rimesse in coda per la nuova analisi: {len(ids)} partite")
