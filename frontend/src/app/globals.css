@@ -670,3 +670,11 @@ a.dr-btn { padding: .55rem .8rem; border: 1px solid var(--line-2); border-radius
 .side nav a.on { background: linear-gradient(90deg, rgba(255, 107, 61, .14), transparent); box-shadow: inset 3px 0 0 var(--ember); }
 .kpis { grid-template-columns: repeat(auto-fit, minmax(76px, 1fr)); }
 @media (max-width: 480px) { .kpis > div { padding: .6rem .65rem; } .kpis b { font-size: 1.3rem; } .seg button { padding: .34rem .62rem; } .seg button em { margin-left: .3rem; } }
+
+/* Schema di errore (Home) */
+.pattern { border-color: rgba(255, 107, 61, .35); }
+.pattern .ptitle { margin: .15rem 0 .3rem; font-size: 1.25rem; line-height: 1.25; }
+.pattern .ptip { margin: .5rem 0 .2rem; padding: .55rem .8rem; border-left: 3px solid var(--ember); background: rgba(255, 107, 61, .07); border-radius: 0 10px 10px 0; font-size: .95rem; }
+.pattern .plist { margin: .3rem 0 0; padding-left: 1.1rem; display: grid; gap: .25rem; }
+.pattern .plist a { color: inherit; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+.drillnote { display: flex; align-items: center; justify-content: space-between; gap: .8rem; flex-wrap: wrap; }

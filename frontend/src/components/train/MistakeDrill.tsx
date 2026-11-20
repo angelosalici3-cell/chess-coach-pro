@@ -9,7 +9,7 @@ import { tc } from "../../lib/train-copy";
 const norm = (s: string) => (s || "").replace(/[+#!?]/g, "");
 const GREEN = "rgba(78, 227, 176, .55)";
 
-export default function MistakeDrill({ onProgress }: { onProgress: () => void }) {
+export default function MistakeDrill({ onProgress, tag }: { onProgress: () => void; tag?: string }) {
   const { call, lang } = useApp();
   const [card, setCard] = useState<any>(null);
   const [fen, setFen] = useState("");
@@ -26,11 +26,11 @@ export default function MistakeDrill({ onProgress }: { onProgress: () => void })
   const load = useCallback(async () => {
     setErr("");
     try {
-      const r = await call("/train/mistakes/next");
+      const r = await call("/train/mistakes/next" + (tag ? "?tag=" + encodeURIComponent(tag) : ""));
       setCard(r);
       if (r.error) { setFen(r.error.fen); setState("ask"); setTries(0); setHint(false); setLast(null); setBack(""); answered.current = false; }
     } catch (x: any) { setErr(x.message); }
-  }, [call]);
+  }, [call, tag]);
   useEffect(() => { load(); }, [load]);
 
   const best = useMemo(() => {

@@ -6,6 +6,7 @@ import MistakeDrill from "../../../components/train/MistakeDrill";
 import PuzzleTrainer from "../../../components/train/PuzzleTrainer";
 import { Seg } from "../../../components/ui/Seg";
 import { tc } from "../../../lib/train-copy";
+import { patternTitle, pc } from "../../../lib/pattern-copy";
 
 type Tab = "mistakes" | "puzzles";
 
@@ -14,9 +15,14 @@ export default function TrainPage() {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>("mistakes");
   const [ov, setOv] = useState<any>(null);
+  const [tag, setTag] = useState("");
+  const [ready, setReady] = useState(false);   // si legge prima il parametro ?tag=, poi parte l'esercizio
 
   useEffect(() => {
-    const q = new URLSearchParams(window.location.search).get("tab");
+    const sp = new URLSearchParams(window.location.search);
+    const q = sp.get("tab");
+    setTag(sp.get("tag") || "");
+    setReady(true);
     if (q === "puzzles") setTab("puzzles");
     if (q === "badges" || q === "cards") router.replace(`/dashboard/rewards?tab=${q}`);   // vecchi collegamenti: premi e carte ora hanno la loro scheda
   }, [router]);
@@ -39,7 +45,13 @@ export default function TrainPage() {
           <span><b>{ov.mistakes_new}</b>{tc("newLbl", lang)}</span>
         </div>
       )}
-      {tab === "mistakes" ? <MistakeDrill onProgress={refresh} /> : <PuzzleTrainer onProgress={refresh} />}
+      {tab === "mistakes" && tag && (
+        <div className="note drillnote">
+          <span>{pc("drillOn", lang, { t: patternTitle(tag, lang) })}</span>
+          <button className="btn btn-ghost btn-sm" onClick={() => { setTag(""); window.history.replaceState(null, "", "?tab=mistakes"); }}>{pc("drillAll", lang)}</button>
+        </div>
+      )}
+      {!ready ? null : tab === "mistakes" ? <MistakeDrill onProgress={refresh} tag={tag || undefined} /> : <PuzzleTrainer onProgress={refresh} />}
     </>
   );
 }

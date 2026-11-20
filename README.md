@@ -128,3 +128,11 @@ Per rianalizzare quelle già salvate male, in Supabase (SQL editor):
 update games set analyzed_at = null, accuracy_user = null
 where user_email = 'TUA_EMAIL' and analyzed_at is not null and accuracy_user >= 99;
 ```
+
+## Schemi di errore personali (v3.2)
+
+Home mostra la scheda "Il tuo schema di errore": dalle partite analizzate (almeno 30) l'app cerca dove l'utente sbaglia più del suo normale
+(vantaggio, poco tempo, fase, colore, ritmo, pezzo mosso, apertura, subito dopo una sconfitta). Un errore è una perdita di almeno 15 punti di
+probabilità di vittoria, e non conta se la mossa giocata è uguale alla migliore. Il calcolo è in `backend/app/patterns.py` (nessuna IA, nessuna
+nuova tabella); il risultato resta in memoria 10 minuti per utente. "Allenati su questo" apre il ripasso solo con gli errori di quello schema
+(`/train/mistakes/next?tag=...`). Per vedere cosa emerge su un account senza aprire l'app: workflow `pattern-probe`.

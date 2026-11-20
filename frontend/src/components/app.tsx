@@ -32,7 +32,7 @@ const NAV: { href: string; k: K; icon: React.ReactNode }[] = [
 const tMenu: Record<Lang, string> = { it: "Menu", en: "Menu", es: "Menú" };
 
 /** Percorsi di sola lettura che si possono tenere in memoria (non quelli che cambiano a ogni richiesta, come il prossimo puzzle). */
-const CACHEABLE = /^\/(stats(\/time)?|lessons|games(\/[\w-]+(\/time)?)?|openings\/mine|achievements|train\/overview|profiles|cards|admin\/promo)$/;
+const CACHEABLE = /^\/(stats(\/time)?|lessons|games(\/[\w-]+(\/time)?)?|openings\/mine|achievements|train\/overview|patterns|profiles|cards|admin\/promo)$/;
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { lang, t } = useLang();
@@ -105,7 +105,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (!token) return;
     let stop = false;
     const id = setTimeout(async () => {
-      for (const p of ["/stats", "/games", "/cards", "/achievements", "/train/overview"]) {
+      for (const p of ["/stats", "/games", "/cards", "/achievements", "/train/overview", "/patterns"]) {
         if (stop) return;
         try { await call(p); } catch {}
       }

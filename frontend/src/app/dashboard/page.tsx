@@ -7,6 +7,7 @@ import { MultiLineChart } from "../../components/Charts";
 import { K, tr } from "../../lib/i18n";
 import TodayCard from "../../components/TodayCard";
 import TimeCard from "../../components/TimeCard";
+import PatternCard from "../../components/PatternCard";
 
 const SPEED_COLOR: Record<string, string> = { bullet: "#ff5d8f", blitz: "#ffb84d", rapid: "#4ee3b0", classical: "#5aa9ff", daily: "#b7c0dc", other: "#8d97b8" };
 const RANGES: [K, number | null][] = [["range30", 30], ["range90", 90], ["range365", 365], ["rangeAll", null]];
@@ -132,6 +133,7 @@ export default function Home() {
             <div className="wdl"><div style={{ flex: s.w, background: "var(--mint)" }} /><div style={{ flex: s.d, background: "var(--mute)" }} /><div style={{ flex: s.l, background: "var(--bad)" }} /></div>
             <span className="muted small">{t("wins")} {s.w} · {t("draws")} {s.d} · {t("losses")} {s.l}</span>
           </div>
+          <PatternCard />
           {s.rating.length > 0 && <RatingCard accounts={s.rating} />}
           <TimeCard />
         </>

@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from . import cache, pgnlite
+from . import patterns as P
 from . import cardlogic as CL
 from . import trainlogic as T
 from .auth import current_user, tier_of
@@ -69,8 +70,10 @@ def overview(u=Depends(current_user)):
 
 # ---------------------------------------------------------------- ripasso dei propri errori
 @router.get("/train/mistakes/next")
-def mistakes_next(u=Depends(current_user)):
+def mistakes_next(tag: str | None = None, u=Depends(current_user)):
     email, now = u["email"], _now().isoformat()
+    if tag:
+        return _tag_next(email, tag, now)
     for _ in range(3):
         due = sb.table("mistake_cards").select("error_id").eq("user_email", email).lte("due_at", now).order("due_at").limit(1).execute().data
         if not due:
@@ -86,6 +89,37 @@ def mistakes_next(u=Depends(current_user)):
             return {"error": e, "new": True}
     nxt = sb.table("mistake_cards").select("due_at").eq("user_email", email).order("due_at").limit(1).execute().data
     return {"error": None, "reason": "no_errors" if not errs else "all_done", "next_due": nxt[0]["due_at"] if nxt else None}
+
+
+def _tag_next(email: str, tag: str, now: str):
+    """Esercizio dedicato a uno schema: ripassa solo gli errori dell'utente che rientrano in quello schema."""
+    keys = set(P.get(email)["_keys"].get(tag) or [])
+    if not keys:
+        return {"error": None, "reason": "no_errors", "next_due": None}
+    gids = sorted({str(g) for g, _ in keys})
+    cols = "id,fen,best_move,mossa_critica,eval_loss_cp,game_id,ply,categoria_errore,apertura"
+    errs = []
+    for i in range(0, len(gids), 100):
+        errs += sb.table("errori_utenti").select(cols).eq("user_email", email).in_("game_id", gids[i:i + 100]).execute().data
+    errs = [e for e in errs if (str(e["game_id"]), e["ply"]) in {(str(g), p) for g, p in keys}]
+    if not errs:
+        return {"error": None, "reason": "no_errors", "next_due": None}
+    errs.sort(key=lambda e: -(e.get("eval_loss_cp") or 0))
+    ids = [e["id"] for e in errs]
+    cards = {str(c["error_id"]): c["due_at"] for c in sb.table("mistake_cards").select("error_id,due_at").eq("user_email", email).in_("error_id", ids).execute().data}
+    due = sorted((e for e in errs if str(e["id"]) in cards and cards[str(e["id"])] <= now), key=lambda e: cards[str(e["id"])])
+    if due:
+        return {"error": due[0], "new": False}
+    for e in errs:
+        if str(e["id"]) not in cards:
+            return {"error": e, "new": True}
+    return {"error": None, "reason": "all_done", "next_due": min(cards.values()) if cards else None}
+
+
+@router.get("/patterns")
+def my_patterns(u=Depends(current_user)):
+    """Schemi di errore dell'utente (scheda in Home). Con meno di 30 partite analizzate dice quante ne mancano."""
+    return P.public(P.get(u["email"]))
 
 
 class MistakeAns(BaseModel):
