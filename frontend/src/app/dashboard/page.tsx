@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import InitBanner from "../../components/InitBanner";
 import { useApp } from "../../components/app";
-import { Bar, MultiLineChart } from "../../components/Charts";
+import { MultiLineChart } from "../../components/Charts";
 import { K, tr } from "../../lib/i18n";
 import TodayCard from "../../components/TodayCard";
 import TimeCard from "../../components/TimeCard";
@@ -35,8 +35,8 @@ function RatingCard({ accounts }: { accounts: any[] }) {
     }));
   });
   return (
-    <div className="card">
-      <div className="row"><b>{t("rating")}</b>
+    <div className="card chartcard">
+      <div className="row"><b className="ctitle">{t("rating")}</b>
         <div className="lang" role="group">{RANGES.map(([k, v]) => <button key={k} className={range === v ? "on" : ""} onClick={() => setRange(v)}>{t(k)}</button>)}</div>
       </div>
       <div className="filters">
@@ -118,40 +118,17 @@ export default function Home() {
       {s && s.games === 0 && <div className="card muted">{t("noData")} <Link href="/dashboard/accounts" className="accent">{t("navAccounts")}</Link></div>}
       {s && s.games > 0 && (
         <>
-          <div className="stats">
-            <div className="card"><div className="muted small">{t("statGames")}</div><div className="big">{s.games}</div></div>
-            <div className="card"><div className="muted small">{t("statWin")}</div><div className="big">{s.win_rate ?? "—"}{s.win_rate != null && "%"}</div></div>
-            <div className="card"><div className="muted small">{t("statAcc")}</div><div className="big">{s.accuracy ?? "—"}{s.accuracy != null && "%"}</div></div>
+          <div className="kpis">
+            <div><span>{t("statGames")}</span><b>{s.games}</b></div>
+            <div><span>{t("statWin")}</span><b>{s.win_rate ?? "—"}{s.win_rate != null && <small>%</small>}</b></div>
+            <div><span>{t("statAcc")}</span><b>{s.accuracy ?? "—"}{s.accuracy != null && <small>%</small>}</b></div>
+          </div>
+          <div className="wdl-line" title={`${t("wins")} ${s.w} · ${t("draws")} ${s.d} · ${t("losses")} ${s.l}`}>
+            <div className="wdl"><div style={{ flex: s.w, background: "var(--mint)" }} /><div style={{ flex: s.d, background: "var(--mute)" }} /><div style={{ flex: s.l, background: "var(--bad)" }} /></div>
+            <span className="muted small">{t("wins")} {s.w} · {t("draws")} {s.d} · {t("losses")} {s.l}</span>
           </div>
           {s.rating.length > 0 && <RatingCard accounts={s.rating} />}
           <TimeCard />
-          <div className="grid2">
-            <div className="card">
-              <b>{t("results")}</b>
-              <div className="wdl"><div style={{ flex: s.w, background: "var(--mint)" }} /><div style={{ flex: s.d, background: "var(--mute)" }} /><div style={{ flex: s.l, background: "var(--bad)" }} /></div>
-              <span className="muted small">{t("wins")} {s.w}, {t("draws")} {s.d}, {t("losses")} {s.l}</span>
-            </div>
-            {s.categories.length > 0 && (
-              <div className="card">
-                <b>{t("weakAreas")}</b>
-                {s.categories.map((c: any) => (
-                  <div key={c.cat} style={{ marginTop: ".6rem" }}>
-                    <div className="row small"><span>{tr(("cat_" + c.cat) as K, lang)}</span><span>{c.count}</span></div>
-                    <Bar pct={(100 * c.count) / s.categories[0].count} color="var(--amber)" />
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          <div className="card">
-            <b>{t("byOpening")}</b>
-            {s.openings.map((o: any) => (
-              <div key={o.name} style={{ marginTop: ".7rem" }}>
-                <div className="row small"><span>{o.name} <span className="muted">({o.games})</span></span><span>{o.win_rate}%</span></div>
-                <Bar pct={o.win_rate} color={o.win_rate >= 50 ? "var(--mint)" : "var(--ember)"} />
-              </div>
-            ))}
-          </div>
         </>
       )}
     </>

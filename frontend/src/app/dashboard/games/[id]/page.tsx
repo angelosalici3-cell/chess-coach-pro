@@ -4,9 +4,10 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useApp } from "../../../../components/app";
 import ChessBoard from "../../../../components/ChessBoard";
-import { LossChart, LossPt } from "../../../../components/Charts";
+import { EvalChart, LossChart, LossPt } from "../../../../components/Charts";
 import TimeChart from "../../../../components/TimeChart";
 import { tc } from "../../../../lib/train-copy";
+import { u } from "../../../../lib/ui-copy";
 
 const START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 const CLS: Record<string, string> = { blunder: "var(--bad)", mistake: "var(--ember)", inaccuracy: "var(--amber)", brilliant: "var(--mint)", best: "var(--mint)" };
@@ -49,6 +50,23 @@ export default function GamePage() {
     ply: m.ply, loss: m.loss_cp ?? 0, you: !!m.is_user_move,
     color: m.is_user_move ? (CLS[m.classification] && m.classification !== "best" ? CLS[m.classification] : "var(--mint)") : "var(--mute)",
   })), [d]);
+
+  // valutazione dopo ogni mossa dal punto di vista di chi gioca (sopra lo zero stai meglio tu)
+  const evals: number[] = useMemo(() => {
+    if (!d?.moves?.length) return [];
+    const sgn = d.game.user_color === "black" ? -1 : 1;
+    return [0, ...d.moves.map((m: any) => sgn * (m.eval_cp ?? 0))];
+  }, [d]);
+  // mossa critica: la tua mossa che ha fatto perdere più valutazione, se è davvero pesante
+  const critical = useMemo(() => {
+    if (!d?.moves?.length) return null;
+    const mine = d.moves.filter((m: any) => m.is_user_move && (m.loss_cp ?? 0) >= 100);
+    if (!mine.length) return null;
+    const m = mine.reduce((b: any, x: any) => ((x.loss_cp ?? 0) > (b.loss_cp ?? 0) ? x : b), mine[0]);
+    const e = d.errors.find((z: any) => z.ply === m.ply);
+    return { m, before: evals[m.ply - 1], after: evals[m.ply], best: e?.best_move || m.best_move_san };
+  }, [d, evals]);
+  const sgnEv = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${(Math.abs(v) / 100).toFixed(1)}`;
 
   const frame = ply === 0 ? null : d?.moves.find((m: any) => m.ply === ply);
   const fenNow = frame?.fen_after || START;
@@ -99,9 +117,27 @@ export default function GamePage() {
         </div>
       </div>
 
+      {g.analyzed_at && (
+        critical ? (
+          <div className="critical">
+            <div><span className="ctag">{u("critTitle", lang)}</span>
+              <p>{u("critText", lang, { m: `${lbl(critical.m.ply)} ${critical.m.san}`, a: sgnEv(critical.before), b: sgnEv(critical.after), best: critical.best || "—" })}</p></div>
+            <button className="btn btn-primary btn-sm" onClick={() => { setPly(critical.m.ply); window.scrollTo({ top: 0, behavior: "smooth" }); }}>{u("critShow", lang)}</button>
+          </div>
+        ) : d.moves.length > 0 && <p className="muted small">{u("critNone", lang)}</p>
+      )}
+
+      {evals.length > 2 && g.analyzed_at && (
+        <div className="card chartcard">
+          <b className="ctitle">{u("evalTitle", lang)}</b>
+          <p className="muted small" style={{ margin: ".2rem 0 .5rem" }}>{u("evalNote", lang)}</p>
+          <EvalChart evals={evals} active={ply} onPick={setPly} critical={critical?.m.ply} />
+        </div>
+      )}
+
       {chartPts.some((p) => p.loss > 0) && (
-        <div className="card loss-wrap">
-          <b>{t("lossTitle")}</b>
+        <div className="card chartcard">
+          <b className="ctitle">{t("lossTitle")}</b>
           <p className="muted small" style={{ margin: ".2rem 0 .4rem" }}>{t("lossNote")}</p>
           <LossChart pts={chartPts} active={ply} onPick={setPly} />
           <div className="loss-legend">
@@ -115,8 +151,8 @@ export default function GamePage() {
       )}
 
       {timeData?.available && (
-        <div className="card loss-wrap">
-          <b>{tc("timeChartTitle", lang)}</b>
+        <div className="card chartcard">
+          <b className="ctitle">{tc("timeChartTitle", lang)}</b>
           <TimeChart data={timeData} active={ply} onPick={setPly} />
         </div>
       )}

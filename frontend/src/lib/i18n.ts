@@ -161,6 +161,7 @@ const S = {
   allSpeeds: { it: "Tutti i ritmi", en: "All time controls", es: "Todos los ritmos" },
   accountFilter: { it: "Account", en: "Account", es: "Cuenta" },
   speedFilter: { it: "Ritmo", en: "Time control", es: "Ritmo" },
+  navRewards: { it: "Premi", en: "Rewards", es: "Premios" },
   navTrain: { it: "Allenamento", en: "Training", es: "Entrenamiento" },
 } as const;
 export type K = keyof typeof S;

@@ -1,5 +1,6 @@
 "use client";
 import { useApp } from "./app";
+import { useWidth } from "./Charts";
 import { tc } from "../lib/train-copy";
 
 type M = { ply: number; san: string; spent: number | null; clock: number | null; you: boolean; loss_cp: number | null };
@@ -7,13 +8,14 @@ type M = { ply: number; san: string; spent: number | null; clock: number | null;
 /** Secondi spesi su ogni mossa (barre), tempo residuo (linee), zona di zeitnot e errori (punto rosso). */
 export default function TimeChart({ data, active, onPick }: { data: { moves: M[]; base: number | null; threshold: number }; active: number; onPick: (ply: number) => void }) {
   const { lang } = useApp();
+  const [wref, W] = useWidth();
   const ms = data.moves;
   const mine = ms.filter((m) => m.you && m.spent != null && m.ply > 2);
   const sorted = mine.map((m) => m.spent as number).sort((a, b) => a - b);
   const median = sorted.length ? sorted[Math.floor(sorted.length / 2)] : 0;
   const all = ms.map((m) => m.spent || 0).sort((a, b) => a - b);
   const cap = Math.max(20, Math.min(120, all[Math.floor(all.length * 0.95)] || 20));
-  const W = 640, H = 190, L = 34, R = 8, T = 14, B = 22, bw = (W - L - R) / Math.max(1, ms.length);
+  const H = 210, L = 42, R = 8, T = 14, B = 26, bw = (W - L - R) / Math.max(1, ms.length);
   const y = (s: number) => H - B - (Math.min(s, cap) / cap) * (H - B - T);
   const base = data.base || Math.max(...ms.map((m) => m.clock || 0), 1);
   const yc = (c: number) => H - B - (Math.min(c, base) / base) * (H - B - T);
@@ -33,9 +35,9 @@ export default function TimeChart({ data, active, onPick }: { data: { moves: M[]
         <div><span className="muted small">{tc("troubleMoves", lang)}</span><b>{trouble}</b></div>
         <div><span className="muted small">{tc("fastMistakes", lang)}</span><b>{hasty}</b></div>
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto" }} role="img" aria-label={tc("timeChartTitle", lang)}>
+      <div ref={wref}><svg width={W} height={H} style={{ display: "block" }} role="img" aria-label={tc("timeChartTitle", lang)}>
         <rect x={L} y={yc(data.threshold)} width={W - L - R} height={H - B - yc(data.threshold)} fill="rgba(255, 93, 108, .09)" />
-        {[0, cap / 2, cap].map((v) => <g key={v}><line x1={L} x2={W - R} y1={y(v)} y2={y(v)} stroke="#26305a" /><text x={L - 6} y={y(v) + 4} fill="#8d97b8" fontSize="11" textAnchor="end">{Math.round(v)}{v === cap ? "+" : ""}</text></g>)}
+        {[0, cap / 2, cap].map((v) => <g key={v}><line x1={L} x2={W - R} y1={y(v)} y2={y(v)} stroke="#26305a" /><text x={L - 6} y={y(v) + 4} fill="#8d97b8" fontSize="13" textAnchor="end">{Math.round(v)}{v === cap ? "+" : ""}</text></g>)}
         {ms.map((m) => {
           if (m.spent == null) return null;
           const x = L + (m.ply - 1) * bw, top = y(m.spent), h = Math.max(1, H - B - top);
@@ -50,8 +52,8 @@ export default function TimeChart({ data, active, onPick }: { data: { moves: M[]
         })}
         <polyline points={line(false)} fill="none" stroke="#8d97b8" strokeWidth="1.6" strokeOpacity=".6" />
         <polyline points={line(true)} fill="none" stroke="#5aa9ff" strokeWidth="2.2" />
-        {ms.filter((m) => m.ply % 20 === 0).map((m) => <text key={m.ply} x={L + (m.ply - 0.5) * bw} y={H - 6} fill="#8d97b8" fontSize="11" textAnchor="middle">{m.ply / 2}</text>)}
-      </svg>
+        {ms.filter((m) => m.ply % (W < 420 ? 40 : 20) === 0).map((m) => <text key={m.ply} x={L + (m.ply - 0.5) * bw} y={H - 6} fill="#a9b3d6" fontSize="13" textAnchor="middle">{m.ply / 2}</text>)}
+      </svg></div>
       <div className="loss-legend">
         <span><i style={{ background: "#4ee3b0" }} />{tc("avgMove", lang)}</span>
         <span><i style={{ background: "#ff6b3d" }} />{tc("slowest", lang)}</span>

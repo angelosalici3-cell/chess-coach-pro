@@ -94,9 +94,12 @@ export default function PuzzleTrainer({ onProgress }: { onProgress: () => void }
   const turnWhite = puzzle ? puzzle.fen.split(" ")[1] === "b" : true;
   return (
     <div>
-      <div className="themechips" role="group" aria-label={tc("themesLbl", lang)}>
-        <button className={"chip" + (theme === "" ? " on" : "")} onClick={() => setTheme("")}>{tc("themeAll", lang)}</button>
-        {THEMES.map((k) => <button key={k} className={"chip" + (theme === k ? " on" : "")} onClick={() => setTheme(k)}>{themeName(k, lang)}</button>)}
+      <div className="themesel">
+        <label className="muted small" htmlFor="pz-theme">{tc("themesLbl", lang)}</label>
+        <select id="pz-theme" value={theme} onChange={(e) => setTheme(e.target.value)}>
+          <option value="">{tc("themeAll", lang)}</option>
+          {THEMES.map((k) => <option key={k} value={k}>{themeName(k, lang)}</option>)}
+        </select>
       </div>
       {err && <div className="note err">{err}</div>}
       {phase === "empty" && <div className="card muted">{tc("noPuzzles", lang)}</div>}

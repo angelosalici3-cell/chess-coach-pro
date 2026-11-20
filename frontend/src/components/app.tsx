@@ -24,9 +24,9 @@ const I = (d: string) => (
 const NAV: { href: string; k: K; icon: React.ReactNode }[] = [
   { href: "/dashboard", k: "navHome", icon: I("M3 11l9-8 9 8M5 10v10h14V10") },
   { href: "/dashboard/games", k: "navGames", icon: I("M4 4h16v16H4zM4 12h16M12 4v16") },
-  { href: "/dashboard/lessons", k: "navLessons", icon: I("M4 5a2 2 0 012-2h12v16H6a2 2 0 00-2 2zM8 7h6M8 11h6") },
   { href: "/dashboard/openings", k: "navOpenings", icon: I("M6 4v16M6 8h6a4 4 0 014 4v8M6 14h10") },
   { href: "/dashboard/train", k: "navTrain", icon: I("M13 2L4 14h7l-1 8 9-12h-7z") },
+  { href: "/dashboard/rewards", k: "navRewards", icon: I("M8 21h8M12 17v4M7 4h10v5a5 5 0 01-10 0zM17 5h3v2a3 3 0 01-3 3M7 5H4v2a3 3 0 003 3") },
 ];
 
 const tMenu: Record<Lang, string> = { it: "Menu", en: "Menu", es: "Menú" };

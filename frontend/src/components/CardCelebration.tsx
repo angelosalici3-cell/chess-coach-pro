@@ -32,7 +32,7 @@ export default function CardCelebration() {
 
   if (!cards || !cards.length) return null;
   const c = cards[0], t = goalCopy(c.goal, lang);
-  const close = async (go = false) => { setCards(null); await call("/cards/seen", { method: "POST" }).catch(() => {}); refreshMe(); if (go) router.push("/dashboard/train?tab=cards"); };
+  const close = async (go = false) => { setCards(null); await call("/cards/seen", { method: "POST" }).catch(() => {}); refreshMe(); if (go) router.push("/dashboard/rewards?tab=cards"); };
   const share = async () => {
     setBusy(true);
     try {

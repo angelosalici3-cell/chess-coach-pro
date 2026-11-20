@@ -6,6 +6,8 @@ import ChessBoard from "./ChessBoard";
 import { useApp } from "./app";
 import { K } from "../lib/i18n";
 import { tc } from "../lib/train-copy";
+import { u } from "../lib/ui-copy";
+import { Seg, Switch } from "./ui/Seg";
 import { H, VOL_COLOR, VolKey, W, currentName, layout, moveLabel, prepare, resolve, search } from "../lib/openings";
 
 type Data = ReturnType<typeof prepare>;
@@ -129,10 +131,10 @@ export default function OpeningMap() {
           )}
         </div>
         <div className="om-mine-bar">
-          <button className={"chip" + (mineOn ? " on" : "")} onClick={() => setMineOn((v) => !v)} aria-pressed={mineOn}>{tc("mineToggle", lang)}</button>
-          {mineOn && (["all", "w", "b"] as const).map((k) => (
-            <button key={k} className={"chip" + (colorF === k ? " on" : "")} onClick={() => setColorF(k)}>{tc(k === "all" ? "mineAll" : k === "w" ? "mineWhite" : "mineBlack", lang)}</button>
-          ))}
+          <Switch on={mineOn} onChange={setMineOn} label={tc("mineToggle", lang)} state={u(mineOn ? "on" : "off", lang)} />
+          {mineOn && (
+            <Seg value={colorF} onChange={setColorF} items={(["all", "w", "b"] as const).map((k) => ({ v: k, label: tc(k === "all" ? "mineAll" : k === "w" ? "mineWhite" : "mineBlack", lang) }))} />
+          )}
         </div>
         <div className="om-legend" aria-label="ECO">
           {(["A", "B", "C", "D", "E"] as VolKey[]).map((v) => <span key={v}><i style={{ background: VOL_COLOR[v] }} />{t(("omVol" + v) as K)}</span>)}

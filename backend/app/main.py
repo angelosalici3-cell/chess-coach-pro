@@ -128,9 +128,25 @@ def delete_profile(profile_id: int, u=Depends(current_user)):
 # ---------- Partite: la lista e la riapertura leggono dal DB, senza rifare l'analisi ----------
 @app.get("/games")
 def list_games(u=Depends(current_user)):
-    return (sb.table("games")
-            .select("id,white,black,user_color,result,opening_name,played_at,accuracy_user,analyzed_at")
-            .eq("user_email", u["email"]).order("played_at", desc=True).limit(100).execute().data)
+    """Elenco per la pagina Partite: esito, ritmo, errori per partita, già calcolati qui così il telefono non deve fare altre richieste."""
+    rows = (sb.table("games")
+            .select("id,white,black,user_color,result,opening_name,played_at,accuracy_user,analyzed_at,source,time_control")
+            .eq("user_email", u["email"]).order("played_at", desc=True).limit(300).execute().data)
+    errs: dict = {}
+    for e in sb.table("errori_utenti").select("game_id,classification").eq("user_email", u["email"]).in_("classification", ["mistake", "blunder"]).limit(5000).execute().data:
+        c = errs.setdefault(e["game_id"], {"blunder": 0, "mistake": 0})
+        c[e["classification"]] += 1
+    out = []
+    for g in rows:
+        c, res = g["user_color"], g["result"]
+        outcome = None
+        if c and res in ("1-0", "0-1", "1/2-1/2"):
+            outcome = "d" if res == "1/2-1/2" else "w" if (res == "1-0") == (c == "white") else "l"
+        e = errs.get(g["id"], {"blunder": 0, "mistake": 0})
+        out.append({**g, "outcome": outcome, "me": (g["white"] if c == "white" else g["black"]) if c else None,
+                    "opp": (g["black"] if c == "white" else g["white"]) if c else None,
+                    "speed": _speed(g["time_control"]), "blunders": e["blunder"], "mistakes": e["mistake"]})
+    return out
 
 
 @app.get("/games/{game_id}")
@@ -418,7 +434,7 @@ def _stats(u):
     rows = (sb.table("games").select("source,white,black,time_control,pgn,user_color,result,opening_name,played_at,accuracy_user")
             .eq("user_email", u["email"]).order("played_at", desc=True).limit(1000).execute().data)[::-1]
     w = d = l = 0
-    ops, rating, accs = {}, {}, []
+    ops, rating, accs, disp = {}, {}, [], {}
     for g in rows:
         c, res = g["user_color"], g["result"]
         if c and res in ("1-0", "0-1", "1/2-1/2"):
@@ -430,7 +446,8 @@ def _stats(u):
             e[o] += 1
         if c and g["played_at"] and (elo := _elo(g["pgn"], c)):
             uname = g["white"] if c == "white" else g["black"]
-            rating.setdefault((g["source"], uname, _speed(g["time_control"])), {})[g["played_at"][:10]] = elo  # un valore al giorno: l'ultimo
+            disp.setdefault((g["source"], (uname or "").lower()), uname)
+            rating.setdefault((g["source"], (uname or "").lower(), _speed(g["time_control"])), {})[g["played_at"][:10]] = elo  # un valore al giorno: l'ultimo
         if g["accuracy_user"] is not None:
             accs.append(float(g["accuracy_user"]))
     cats = Counter(r["categoria_errore"] for r in sb.table("errori_utenti").select("categoria_errore").eq("user_email", u["email"]).in_("classification", ["mistake", "blunder"]).execute().data if r["categoria_errore"])
@@ -439,7 +456,7 @@ def _stats(u):
     accounts = {}
     for (src, uname, sp), days in rating.items():
         accounts.setdefault((src, uname), []).append((sp, days))
-    rating_out = [{"source": src, "username": uname,
+    rating_out = [{"source": src, "username": disp.get((src, uname), uname),
                    "series": [{"speed": sp, "points": [{"d": d_, "r": r_} for d_, r_ in sorted(days.items())]}
                               for sp, days in sorted(ser, key=lambda x: order.index(x[0]))]}
                   for (src, uname), ser in accounts.items()]

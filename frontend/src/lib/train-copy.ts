@@ -11,6 +11,7 @@ const C = {
   tabPuzzles: x("Puzzle", "Puzzles", "Puzzles"),
   tabBadges: x("Traguardi", "Achievements", "Logros"),
   streak: x("{n} giorni di fila", "{n}-day streak", "{n} días seguidos"),
+  streakShort: x("giorni", "days", "días"),
   streak0: x("Nessuna serie attiva", "No active streak", "Sin racha activa"),
   puzzleRatingLbl: x("Rating puzzle", "Puzzle rating", "Rating de puzzles"),
   dueLbl: x("Da ripassare", "To review", "Por repasar"),
