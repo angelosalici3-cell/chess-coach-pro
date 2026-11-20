@@ -1,0 +1,25 @@
+name: nightly-analysis
+# Fase 2: parte mezz'ora dopo il download (sync.yml, 02:00 UTC) e analizza tutte le partite in attesa.
+on:
+  schedule: [{ cron: "30 2 * * *" }]
+  workflow_dispatch:
+concurrency: nightly-analysis
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 345
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - run: pip install -r backend/requirements.txt
+      - name: Analizza le partite in attesa
+        working-directory: backend
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ANALYZE_BUDGET_MIN: "300"
+        run: python -m scripts.analyze_worker
