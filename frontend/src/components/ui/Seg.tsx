@@ -1,6 +1,6 @@
 "use client";
 /** Selettore a segmenti: chiaro quale voce è attiva (riempita) e quali no. */
-export function Seg<T extends string>({ value, onChange, items, label }: { value: T; onChange: (v: T) => void; items: { v: T; label: string; n?: number }[]; label?: string }) {
+export function Seg<T extends string>({ value, onChange, items, label }: { value: T; onChange: (v: T) => void; items: { v: NoInfer<T>; label: string; n?: number }[]; label?: string }) {
   return (
     <div className="seg" role="tablist" aria-label={label}>
       {items.map((i) => (

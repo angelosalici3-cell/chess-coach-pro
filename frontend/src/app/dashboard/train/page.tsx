@@ -29,7 +29,7 @@ export default function TrainPage() {
     <>
       <div className="pagehead">
         <h1>{tc("trainTitle", lang)}</h1>
-        <Seg value={tab} onChange={pick} items={[{ v: "mistakes", label: tc("tabMistakes", lang), n: ov?.mistakes_due }, { v: "puzzles", label: tc("tabPuzzles", lang) }]} />
+        <Seg<Tab> value={tab} onChange={pick} items={[{ v: "mistakes", label: tc("tabMistakes", lang), n: ov?.mistakes_due }, { v: "puzzles", label: tc("tabPuzzles", lang) }]} />
       </div>
       {st && (
         <div className="trainstrip" aria-label="stats">

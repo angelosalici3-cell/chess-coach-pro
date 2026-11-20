@@ -15,7 +15,7 @@ export default function GamesPage() {
     <>
       <div className="pagehead">
         <h1>{tab === "games" ? u("gTitle", lang) : u("tabLessons", lang)}</h1>
-        <Seg value={tab} onChange={pick} items={[{ v: "games", label: u("tabGames", lang) }, { v: "lessons", label: u("tabLessons", lang) }]} />
+        <Seg<"games" | "lessons"> value={tab} onChange={pick} items={[{ v: "games", label: u("tabGames", lang) }, { v: "lessons", label: u("tabLessons", lang) }]} />
       </div>
       {tab === "games" ? <GamesList /> : <Lessons />}
     </>

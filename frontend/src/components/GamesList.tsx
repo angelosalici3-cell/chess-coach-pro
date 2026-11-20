@@ -65,10 +65,10 @@ export default function GamesList() {
           )}
           <div className="gfilters">
             <input className="search" placeholder={u("fSearch", lang)} value={q} onChange={(e) => setQ(e.target.value)} aria-label={u("fSearch", lang)} />
-            <Seg value={res} onChange={setRes} label={u("fResult", lang)} items={[{ v: "all", label: u("fAll", lang) }, { v: "w", label: u("fWin", lang), n: cnt("w") }, { v: "d", label: u("fDraw", lang), n: cnt("d") }, { v: "l", label: u("fLoss", lang), n: cnt("l") }]} />
+            <Seg<"all" | "w" | "d" | "l"> value={res} onChange={setRes} label={u("fResult", lang)} items={[{ v: "all", label: u("fAll", lang) }, { v: "w", label: u("fWin", lang), n: cnt("w") }, { v: "d", label: u("fDraw", lang), n: cnt("d") }, { v: "l", label: u("fLoss", lang), n: cnt("l") }]} />
             <div className="fscroll">
-              <Seg value={col} onChange={setCol} label={u("fColor", lang)} items={[{ v: "all", label: u("fAll", lang) }, { v: "white", label: u("fWhite", lang) }, { v: "black", label: u("fBlack", lang) }]} />
-              {speeds.length > 1 && <Seg value={speed} onChange={setSpeed} label={u("fSpeed", lang)} items={[{ v: "all", label: u("fAll", lang) }, ...speeds.map((s) => ({ v: s, label: tr(("speed" + s[0].toUpperCase() + s.slice(1)) as K, lang) }))]} />}
+              <Seg<"all" | "white" | "black"> value={col} onChange={setCol} label={u("fColor", lang)} items={[{ v: "all", label: u("fAll", lang) }, { v: "white", label: u("fWhite", lang) }, { v: "black", label: u("fBlack", lang) }]} />
+              {speeds.length > 1 && <Seg<string> value={speed} onChange={setSpeed} label={u("fSpeed", lang)} items={[{ v: "all", label: u("fAll", lang) }, ...speeds.map((s) => ({ v: s, label: tr(("speed" + s[0].toUpperCase() + s.slice(1)) as K, lang) }))]} />}
             </div>
           </div>
         </>

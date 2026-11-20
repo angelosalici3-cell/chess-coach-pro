@@ -20,7 +20,7 @@ export default function RewardsPage() {
     <>
       <div className="pagehead">
         <h1>{u("rwTitle", lang)}</h1>
-        <Seg value={tab} onChange={pick} items={[{ v: "cards", label: tc("tabCards", lang) }, { v: "badges", label: tc("tabBadges", lang) }]} />
+        <Seg<Tab> value={tab} onChange={pick} items={[{ v: "cards", label: tc("tabCards", lang) }, { v: "badges", label: tc("tabBadges", lang) }]} />
       </div>
       {tab === "cards" ? <Cards onProgress={refresh} /> : <Achievements onProgress={refresh} />}
     </>

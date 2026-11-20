@@ -133,7 +133,7 @@ export default function OpeningMap() {
         <div className="om-mine-bar">
           <Switch on={mineOn} onChange={setMineOn} label={tc("mineToggle", lang)} state={u(mineOn ? "on" : "off", lang)} />
           {mineOn && (
-            <Seg value={colorF} onChange={setColorF} items={(["all", "w", "b"] as const).map((k) => ({ v: k, label: tc(k === "all" ? "mineAll" : k === "w" ? "mineWhite" : "mineBlack", lang) }))} />
+            <Seg<"all" | "w" | "b"> value={colorF} onChange={setColorF} items={(["all", "w", "b"] as const).map((k) => ({ v: k, label: tc(k === "all" ? "mineAll" : k === "w" ? "mineWhite" : "mineBlack", lang) }))} />
           )}
         </div>
         <div className="om-legend" aria-label="ECO">
