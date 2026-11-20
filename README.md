@@ -30,8 +30,8 @@ Il modello Gemini in uso è `gemini-3.5-flash` (variabile `GEMINI_MODEL` su Rend
 5. Atlante: "Le mie aperture" usa le ultime 400 partite sincronizzate.
 
 ## Prezzi e piani (v2)
-Free 3 lezioni/mese · Plus €3,99 · Pro €6,99 · Elite €12,99. Esegui `supabase/004_free_3_lessons.sql`.
-In Stripe crea **nuovi Price** (3,99 / 6,99 / 12,99 mensili) e aggiorna `STRIPE_PRICE_PLUS/PRO/ELITE` su Render. Gli abbonati esistenti restano sul prezzo vecchio finché non li migri.
+Free 3 lezioni/mese · Plus €4,99 · Pro €8,99 · Elite €14,99 (annuali 49 / 89 / 149). Esegui `supabase/004_free_3_lessons.sql`.
+In Stripe crea i **Price** con `python -m scripts.create_stripe_prices` (vedi sotto) e imposta `STRIPE_PRICE_PLUS/PRO/ELITE` e le versioni `_YEAR` su Render. Gli abbonati esistenti restano sul prezzo vecchio finché non li migri.
 
 ## Storico per piano
 Esegui `supabase/005_history.sql`. Free 50 partite, Plus 200, Pro 500, Elite 1000 per account collegato: l'import parte da solo al collegamento e si amplia dopo un upgrade (pulsante "Importa lo storico del tuo piano"). Le partite storiche alimentano grafico rating, atlante e statistiche; l'analisi con motore resta in coda.
@@ -82,3 +82,27 @@ Le carte vengono assegnate dal backend subito dopo l'analisi di una partita. L'a
 - **Carte:** carosello con filtro per rarità. Nuove carte "Vittoria contro un X+" per ritmo, da 100 a 100 punti, a partire dal rating della prima partita di quel ritmo (nessun SQL da eseguire).
 - **Analisi iniziale:** dopo il collegamento di un account (e dopo un upgrade) si scaricano le partite e si analizzano le più recenti garantite dal piano (`initial_games` in `backend/core/plans.py`: Free 20, Plus 50, Pro 100, Elite 150). Il banner in Home mostra avanzamento e tempo stimato (`/onboarding/status`).
 - **Intro:** cerchio attorno al logo e portone che si apre quando i dati sono pronti (`components/Intro.tsx`).
+
+## Email (verifica, benvenuto, grazie abbonamento)
+1. **Resend** (resend.com, piano gratuito 3.000 mail/mese): aggiungi il tuo dominio, inserisci i record DNS che ti mostra, crea una API key.
+2. **Render**: `RESEND_API_KEY`, `MAIL_FROM` (es. `Chess Coach <ciao@tuodominio.it>`), `EMAIL_VIDEO_URL` (link YouTube del video, anche "non in elenco"). Opzionale `EMAIL_VIDEO_THUMB` per un'immagine di anteprima tua.
+3. **Supabase SQL**: esegui `supabase/010_email_log.sql`.
+4. **Verifica account**: Supabase > Authentication > Providers > Email: attiva "Confirm email". Authentication > Emails > SMTP Settings: host `smtp.resend.com`, porta 465, utente `resend`, password = la API key, mittente = `MAIL_FROM`. Poi Templates > "Confirm signup": incolla `supabase/email-templates/confirm-signup.html`.
+5. **Benvenuto con piani e video**: parte da sola, una volta, al primo accesso dopo l'attivazione (anche per chi entra con Google). **Grazie per l'abbonamento**: parte dal webhook Stripe a ogni nuovo abbonamento.
+6. Anteprima senza inviare: da `backend/` `python -m scripts.preview_emails` crea i file HTML in `email-preview/`.
+
+## Stripe in modalità test
+1. dashboard.stripe.com: interruttore **Modalità test** in alto a destra.
+2. Developers > API keys: copia la **Secret key** `sk_test_...` in `STRIPE_SECRET_KEY` su Render.
+3. Crea i prezzi: da `backend/` `STRIPE_SECRET_KEY=sk_test_... python -m scripts.create_stripe_prices` e copia le 6 righe `STRIPE_PRICE_*` su Render.
+4. Developers > Webhooks > Add endpoint: URL `https://TUO-BACKEND.onrender.com/billing/webhook`, eventi `checkout.session.completed`, `invoice.paid`, `customer.subscription.deleted`. Copia il **Signing secret** `whsec_...` in `STRIPE_WEBHOOK_SECRET`.
+5. Settings > Billing > Customer portal: attiva e salva (serve per "Gestisci abbonamento").
+6. Redeploy di Render, poi paga con la carta di prova `4242 4242 4242 4242`, scadenza futura, CVC qualsiasi.
+7. Controlli: tabella `config_utenti` (tier cambiato), `storico_abbonamenti`, `email_log` (riga `sub:...`) e l'email ricevuta. Rinnovo: nel dettaglio dell'abbonamento in Stripe usa i test clock oppure "Run simulation".
+8. Per passare al reale: chiave `sk_live_`, ripeti i punti 3 e 4 in modalità live e sostituisci le variabili.
+
+## Sincronizzazione notturna in due fasi
+- **Fase 1, download** (`sync.yml`, 02:00 UTC): chiama `/cron/sync` su Render. Scarica fino a 200 partite nuove per account (prima erano 15), solo download, veloce.
+- **Fase 2, analisi** (`analyze.yml`, 02:30 UTC): gira su GitHub Actions, non su Render, quindi non si interrompe quando il server si addormenta. Analizza **tutte** le partite in attesa degli abbonati, a giri equi tra utenti (Elite e Pro per primi, le partite più recenti prima), con 3 analisi in parallelo e un massimo di 5 ore. Quello che resta si riprende la notte dopo.
+- Secrets GitHub richiesti: `API_URL`, `CRON_SECRET` (fase 1), `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (fase 2). Per provare subito: Actions > nightly-analysis > Run workflow.
+- Il pulsante "Sincronizza partite" resta per chi vuole subito le partite appena giocate.
