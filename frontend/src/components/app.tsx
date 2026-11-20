@@ -67,8 +67,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const bust = useCallback(() => store.current.clear(), []);
   const email = session?.user?.email || "";
   const refreshMe = useCallback(() => {
-    if (token) api("/me", token).then((d) => { setMe(d); try { localStorage.setItem("c:me:" + email, JSON.stringify(d)); } catch {} }).catch(() => {});
-  }, [token, email]);
+    if (token) api("/me?lang=" + lang, token).then((d) => { setMe(d); try { localStorage.setItem("c:me:" + email, JSON.stringify(d)); } catch {} }).catch(() => {});
+  }, [token, email, lang]);
   useEffect(() => {   // all'apertura mostra subito gli ultimi dati salvati; quelli nuovi li sostituiscono appena arrivano
     if (!email) return;
     try { const c = localStorage.getItem("c:me:" + email); if (c) setMe((m: any) => m || JSON.parse(c)); } catch {}

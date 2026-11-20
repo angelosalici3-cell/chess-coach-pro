@@ -21,7 +21,8 @@ def current_user(authorization: str = Header(None)):
         raise HTTPException(401, "invalid_token")
     if not u or not u.email:
         raise HTTPException(401, "invalid_token")
-    out = {"id": u.id, "email": u.email, "created_at": str(getattr(u, "created_at", "") or "")}
+    out = {"id": u.id, "email": u.email, "created_at": str(getattr(u, "created_at", "") or ""),
+           "confirmed": bool(getattr(u, "email_confirmed_at", None))}
     cache.put(("tok", token), out, 120)
     return out
 

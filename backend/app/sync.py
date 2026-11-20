@@ -182,15 +182,56 @@ def onboard(email: str, tier: str) -> None:
     analyze_initial(email, tier)
 
 
-def run_cron() -> None:
-    """Sync notturna per tutti gli abbonati (Plus/Pro/Elite) con abbonamento non scaduto."""
+def _paid_users() -> list[dict]:
+    """Abbonati con sincronizzazione automatica e abbonamento non scaduto (Elite, Pro, Plus in questo ordine)."""
     today = datetime.date.today()
+    rank = {"Elite": 0, "Pro": 1, "Plus": 2}
     users = sb.table("config_utenti").select("user_email,tier,data_scadenza").in_("tier", [k for k, p in PLANS.items() if p.auto_sync]).execute().data
-    for u in users:
-        if u.get("data_scadenza") and datetime.date.fromisoformat(u["data_scadenza"]) < today:
-            continue
+    users = [u for u in users if not (u.get("data_scadenza") and datetime.date.fromisoformat(u["data_scadenza"]) < today)]
+    return sorted(users, key=lambda u: rank.get(u["tier"], 9))
+
+
+def run_cron() -> None:
+    """FASE 1, notturna: solo DOWNLOAD delle partite nuove (veloce). L'analisi è una fase separata: analyze_queue."""
+    for u in _paid_users():
         try:
-            sync_user(u["user_email"])
-            analyze_pending(u["user_email"], 5)
+            sync_user(u["user_email"], 200)   # tutte le partite giocate dall'ultima volta, con un massimo di sicurezza
         except Exception as e:
-            log.warning("cron %s: %s", u["user_email"], e)
+            log.warning("cron download %s: %s", u["user_email"], e)
+
+
+def analyze_queue(budget_s: int = 18000, workers: int = 3) -> dict:
+    """FASE 2: analizza tutte le partite in attesa degli abbonati, fuori dal download.
+    Equa: a giro un gruppo di partite per utente (le più recenti prima), Elite e Pro per primi.
+    Si ferma allo scadere del tempo; ciò che resta si riprende alla corsa successiva."""
+    from concurrent.futures import ThreadPoolExecutor
+    import time
+    t0, done, failed = time.time(), 0, 0
+    users = _paid_users()
+    tried: set = set()
+    with ThreadPoolExecutor(workers) as pool:
+        while time.time() - t0 < budget_s:
+            batch = []
+            for u in users:
+                rows = (sb.table("games").select("*").eq("user_email", u["user_email"]).is_("analyzed_at", "null")
+                        .not_.is_("user_color", "null").order("played_at", desc=True).limit(12).execute().data)
+                batch += [g for g in rows if g["id"] not in tried][:6]
+            if not batch:
+                break
+            def one(g):
+                try:
+                    analyze_game(g); return True
+                except Exception as e:
+                    log.warning("analisi %s fallita: %s", g["id"], e); return False
+            for g, ok in zip(batch, pool.map(one, batch)):
+                tried.add(g["id"]); done += ok; failed += (not ok)
+            for u in users:
+                try:
+                    from .train import assign_cards
+                    assign_cards(u["user_email"])   # le carte si assegnano man mano
+                except Exception as e:
+                    log.warning("carte %s: %s", u["user_email"], e)
+    left = 0
+    for u in users:
+        left += sb.table("games").select("id", count="exact").eq("user_email", u["user_email"]).is_("analyzed_at", "null").not_.is_("user_color", "null").execute().count or 0
+    return {"analyzed": done, "failed": failed, "left": left, "minutes": round((time.time() - t0) / 60, 1)}

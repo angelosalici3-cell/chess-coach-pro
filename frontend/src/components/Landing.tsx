@@ -209,7 +209,7 @@ function Demo({ c }: { c: Copy }) {
 
 /* ---------- prezzi ---------- */
 const PLANS: { k: "Free" | "Plus" | "Pro" | "Elite"; price: string }[] = [
-  { k: "Free", price: "0" }, { k: "Plus", price: "3,99" }, { k: "Pro", price: "6,99" }, { k: "Elite", price: "12,99" },
+  { k: "Free", price: "0" }, { k: "Plus", price: "4,99" }, { k: "Pro", price: "8,99" }, { k: "Elite", price: "14,99" },
 ];
 function Pricing({ c, lang }: { c: Copy; lang: string }) {
   return (

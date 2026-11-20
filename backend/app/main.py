@@ -17,7 +17,7 @@ from fastapi import BackgroundTasks
 from core.plans import get_plan, stripe_price_id
 from .db import sb
 from .engine import analyze_game
-from . import cache
+from . import cache, mailer
 from .auth import current_user, tier_from, tier_of
 from .sync import SECONDS_PER_GAME, analyze_initial, analyze_pending, import_history, initial_rows, is_running, onboard, run_cron, sync_user
 from .promo import attribute_checkout, attribute_renewal, checkout_discount, is_admin, promo_for, router as promo_router
@@ -57,11 +57,13 @@ _pool = ThreadPoolExecutor(max_workers=8)
 
 
 @app.get("/me")
-def me(u=Depends(current_user)):
+def me(bg: BackgroundTasks, lang: str = "it", u=Depends(current_user)):
     email = u["email"]
     hit = cache.get(("me", email))
     if hit:
         return hit
+    if u.get("confirmed"):   # account attivo: una sola volta, mail di benvenuto con piani e video
+        bg.add_task(mailer.send_once, email, "welcome", "welcome", lang)
     month = datetime.date.today().strftime("%Y-%m")
     # le query sono indipendenti: partono insieme invece di una dopo l'altra
     f_cfg = _pool.submit(lambda: (sb.table("config_utenti").select("tier,data_scadenza,bonus_lessons").eq("user_email", email).limit(1).execute().data or [None])[0])
@@ -286,6 +288,7 @@ LEGAL_TEXT = {
 class CheckoutIn(BaseModel):
     plan: str
     lang: str = "it"
+    interval: str = "month"   # "month" | "year"
 
 
 @app.post("/billing/checkout")
@@ -295,9 +298,9 @@ def checkout(body: CheckoutIn, u=Depends(current_user)):
     row = sb.table("config_utenti").select("stripe_customer_id").eq("user_email", u["email"]).limit(1).execute().data
     cust = row[0].get("stripe_customer_id") if row else None
     args = dict(
-        mode="subscription", line_items=[{"price": stripe_price_id(body.plan), "quantity": 1}],
+        mode="subscription", line_items=[{"price": stripe_price_id(body.plan, "year" if body.interval == "year" else "month"), "quantity": 1}],
         success_url=f"{FRONTEND_URL}/dashboard/plans?checkout=success", cancel_url=f"{FRONTEND_URL}/dashboard/plans?checkout=cancel",
-        metadata={"email": u["email"], "plan": body.plan},
+        metadata={"email": u["email"], "plan": body.plan, "lang": body.lang if body.lang in ("it", "en", "es") else "it", "interval": "year" if body.interval == "year" else "month"},
         locale=body.lang if body.lang in ("it", "en", "es") else "auto",
         custom_text={"submit": {"message": LEGAL_TEXT.get(body.lang, LEGAL_TEXT["en"]).format(url=FRONTEND_URL)}})
     disc = checkout_discount(u["email"])      # codice arrivato dal link del creatore: sconto già applicato
@@ -343,6 +346,7 @@ async def webhook(request: Request, bg: BackgroundTasks):
             "user_email": email, "tier_precedente": prev, "tier_nuovo": plan, "azione": "attivazione",
             "importo": (obj.get("amount_total") or 0) / 100, "stripe_session_id": obj["id"]}).execute()
         attribute_checkout(obj, email, plan)
+        bg.add_task(mailer.send_once, email, f"sub:{obj['id']}", "subscribed", obj["metadata"].get("lang", "it"), plan=plan, interval=obj["metadata"].get("interval", "month"))
         bg.add_task(onboard, email, plan)  # più storico e più partite analizzate col nuovo piano
     elif ev["type"] == "invoice.paid":
         end = obj["lines"]["data"][0]["period"]["end"]
