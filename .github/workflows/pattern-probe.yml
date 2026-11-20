@@ -6,6 +6,9 @@ on:
       email:
         description: "Email dell'account da analizzare"
         required: true
+      reset:
+        description: "Rimetti in coda le partite analizzate male (true/false)"
+        default: "false"
 jobs:
   probe:
     runs-on: ubuntu-latest
@@ -24,4 +27,7 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           PROBE_EMAIL: ${{ github.event.inputs.email }}
-        run: python -m scripts.pattern_probe --email "$PROBE_EMAIL"
+          PROBE_RESET: ${{ github.event.inputs.reset }}
+        run: |
+          if [ "$PROBE_RESET" = "true" ]; then python -m scripts.pattern_probe --email "$PROBE_EMAIL" --reset
+          else python -m scripts.pattern_probe --email "$PROBE_EMAIL"; fi
