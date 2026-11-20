@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 
 /** Larghezza reale del contenitore: i grafici si disegnano a misura dello schermo, così testi e assi restano leggibili anche su telefono. */
-export function useWidth(initial = 340): [React.RefObject<HTMLDivElement>, number] {
+export function useWidth(initial = 340): [React.RefObject<HTMLDivElement | null>, number] {
   const ref = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(initial);
   useEffect(() => {
