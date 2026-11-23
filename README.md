@@ -194,3 +194,7 @@ Le analisi fatte sul server (primo caricamento di un utente) restano a profondit
 ### v3.11
 - Hero: scacchiera centrata e più grande (si adatta all'altezza dello schermo), commenti del GM sotto la scacchiera sempre visibili (ultimo messaggio + precedente), mosse recenti, ritmo molto più veloce, badge "!!" sulla casa della mossa, emoji sulla casa di arrivo. Si parte dalla partita breve.
 - Icona: le immagini ora si prendono prima dalla rete (service worker v3) e hanno ?v=3: niente più logo vecchio nel banner di installazione.
+
+### v3.12
+- Hero: scacchiera grande a destra con i commenti del GM affiancati (ultimi 4, il più recente evidenziato); tolta la scritta LIVE. Su telefono i commenti stanno sotto.
+- Barra in basso: tolto lo scorrimento che tagliava il pulsante Gioca.
