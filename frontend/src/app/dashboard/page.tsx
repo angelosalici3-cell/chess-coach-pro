@@ -2,6 +2,13 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import InitBanner from "../../components/InitBanner";
+import type { Lang } from "../../lib/i18n";
+
+const SYNC = {
+  it: { dl: "Scaricate {n} nuove partite.", none: "Nessuna partita nuova da scaricare.", run: "Analizzo {d} di {t} partite…", queued: "C'è già un'analisi in corso: i risultati compaiono man mano.", done: "Fatto: {o} partite analizzate.", fail: "{f} partite non analizzate. Riprova tra poco: se il problema resta, le ritento stanotte." },
+  en: { dl: "Downloaded {n} new games.", none: "No new games to download.", run: "Analyzing {d} of {t} games…", queued: "An analysis is already running: results appear as they are ready.", done: "Done: {o} games analyzed.", fail: "{f} games could not be analyzed. Try again shortly: if it persists, I'll retry tonight." },
+  es: { dl: "Descargadas {n} partidas nuevas.", none: "No hay partidas nuevas que descargar.", run: "Analizando {d} de {t} partidas…", queued: "Ya hay un análisis en curso: los resultados aparecen poco a poco.", done: "Hecho: {o} partidas analizadas.", fail: "{f} partidas sin analizar. Inténtalo de nuevo en breve: si sigue, las reintento esta noche." },
+} as const;
 import { useApp } from "../../components/app";
 import { MultiLineChart } from "../../components/Charts";
 import { K, tr } from "../../lib/i18n";
@@ -98,13 +105,29 @@ export default function Home() {
   }, [ck]);
   useEffect(() => { load(); }, [call]); // eslint-disable-line
 
+  const [job, setJob] = useState<any>(null);
+  const SY = SYNC[lang as Lang] || SYNC.it;
+  const fm = (x: string, v: Record<string, any>) => Object.keys(v).reduce((a, k) => a.split(`{${k}}`).join(String(v[k])), x);
+
+  // Segue l'analisi avviata dal pulsante: aggiorna il contatore finché non finisce
+  useEffect(() => {
+    if (!job || (job.state !== "running" && job.state !== "queued")) return;
+    const t = setTimeout(async () => {
+      try {
+        const j = await call("/sync/status");
+        setJob((p: any) => ({ ...j, imported: p?.imported ?? j.imported }));
+        if (j.state === "done") { bust(); load(); refreshMe(); }
+      } catch {}
+    }, 2500);
+    return () => clearTimeout(t);
+  }, [job, call]); // eslint-disable-line
+
   const sync = async () => {
-    setBusy(true); setErr(""); setInfo("");
+    setBusy(true); setErr(""); setInfo(""); setJob(null);
     try {
       const r = await call("/sync", { method: "POST" });
-      setInfo(tr("syncDone", lang).replace("{n}", r.imported).replace("{a}", r.analyzing));
-      load(); refreshMe();
-      setTimeout(load, 30000);
+      setJob(r.job);
+      if (r.job?.state === "done") { bust(); load(); refreshMe(); }
     } catch (e: any) { setErr(e.message); }
     setBusy(false);
   };
@@ -116,6 +139,19 @@ export default function Home() {
         <button className="btn btn-primary" onClick={sync} disabled={busy}>{busy ? t("syncing") : t("sync")}</button>
       </div>
       <p className="muted small" style={{ marginTop: 0 }}>{me?.auto_sync ? t("autoSyncOn") : <>{t("autoSyncOff")}. <Link href="/dashboard/plans" className="accent">{t("navPlans")}</Link></>}</p>
+      {job && (
+        <div className="card init-banner" role="status" aria-live="polite">
+          <b>{job.imported > 0 ? fm(SY.dl, { n: job.imported }) : SY.none}</b>
+          {job.total > 0 && (job.state === "running" || job.state === "queued") && (
+            <>
+              <div className="muted small" style={{ margin: ".25rem 0" }}>{job.state === "queued" ? SY.queued : fm(SY.run, { d: job.done, t: job.total })}</div>
+              <div className="bar"><div style={{ width: `${job.state === "queued" ? 6 : Math.round((100 * job.done) / job.total)}%`, background: "var(--ember)", transition: "width .6s" }} /></div>
+            </>
+          )}
+          {job.state === "done" && job.total > 0 && <div className="muted small" style={{ marginTop: ".25rem" }}>{fm(SY.done, { o: job.ok })}</div>}
+          {job.state === "done" && job.failed > 0 && <div className="note err" style={{ marginTop: ".5rem" }}>{fm(SY.fail, { f: job.failed })}{job.error ? ` (${job.error})` : ""}</div>}
+        </div>
+      )}
       <InitBanner onDone={() => { bust(); load(); refreshMe(); }} />
       <TodayCard />
       {info && <div className="note">{info}</div>}

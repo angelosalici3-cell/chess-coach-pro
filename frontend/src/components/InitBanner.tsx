@@ -5,11 +5,11 @@ import type { Lang } from "../lib/i18n";
 
 const T = {
   it: { title: "Stiamo preparando la tua analisi", dl: "Sto scaricando le tue partite…", prog: "{a} di {t} partite analizzate", eta: "pronte tra circa {n} min", etaSoon: "quasi pronte",
-        hint: "Puoi usare l'app: i risultati compaiono man mano. Non serve restare su questa pagina.", done: "Analisi completata: {t} partite pronte." },
+        hint: "Puoi usare l'app: i risultati compaiono man mano. Non serve restare su questa pagina.", done: "Analisi completata: {t} partite pronte.", failed: "{f} partite non si sono analizzate. Premi Sincronizza per riprovare." },
   en: { title: "Getting your analysis ready", dl: "Downloading your games…", prog: "{a} of {t} games analyzed", eta: "ready in about {n} min", etaSoon: "almost ready",
-        hint: "You can keep using the app: results appear as they are ready. No need to stay on this page.", done: "Analysis complete: {t} games ready." },
+        hint: "You can keep using the app: results appear as they are ready. No need to stay on this page.", done: "Analysis complete: {t} games ready.", failed: "{f} games could not be analyzed. Press Sync to try again." },
   es: { title: "Estamos preparando tu análisis", dl: "Descargando tus partidas…", prog: "{a} de {t} partidas analizadas", eta: "listas en unos {n} min", etaSoon: "casi listas",
-        hint: "Puedes seguir usando la app: los resultados aparecen poco a poco. No hace falta quedarse en esta página.", done: "Análisis completo: {t} partidas listas." },
+        hint: "Puedes seguir usando la app: los resultados aparecen poco a poco. No hace falta quedarse en esta página.", done: "Análisis completo: {t} partidas listas.", failed: "{f} partidas no se pudieron analizar. Pulsa Sincronizar para reintentar." },
 } as const;
 const f = (s: string, v: Record<string, number>) => Object.keys(v).reduce((a, k) => a.split(`{${k}}`).join(String(v[k])), s);
 
@@ -37,6 +37,7 @@ export default function InitBanner({ onDone }: { onDone: () => void }) {
   }, [call]); // eslint-disable-line
 
   if (just) return <div className="note ok" role="status">{f(L.done, { t: st?.total ?? 0 })}</div>;
+  if (st && st.state === "done" && st.failed > 0) return <div className="note err" role="status">{f(L.failed, { f: st.failed })}{st.error ? ` (${st.error})` : ""}</div>;
   if (!st || st.state !== "working") return null;
   const pct = st.total ? Math.round((100 * st.analyzed) / st.total) : 0;
   return (
