@@ -1,7 +1,8 @@
 name: nightly-analysis
-# Fase 2: parte mezz'ora dopo il download (sync.yml, 02:00 UTC) e analizza tutte le partite in attesa.
+# Notturno in un solo lavoro: prima scarica le partite nuove degli abbonati, poi le analizza (ordine garantito).
+# L'orario è in UTC (02:17 UTC = 03:17 in inverno, 04:17 in estate). Il minuto 17 evita l'ora piena, quando GitHub ritarda di più i lavori programmati.
 on:
-  schedule: [{ cron: "30 2 * * *" }]
+  schedule: [{ cron: "17 2 * * *" }]
   workflow_dispatch:
 concurrency: nightly-analysis
 jobs:
@@ -27,6 +28,7 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           ANALYZE_BUDGET_MIN: "300"
+          DOWNLOAD_FIRST: "1"
           STOCKFISH_PATH: /usr/games/stockfish
           LOCAL_DEPTH: "16"      # profondità per posizione (il servizio esterno usava 12)
           LOCAL_TIME: "4"        # tetto di secondi per posizione

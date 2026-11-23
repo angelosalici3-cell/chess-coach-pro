@@ -1,6 +1,6 @@
 name: nightly-sync
+# Ora solo a mano (il download notturno è dentro nightly-analysis). Utile per forzare un download senza analisi.
 on:
-  schedule: [{ cron: "0 2 * * *" }]
   workflow_dispatch:
 jobs:
   sync:
