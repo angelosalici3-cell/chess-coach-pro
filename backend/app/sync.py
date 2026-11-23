@@ -1,7 +1,6 @@
 """Download partite da Lichess / Chess.com, import in `games`, analisi in coda."""
 import datetime
 import threading
-import time
 import io
 import logging
 import re
@@ -132,10 +131,6 @@ def analyze_pending(email: str, limit: int) -> None:
 
 _running: set = set()
 _lock = threading.Lock()
-_jobs: dict = {}          # email -> avanzamento dell'ultima sincronizzazione manuale
-_failed: dict = {}        # email -> {id partita: istante} analisi fallite (non si ritentano in loop)
-_last_err: dict = {}      # email -> ultimo motivo di errore, mostrato all'utente
-FAIL_COOLDOWN = 1800      # secondi prima di ritentare una partita fallita
 SECONDS_PER_GAME = 35      # stima per il tempo mostrato all'utente
 
 
@@ -150,80 +145,6 @@ def is_running(email: str) -> bool:
     return email in _running
 
 
-def failed_ids(email: str) -> set:
-    """Partite la cui analisi è fallita da poco: non contano come "in attesa" né si ritentano in continuazione."""
-    now = time.time()
-    f = {k: t for k, t in _failed.get(email, {}).items() if now - t < FAIL_COOLDOWN}
-    _failed[email] = f
-    return set(f)
-
-
-def _fail(email: str, gid: str, e: Exception) -> None:
-    _failed.setdefault(email, {})[gid] = time.time()
-    _last_err[email] = (str(e) or e.__class__.__name__)[:160]
-
-
-def last_error(email: str):
-    return _last_err.get(email)
-
-
-def job_status(email: str) -> dict:
-    j = _jobs.get(email)
-    if not j:
-        return {"state": "idle"}
-    return dict(j, error=_last_err.get(email) if j.get("failed") else None)
-
-
-def start_job(email: str, limit: int, imported: int) -> dict:
-    """Prepara l'analisi delle partite non ancora analizzate (le più recenti prima). Restituisce lo stato iniziale."""
-    _failed.pop(email, None)           # un nuovo clic dà una nuova possibilità a tutte
-    _last_err.pop(email, None)
-    rows = (sb.table("games").select("id").eq("user_email", email).is_("analyzed_at", "null")
-            .not_.is_("user_color", "null").order("played_at", desc=True).limit(limit).execute().data)
-    ids = [r["id"] for r in rows]
-    with _lock:
-        busy = email in _running
-        if ids and not busy:
-            _running.add(email)
-    if not ids:
-        _jobs[email] = {"state": "done", "total": 0, "done": 0, "failed": 0, "imported": imported, "ok": 0}
-    elif busy:
-        _jobs[email] = {"state": "queued", "total": len(ids), "done": 0, "failed": 0, "imported": imported, "ok": 0}
-        ids = []
-    else:
-        _jobs[email] = {"state": "running", "total": len(ids), "done": 0, "failed": 0, "imported": imported, "ok": 0}
-    return {"ids": ids, "status": job_status(email)}
-
-
-def run_job(email: str, ids: list) -> None:
-    """Analizza le partite scelte, aggiornando il contatore dopo ognuna. Un secondo tentativo per le fallite."""
-    j = _jobs[email]
-    try:
-        for g in sorted(sb.table("games").select("*").in_("id", ids).execute().data, key=lambda x: x.get("played_at") or "", reverse=True):
-            ok = False
-            for attempt in (1, 2):
-                try:
-                    analyze_game(g); ok = True; break
-                except Exception as e:
-                    log.warning("analisi %s fallita (%s): %s", g["id"], attempt, e)
-                    if attempt == 2:
-                        _fail(email, g["id"], e)
-                    else:
-                        time.sleep(1.5)
-            j["done"] += 1
-            j["ok"] += ok
-            j["failed"] += (not ok)
-        try:
-            from .train import assign_cards
-            assign_cards(email)
-        except Exception as e:
-            log.warning("carte %s: %s", email, e)
-    finally:
-        j["state"] = "done"
-        with _lock:
-            _running.discard(email)
-
-
 def analyze_initial(email: str, tier: str) -> None:
     """Analizza TUTTE le partite iniziali del piano, dalla più recente, a piccoli gruppi. Una sola esecuzione per utente."""
     with _lock:
@@ -233,8 +154,7 @@ def analyze_initial(email: str, tier: str) -> None:
     tried: set = set()
     try:
         while True:
-            bad = failed_ids(email)
-            todo = [r["id"] for r in initial_rows(email, tier) if not r["analyzed_at"] and r["id"] not in tried and r["id"] not in bad][:4]
+            todo = [r["id"] for r in initial_rows(email, tier) if not r["analyzed_at"] and r["id"] not in tried][:4]
             if not todo:
                 break
             tried.update(todo)
@@ -243,7 +163,6 @@ def analyze_initial(email: str, tier: str) -> None:
                     analyze_game(g)
                 except Exception as e:
                     log.warning("analisi iniziale %s fallita: %s", g["id"], e)
-                    _fail(email, g["id"], e)
             try:  # le carte si assegnano man mano
                 from .train import assign_cards
                 assign_cards(email)

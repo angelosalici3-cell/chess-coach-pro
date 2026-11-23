@@ -10,7 +10,7 @@ from .db import sb
 
 log = logging.getLogger("mailer")
 FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
-BRAND = "Chess Coach"
+BRAND = "EloRise"
 NAVY, NAVY2, ORANGE, TEXT, MUTED = "#0b0f1e", "#141a33", "#ff6b3d", "#eaeefc", "#9aa4c7"
 
 
@@ -31,19 +31,19 @@ COPY = {
         "subscribed_title": "Grazie, sei nel piano {plan}",
         "subscribed_intro": "L'abbonamento è attivo. Da adesso hai tutto questo:",
         "welcome_subject": "Il tuo account è attivo: i piani e un video di 2 minuti",
-        "welcome_title": "Benvenuto in Chess Coach",
+        "welcome_title": "Benvenuto in EloRise",
         "welcome_intro": "Il tuo account è attivo. Collega Lichess o Chess.com e le tue partite vengono analizzate da sole: poi il Gran Maestro ti spiega gli errori che ripeti.",
         "video_title": "Guarda come funziona",
         "video_text": "In due minuti vedi tutte le funzioni dell'app.",
         "plans_title": "I piani",
-        "month": "/mese", "year": "/anno", "open": "Apri Chess Coach", "plans_cta": "Vedi i piani",
+        "month": "/mese", "year": "/anno", "open": "Apri EloRise", "plans_cta": "Vedi i piani",
         "acc": "{n} account collegati", "acc1": "1 account collegato",
         "les": "{n} lezioni del GM al mese", "lesU": "Lezioni del GM illimitate",
         "hist": "Fino a {n} partite di storico", "init": "{n} partite analizzate subito",
         "sync": "Download e analisi automatici ogni notte", "nosync": "Sincronizzazione manuale",
         "cards": "Carte da collezionare e allenamento sui tuoi errori",
         "manage": "Gestisci o disdici l'abbonamento quando vuoi dalla pagina Piani.",
-        "foot": "Hai ricevuto questa email perché hai creato un account su Chess Coach.",
+        "foot": "Hai ricevuto questa email perché hai creato un account su EloRise.",
         "next_title": "Da dove partire", "next": ["Collega il tuo account Lichess o Chess.com", "Aspetta la prima analisi: la vedi in Home", "Apri una partita e chiedi la lezione del GM su un errore"],
     },
     "en": {
@@ -51,19 +51,19 @@ COPY = {
         "subscribed_title": "Thank you, you're on {plan}",
         "subscribed_intro": "Your subscription is active. You now have all of this:",
         "welcome_subject": "Your account is active: the plans and a 2-minute video",
-        "welcome_title": "Welcome to Chess Coach",
+        "welcome_title": "Welcome to EloRise",
         "welcome_intro": "Your account is active. Connect Lichess or Chess.com and your games get analyzed on their own, then the Grandmaster explains the mistakes you keep repeating.",
         "video_title": "See how it works",
         "video_text": "Two minutes to see every feature of the app.",
         "plans_title": "The plans",
-        "month": "/mo", "year": "/yr", "open": "Open Chess Coach", "plans_cta": "See the plans",
+        "month": "/mo", "year": "/yr", "open": "Open EloRise", "plans_cta": "See the plans",
         "acc": "{n} linked accounts", "acc1": "1 linked account",
         "les": "{n} GM lessons per month", "lesU": "Unlimited GM lessons",
         "hist": "Up to {n} games of history", "init": "{n} games analyzed right away",
         "sync": "Automatic download and analysis every night", "nosync": "Manual sync",
         "cards": "Collectible cards and training on your own mistakes",
         "manage": "Manage or cancel your subscription any time from the Plans page.",
-        "foot": "You received this email because you created a Chess Coach account.",
+        "foot": "You received this email because you created a EloRise account.",
         "next_title": "Where to start", "next": ["Connect your Lichess or Chess.com account", "Wait for the first analysis: you'll see it on Home", "Open a game and ask the GM for a lesson on a mistake"],
     },
     "es": {
@@ -71,19 +71,19 @@ COPY = {
         "subscribed_title": "Gracias, ya estás en el plan {plan}",
         "subscribed_intro": "Tu suscripción está activa. Desde ahora tienes todo esto:",
         "welcome_subject": "Tu cuenta está activa: los planes y un vídeo de 2 minutos",
-        "welcome_title": "Bienvenido a Chess Coach",
+        "welcome_title": "Bienvenido a EloRise",
         "welcome_intro": "Tu cuenta está activa. Conecta Lichess o Chess.com y tus partidas se analizan solas; después el Gran Maestro te explica los errores que repites.",
         "video_title": "Mira cómo funciona",
         "video_text": "En dos minutos ves todas las funciones de la app.",
         "plans_title": "Los planes",
-        "month": "/mes", "year": "/año", "open": "Abrir Chess Coach", "plans_cta": "Ver los planes",
+        "month": "/mes", "year": "/año", "open": "Abrir EloRise", "plans_cta": "Ver los planes",
         "acc": "{n} cuentas conectadas", "acc1": "1 cuenta conectada",
         "les": "{n} lecciones del GM al mes", "lesU": "Lecciones del GM ilimitadas",
         "hist": "Hasta {n} partidas de historial", "init": "{n} partidas analizadas al instante",
         "sync": "Descarga y análisis automáticos cada noche", "nosync": "Sincronización manual",
         "cards": "Cartas coleccionables y entrenamiento con tus errores",
         "manage": "Gestiona o cancela tu suscripción cuando quieras desde la página Planes.",
-        "foot": "Recibes este correo porque creaste una cuenta en Chess Coach.",
+        "foot": "Recibes este correo porque creaste una cuenta en EloRise.",
         "next_title": "Por dónde empezar", "next": ["Conecta tu cuenta de Lichess o Chess.com", "Espera el primer análisis: lo ves en Inicio", "Abre una partida y pide al GM una lección sobre un error"],
     },
 }
@@ -178,7 +178,7 @@ def send(to: str, subject: str, html: str) -> bool:
         import httpx
         r = httpx.post("https://api.resend.com/emails", timeout=15,
                        headers={"Authorization": f"Bearer {key}"},
-                       json={"from": os.environ.get("MAIL_FROM", "Chess Coach <onboarding@resend.dev>"), "to": [to], "subject": subject, "html": html,
+                       json={"from": os.environ.get("MAIL_FROM", "EloRise <onboarding@resend.dev>"), "to": [to], "subject": subject, "html": html,
                              "reply_to": os.environ.get("MAIL_REPLY_TO") or None})
         if r.status_code >= 300:
             log.error("Resend %s: %s", r.status_code, r.text[:200])

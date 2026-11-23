@@ -149,8 +149,8 @@ const C = {
   cardFail: x("Non sono riuscito a creare il file. Riprova.", "Couldn't create the file. Try again.", "No pude crear el archivo. Inténtalo de nuevo."),
   cardClose: x("Chiudi", "Close", "Cerrar"),
   cardOpenGame: x("Apri la partita", "Open the game", "Abrir la partida"),
-  cardShareText: x("Ho battuto {opp} in {n} mosse. La mia carta su Chess Coach #ChessCoach #scacchi", "I beat {opp} in {n} moves. My card on Chess Coach #ChessCoach #chess", "Vencí a {opp} en {n} jugadas. Mi carta en Chess Coach #ChessCoach #ajedrez"),
-  cardShareTextNoWin: x("La mia carta su Chess Coach #ChessCoach #scacchi", "My card on Chess Coach #ChessCoach #chess", "Mi carta en Chess Coach #ChessCoach #ajedrez"),
+  cardShareText: x("Ho battuto {opp} in {n} mosse. La mia carta su EloRise #EloRise #scacchi", "I beat {opp} in {n} moves. My card on EloRise #EloRise #chess", "Vencí a {opp} en {n} jugadas. Mi carta en EloRise #EloRise #ajedrez"),
+  cardShareTextNoWin: x("La mia carta su EloRise #EloRise #scacchi", "My card on EloRise #EloRise #chess", "Mi carta en EloRise #EloRise #ajedrez"),
   rarCommon: x("COMUNE", "COMMON", "COMÚN"), rarRare: x("RARA", "RARE", "RARA"), rarEpic: x("EPICA", "EPIC", "ÉPICA"), rarLegendary: x("LEGGENDARIA", "LEGENDARY", "LEGENDARIA"),
   cWin: x("Vittoria", "Win", "Victoria"), cLoss: x("Sconfitta", "Loss", "Derrota"), cDraw: x("Patta", "Draw", "Tablas"),
   cMe: x("TU", "YOU", "TÚ"), cOpp: x("VS", "VS", "VS"), cMoves: x("mosse", "moves", "jugadas"), cAcc: x("PREC.", "ACC.", "PREC."),
@@ -173,7 +173,7 @@ const C = {
   openAsWhite: x("col Bianco", "as White", "con Blancas"), openAsBlack: x("col Nero", "as Black", "con Negras"),
   openWins: x("vittorie", "wins", "victorias"),
   shieldShare: x("Condividi", "Share", "Compartir"),
-  shieldShareText: x("Ho conquistato lo scudo {name} ({tier}) su Chess Coach #ChessCoach #scacchi", "I earned the {name} shield ({tier}) on Chess Coach #ChessCoach #chess", "Conseguí el escudo {name} ({tier}) en Chess Coach #ChessCoach #ajedrez"),
+  shieldShareText: x("Ho conquistato lo scudo {name} ({tier}) su EloRise #EloRise #scacchi", "I earned the {name} shield ({tier}) on EloRise #EloRise #chess", "Conseguí el escudo {name} ({tier}) en EloRise #EloRise #ajedrez"),
 } as const;
 
 export type TK = keyof typeof C;

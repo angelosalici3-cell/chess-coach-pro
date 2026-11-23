@@ -6,7 +6,7 @@ export type OStep = { id: string; href?: string; title: L3<string>; body: L3<str
 /** Il minicorso: ogni passo spiega una funzione e porta alla pagina giusta ("Provalo ora"). */
 export const STEPS: OStep[] = [
   { id: "welcome",
-    title: { it: "Benvenuto in Chess Coach", en: "Welcome to Chess Coach", es: "Bienvenido a Chess Coach" },
+    title: { it: "Benvenuto in EloRise", en: "Welcome to EloRise", es: "Bienvenido a EloRise" },
     body: { it: "Un minuto per scoprire come trasformare le tue partite in allenamento. Puoi rivedere questa guida quando vuoi dal pulsante Guida.", en: "One minute to see how your games become training. You can reopen this guide any time from the Guide button.", es: "Un minuto para ver cómo tus partidas se convierten en entrenamiento. Puedes volver a abrir esta guía cuando quieras desde el botón Guía." },
     points: { it: ["Analizza le partite di Lichess e Chess.com", "Capisce dove perdi punti e te lo spiega", "Ti fa allenare proprio su quegli errori"], en: ["Analyzes your Lichess and Chess.com games", "Finds where you lose points and explains it", "Trains you on those exact mistakes"], es: ["Analiza tus partidas de Lichess y Chess.com", "Encuentra dónde pierdes puntos y te lo explica", "Te entrena justo en esos errores"] } },
   { id: "connect", href: "/dashboard/accounts",

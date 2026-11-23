@@ -19,7 +19,7 @@ export default function Achievements({ onProgress }: { onProgress: () => void })
     try {
       const name = shieldTitle(s.id, lang), tier = [tc("tierBronze", lang), tc("tierSilver", lang), tc("tierGold", lang)][s.tier - 1];
       const png = await makeShieldPng({ id: s.id, tier: s.tier, title: name, tierLabel: tier, detail: `${s.value} ${shieldUnit(s.id, lang)}`, brand: "CHESS COACH" }, await cardFonts());
-      const r = await shareOrSave(png, `chess-coach-${s.id}-${s.tier}.png`, tc("shieldShareText", lang, { name, tier }));
+      const r = await shareOrSave(png, `elorise-${s.id}-${s.tier}.png`, tc("shieldShareText", lang, { name, tier }));
       setMsg(r === "shared" ? tc("cardShared", lang) : r === "saved" ? tc("cardSaved", lang) : "");
     } catch { setErr(tc("cardFail", lang)); }
   };

@@ -40,7 +40,7 @@ export default function CardCelebration() {
       if (!b) { const f = await cardFonts(); await prepare(c, lang, f); b = await getFile(key); }
       if (b) {
         const g = c.game, won = g.result !== "1/2-1/2" && (g.result === "1-0") === (g.color === "white");
-        await shareOrSave(b, `chess-coach-${c.goal}.gif`, won ? tc("cardShareText", lang, { opp: g.opp, n: Math.ceil(g.sans.length / 2) }) : tc("cardShareTextNoWin", lang));
+        await shareOrSave(b, `elorise-${c.goal}.gif`, won ? tc("cardShareText", lang, { opp: g.opp, n: Math.ceil(g.sans.length / 2) }) : tc("cardShareTextNoWin", lang));
       }
     } catch { /* l'utente può riprovare dall'album */ }
     setBusy(false);

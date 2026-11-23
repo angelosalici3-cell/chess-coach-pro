@@ -153,7 +153,7 @@ def analyze_game(game: dict) -> None:
     fresh: dict = {}
     move_rows, err_rows, losses, prev = [], [], [], 0.0
     miss = 0  # valutazioni non ricevute dal motore (limite di richieste, rete)
-    with httpx.Client(headers={"User-Agent": "ChessCoachPro/1.0"}) as c:
+    with httpx.Client(headers={"User-Agent": "EloRise/1.0"}) as c:
         def ev(fen):
             if fen not in cache:
                 k = fkey(fen)

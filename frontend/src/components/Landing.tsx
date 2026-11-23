@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { LangSwitch, useLang } from "./lang";
 import { Logo } from "./Logo";
-import HeroBoard from "./HeroBoard";
+import PlayBoard from "./PlayBoard";
 import { COPY, Copy } from "../lib/landing-copy";
 import { BRAND, SUPPORT } from "../lib/brand";
 import { supabase } from "../lib/supabase";
@@ -41,7 +41,7 @@ function Nav({ c }: { c: Copy }) {
 
 /* ---------- hero ---------- */
 function Hero({ c }: { c: Copy }) {
-  const [san, setSan] = useState("");
+  const { lang } = useLang();
   return (
     <section className="lp-hero">
       <div className="lp-aurora" aria-hidden="true"><i /><i /></div>
@@ -57,13 +57,7 @@ function Hero({ c }: { c: Copy }) {
         </div>
         <div className="lp-hero-board">
           <div className="lp-board-glow" aria-hidden="true" />
-          <HeroBoard onMove={(s) => setSan(s)} />
-          <div className="lp-float lp-float-a" aria-hidden="true">
-            <span className="lp-tag">{c.hero.example}</span>
-            <b>{c.hero.cardTitle}</b>
-            <p>{c.hero.cardText}</p>
-          </div>
-          <div className="lp-float lp-float-b" aria-live="off"><span className="lp-san">{san || "e4"}</span></div>
+          <PlayBoard lang={lang} />
         </div>
       </div>
     </section>

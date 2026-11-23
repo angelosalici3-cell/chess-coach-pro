@@ -58,7 +58,7 @@ export async function shareOrSave(blob: Blob, filename: string, text: string): P
   const file = new File([blob], filename, { type: blob.type });
   const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
   if (nav.canShare?.({ files: [file] })) {
-    try { await nav.share({ files: [file], text, title: "Chess Coach" }); return "shared"; }
+    try { await nav.share({ files: [file], text, title: "EloRise" }); return "shared"; }
     catch (e: any) { if (e?.name === "AbortError") return "cancelled"; }
   }
   const url = URL.createObjectURL(blob), a = document.createElement("a");

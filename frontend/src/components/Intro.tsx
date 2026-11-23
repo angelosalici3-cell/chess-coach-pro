@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { Logo } from "./Logo";
+import { Logo, Wordmark } from "./Logo";
 
 const MIN_MS = 1500;     // l'intro si vede almeno questo tempo, anche se i dati sono già pronti
 const MAX_MS = 9000;     // e non resta mai bloccata se i dati non arrivano
@@ -45,7 +45,7 @@ export default function Intro({ ready }: { ready: boolean }) {
           <circle className="intro-arc" cx="70" cy="70" r="62" fill="none" stroke="url(#introGrad)" strokeWidth="4" strokeLinecap="round" strokeDasharray="110 280" />
         </svg>
         <div className="intro-logo"><Logo size={64} text={false} /></div>
-        <div className="intro-name">Chess Coach</div>
+        <div className="intro-name"><Wordmark /></div>
       </div>
     </div>
   );

@@ -13,7 +13,7 @@ stripe.api_key = os.environ["STRIPE_SECRET_KEY"]
 print(f"# modalità: {'TEST' if stripe.api_key.startswith('sk_test') else 'LIVE'}")
 for key in ("Plus", "Pro", "Elite"):
     p = PLANS[key]
-    prod = stripe.Product.create(name=f"Chess Coach {key}", metadata={"plan": key})
+    prod = stripe.Product.create(name=f"EloRise {key}", metadata={"plan": key})
     for interval, amount, suffix in (("month", p.price_eur, ""), ("year", p.price_year_eur, "_YEAR")):
         price = stripe.Price.create(product=prod.id, currency="eur", unit_amount=round(amount * 100),
                                     recurring={"interval": interval}, metadata={"plan": key})

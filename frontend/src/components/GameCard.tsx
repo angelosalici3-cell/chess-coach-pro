@@ -82,7 +82,7 @@ export default function GameCard({ card, still = false, showTools = false }: { c
       const blob = cached ?? (kind === "gif" ? await makeGif(view, pos, fonts) : kind === "png" ? await makePng(view, pos, fonts) : await makeVideo(view, pos, fonts));
       if (!blob) throw new Error("unsupported");
       const ext = kind === "gif" ? "gif" : kind === "png" ? "png" : blob.type.includes("mp4") ? "mp4" : "webm";
-      const r = await shareOrSave(blob, `chess-coach-${card.goal}-${card.id}.${ext}`, text);
+      const r = await shareOrSave(blob, `elorise-${card.goal}-${card.id}.${ext}`, text);
       setMsg(r === "shared" ? tc("cardShared", lang) : r === "saved" ? tc("cardSaved", lang) : "");
     } catch { setMsg(tc("cardFail", lang)); }
     setBusy("");

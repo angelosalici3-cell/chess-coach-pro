@@ -1,6 +1,6 @@
 {
-  "name": "Chess Coach",
-  "short_name": "Chess Coach",
+  "name": "EloRise",
+  "short_name": "EloRise",
   "description": "Il tuo Gran Maestro AI: analizza le partite, allenati sui tuoi errori.",
   "id": "/dashboard",
   "start_url": "/dashboard",

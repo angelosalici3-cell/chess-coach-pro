@@ -19,12 +19,12 @@ export const COPY: Record<Lang, Copy> = {
   it: {
     nav: { features: "Funzioni", how: "Come funziona", pricing: "Prezzi", faq: "Domande", login: "Accedi" },
     hero: {
-      title: "Un Gran Maestro che studia le tue partite.",
-      sub: "Collega Lichess o Chess.com. L'app analizza ogni partita, trova gli errori che continui a ripetere e te li spiega come farebbe un allenatore.",
+      title: "Smetti di perdere sempre allo stesso modo.",
+      sub: "EloRise legge le tue partite su Lichess e Chess.com, scova gli errori che ripeti e li trasforma in allenamento. Sali di Elo, non di frustrazione.",
       cta: "Inizia gratis", cta2: "Guarda come funziona", note: "Nessuna carta per cominciare.",
       cardTitle: "Lezione del GM", cardText: "Hai mosso un pezzo senza controllare se era difeso.", example: "esempio",
     },
-    marquee: ["Lichess", "Chess.com", "Motore Stockfish", "Gran Maestro AI", "Italiano, English, Español", "Sincronizzazione notturna", "Statistiche per apertura"],
+    marquee: ["EloRise", "Lichess", "Chess.com", "Motore Stockfish", "Gran Maestro AI", "Italiano, English, Español", "Sincronizzazione notturna", "Statistiche per apertura"],
     how: {
       title: "Dalla partita alla lezione in tre passi",
       sub: "Non devi caricare nulla a mano.",
@@ -83,12 +83,12 @@ export const COPY: Record<Lang, Copy> = {
   en: {
     nav: { features: "Features", how: "How it works", pricing: "Pricing", faq: "FAQ", login: "Log in" },
     hero: {
-      title: "A grandmaster that studies your games.",
-      sub: "Connect Lichess or Chess.com. The app analyzes every game, finds the mistakes you keep repeating and explains them the way a coach would.",
+      title: "Stop losing the same way every time.",
+      sub: "EloRise reads your games on Lichess and Chess.com, spots the mistakes you keep repeating and turns them into training. Climb in Elo, not in frustration.",
       cta: "Start free", cta2: "See how it works", note: "No card needed to start.",
       cardTitle: "GM lesson", cardText: "You moved a piece without checking if it was defended.", example: "example",
     },
-    marquee: ["Lichess", "Chess.com", "Stockfish engine", "AI Grandmaster", "Italiano, English, Español", "Nightly sync", "Opening statistics"],
+    marquee: ["EloRise", "Lichess", "Chess.com", "Stockfish engine", "AI Grandmaster", "Italiano, English, Español", "Nightly sync", "Opening statistics"],
     how: {
       title: "From game to lesson in three steps",
       sub: "You never upload anything by hand.",
@@ -147,12 +147,12 @@ export const COPY: Record<Lang, Copy> = {
   es: {
     nav: { features: "Funciones", how: "Cómo funciona", pricing: "Precios", faq: "Preguntas", login: "Entrar" },
     hero: {
-      title: "Un gran maestro que estudia tus partidas.",
-      sub: "Conecta Lichess o Chess.com. La app analiza cada partida, encuentra los errores que repites y te los explica como lo haría un entrenador.",
+      title: "Deja de perder siempre de la misma forma.",
+      sub: "EloRise lee tus partidas de Lichess y Chess.com, detecta los errores que repites y los convierte en entrenamiento. Sube de Elo, no de frustración.",
       cta: "Empieza gratis", cta2: "Mira cómo funciona", note: "No hace falta tarjeta para empezar.",
       cardTitle: "Lección del GM", cardText: "Moviste una pieza sin comprobar si estaba defendida.", example: "ejemplo",
     },
-    marquee: ["Lichess", "Chess.com", "Motor Stockfish", "Gran Maestro IA", "Italiano, English, Español", "Sincronización nocturna", "Estadísticas por apertura"],
+    marquee: ["EloRise", "Lichess", "Chess.com", "Motor Stockfish", "Gran Maestro IA", "Italiano, English, Español", "Sincronización nocturna", "Estadísticas por apertura"],
     how: {
       title: "De la partida a la lección en tres pasos",
       sub: "No tienes que subir nada a mano.",
