@@ -62,7 +62,8 @@ input { width: 100%; } input:focus, select:focus { border-color: var(--ember); o
 .pagehead { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; margin: .2rem 0 .8rem; }
 .pagehead h1 { font-size: clamp(1.5rem, 3.5vw, 2.1rem); margin: 0; }
 @media (max-width: 860px) {
-  .shell { grid-template-columns: minmax(0, 1fr); }
+  .shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); align-content: start; }
+  .topbar { align-self: start; }
   .side { display: none; }
   .topbar { display: flex; justify-content: space-between; align-items: center; padding: .7rem 1rem; position: sticky; top: 0; z-index: 20; background: rgba(11, 15, 30, .86); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
   .tabbar { display: grid; grid-template-columns: repeat(5, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; background: rgba(14, 20, 48, .94); backdrop-filter: blur(14px); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
