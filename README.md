@@ -220,3 +220,6 @@ Le analisi fatte sul server (primo caricamento di un utente) restano a profondit
 
 ### v3.18
 - Analisi: una sola barra di sezioni (Partite · Lezioni GM · Aperture); tolti il doppio selettore e il titolo ripetuto.
+
+### v3.19
+- Home: un solo contatore di analisi alla volta (la sincronizzazione in corso sostituisce il banner dell'analisi iniziale).

@@ -232,7 +232,8 @@ export default function Home() {
           {job.state === "done" && job.failed > 0 && <div className="note err" style={{ marginTop: ".5rem" }}>{fm(SY.fail, { f: job.failed })}{job.error ? ` (${job.error})` : ""} <Link href="/dashboard/diag" className="accent">{lang === "en" ? "Check status" : lang === "es" ? "Ver estado" : "Controlla lo stato"}</Link></div>}
         </div>
       )}
-      <InitBanner onDone={() => { bust(); load(); refreshMe(); }} />
+      {/* un solo contatore alla volta: se è in corso una sincronizzazione, il suo conteggio sostituisce quello dell'analisi iniziale */}
+      {!(job && (job.state === "running" || job.state === "queued")) && <InitBanner onDone={() => { bust(); load(); refreshMe(); }} />}
       {info && <div className="note">{info}</div>}
       {err && <div className="note err">{err}</div>}
 
