@@ -1,4 +1,4 @@
-# Chess Coach Pro
+# EloRise
 - `backend/`  FastAPI (Render/Railway). Root directory: `backend`. Start: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
 - `frontend/` Next.js (Vercel). Root directory: `frontend`
 - `supabase/` migrazioni SQL da eseguire in ordine nel SQL Editor (001, poi 002)
@@ -85,7 +85,7 @@ Le carte vengono assegnate dal backend subito dopo l'analisi di una partita. L'a
 
 ## Email (verifica, benvenuto, grazie abbonamento)
 1. **Resend** (resend.com, piano gratuito 3.000 mail/mese): aggiungi il tuo dominio, inserisci i record DNS che ti mostra, crea una API key.
-2. **Render**: `RESEND_API_KEY`, `MAIL_FROM` (es. `Chess Coach <ciao@tuodominio.it>`), `EMAIL_VIDEO_URL` (link YouTube del video, anche "non in elenco"). Opzionale `EMAIL_VIDEO_THUMB` per un'immagine di anteprima tua.
+2. **Render**: `RESEND_API_KEY`, `MAIL_FROM` (es. `EloRise <ciao@tuodominio.it>`), `EMAIL_VIDEO_URL` (link YouTube del video, anche "non in elenco"). Opzionale `EMAIL_VIDEO_THUMB` per un'immagine di anteprima tua.
 3. **Supabase SQL**: esegui `supabase/010_email_log.sql`.
 4. **Verifica account**: Supabase > Authentication > Providers > Email: attiva "Confirm email". Authentication > Emails > SMTP Settings: host `smtp.resend.com`, porta 465, utente `resend`, password = la API key, mittente = `MAIL_FROM`. Poi Templates > "Confirm signup": incolla `supabase/email-templates/confirm-signup.html`.
 5. **Benvenuto con piani e video**: parte da sola, una volta, al primo accesso dopo l'attivazione (anche per chi entra con Google). **Grazie per l'abbonamento**: parte dal webhook Stripe a ogni nuovo abbonamento.
@@ -156,7 +156,7 @@ Le analisi fatte sul server (primo caricamento di un utente) restano a profondit
 
 ## v3.7 – Nuovo nome: EloRise
 - Il nome è in un solo posto: `frontend/src/lib/brand.ts` (`BRAND`, `SUPPORT`). Il logo scrive "Elo" in bianco e "Rise" in arancio (`Wordmark` in `Logo.tsx`).
-- Sostituito "Chess Coach" in app, PWA (manifest, offline), email (`mailer.py`), titolo API, User-Agent, template Supabase, nomi file e hashtag di condivisione.
+- Sostituito "EloRise" in app, PWA (manifest, offline), email (`mailer.py`), titolo API, User-Agent, template Supabase, nomi file e hashtag di condivisione.
 - Da fare a mano: acquistare `elorise.app`, impostare `FRONTEND_URL`, `MAIL_FROM` ("EloRise <noreply@elorise.app>") e `MAIL_REPLY_TO` (Vercel/Render), verificare il dominio su Resend, creare la casella `support@elorise.app` (compare nello User-Agent verso Lichess/Chess.com) e rinominare il template email su Supabase (Auth > Email Templates, incolla `supabase/email-templates/confirm-signup.html`).
 - Stripe: i prodotti già creati si rinominano dalla dashboard (lo script cambia solo i nuovi).
 - Home: scacchiera giocabile (`PlayBoard.tsx`, testi in `lib/play-copy.ts`). Il Coach commenta ogni mossa del Bianco; il Nero risponde con una euristica semplice. Il punteggio mostrato è dimostrativo.
@@ -173,3 +173,20 @@ Le analisi fatte sul server (primo caricamento di un utente) restano a profondit
 - **Analisi delle partite appena caricate:** la causa più probabile è il servizio online di analisi che rifiuta le richieste dal server (limiti). Il messaggio d'errore ora lo dice. Soluzione: Stockfish sul server.
   - Render Python: Build Command `pip install -r requirements.txt && bash scripts/get_stockfish.sh`, variabili `LOCAL_DEPTH=12`, `LOCAL_TIME=0.8`, `LOCAL_HASH=32` (il percorso `backend/bin/stockfish` si trova da solo).
   - In alternativa: `backend/Dockerfile` (Render > Web Service > Docker, Root Directory `backend`), Stockfish incluso.
+
+## v3.10 — menu nuovo, home, installazione, diagnostica
+
+**Cosa cambia**
+- Menu a 5 voci: Home · Analisi (Partite + Aperture) · **Gioca** (pulsante centrale in evidenza) · Allenati · Premi.
+- Home: "Missione di oggi" in 3 passi (gioca, ripassa gli errori, studia una lezione) con serie di giorni.
+- Scacchiera della home più piccola, 3 partite commentate in rotazione (Opera di Parigi, matto di Légal, matto del barbiere), emoji di reazione sulla casa di arrivo, badge "!!" ingrandito.
+- Logo allineato alle voci del menu.
+- Installazione: voce "Installa l'app" nel menu, banner che ritorna dopo 3 giorni, avviso "Nuova versione pronta" con pulsante Aggiorna (service worker v2).
+- Pagina **/dashboard/diag** (menu → Stato analisi): controlla colonne, motore, servizi.
+- Dopo la sincronizzazione compare l'errore di download, se c'è.
+
+**Da fare tu**
+1. Supabase → SQL Editor: esegui `supabase/012_analysis_depth.sql` (e 011 se non l'hai fatto). È la causa più probabile delle analisi ferme.
+2. Rilancia backend e frontend. Su Render imposta Build Command `pip install -r requirements.txt && bash scripts/get_stockfish.sh` e variabili `LOCAL_DEPTH=12 LOCAL_TIME=0.8 LOCAL_HASH=32`.
+3. Apri Menu → Stato analisi e controlla che tutte le righe siano verdi.
+4. Icona nuova: chi ha già installato l'app deve disinstallarla e reinstallarla.

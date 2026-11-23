@@ -143,6 +143,30 @@ def eval_fen(client: httpx.Client, fen: str):
     return None, None
 
 
+def eval_cloud(client: httpx.Client, fen: str):
+    """Valutazione dalla memoria pubblica di Lichess (gratis, molte posizioni comuni): (pedoni dal Bianco, miglior mossa SAN, profondità) o (None, None, 0)."""
+    global _api_err
+    try:
+        r = client.get("https://lichess.org/api/cloud-eval", params={"fen": fen, "multiPv": 1}, timeout=6.0)
+        if r.status_code != 200:
+            return None, None, 0
+        d = r.json(); pv = (d.get("pvs") or [None])[0]
+        if not pv:
+            return None, None, 0
+        if pv.get("mate") is not None:
+            ev = 100.0 if int(pv["mate"]) > 0 else -100.0
+        elif pv.get("cp") is not None:
+            ev = float(pv["cp"]) / 100.0
+        else:
+            return None, None, 0
+        first = (pv.get("moves") or "").split()
+        san = chess.Board(fen).san(chess.Move.from_uci(first[0])) if first else None
+        return ev, san, int(d.get("depth") or 0)
+    except Exception as e:
+        log.info("cloud-eval: %s", e)
+        return None, None, 0
+
+
 def analyze_game(game: dict) -> None:
     pg = chess.pgn.read_game(io.StringIO(game["pgn"]))
     color = game.get("user_color")
@@ -171,7 +195,11 @@ def analyze_game(game: dict) -> None:
                     dep = LOCAL_DEPTH
                     cache[fen] = eval_local(fen) if STOCKFISH else (None, None)
                     if cache[fen][0] is None:
-                        cache[fen], dep = eval_fen(c, fen), DEPTH      # senza motore locale, o se ha fallito: servizio esterno
+                        ce, cs, cd = eval_cloud(c, fen)                # memoria pubblica di Lichess: gratis e senza limiti stretti
+                        if ce is not None:
+                            cache[fen], dep = (ce, cs), max(cd, 1)
+                        else:
+                            cache[fen], dep = eval_fen(c, fen), DEPTH  # ultimo ripiego: servizio esterno
                     if cache[fen][0] is not None:
                         fresh[k] = (cache[fen][0], cache[fen][1], dep)
             return cache[fen]
@@ -221,9 +249,17 @@ def analyze_game(game: dict) -> None:
     if err_rows:
         sb.table("errori_utenti").upsert(err_rows, on_conflict="user_email,game_id,ply").execute()
     acc = round(max(0.0, 100 - 40 * (sum(losses) / len(losses))), 1) if losses else None
-    upd = {"analyzed_at": now, "analysis_depth": NOW_DEPTH, "accuracy_user": acc}
-    try:  # momenti salienti (rimonta, mosse brillanti); se la colonna non esiste ancora, l'analisi si salva comunque
-        sb.table("games").update({**upd, "highlights": highlights_from_moves(move_rows, color)}).eq("id", game["id"]).execute()
-    except Exception:
-        sb.table("games").update(upd).eq("id", game["id"]).execute()
+    base = {"analyzed_at": now, "accuracy_user": acc}
+    hl = highlights_from_moves(move_rows, color)
+    last = None
+    # colonne facoltative (profondità, momenti salienti): se mancano nel database l'analisi si salva comunque, senza di esse
+    for extra in ({"analysis_depth": NOW_DEPTH, "highlights": hl}, {"highlights": hl}, {"analysis_depth": NOW_DEPTH}, {}):
+        try:
+            sb.table("games").update({**base, **extra}).eq("id", game["id"]).execute()
+            last = None
+            break
+        except Exception as e:
+            last = e
+    if last:
+        raise last
     log.info("analizzata %s: %d errori; posizioni %d, dalla memoria %d, dal motore %d", game["id"], len(err_rows), len(set(keys)), len(set(keys) & set(shared)), len(fresh))

@@ -19,7 +19,7 @@ from .db import sb
 from .engine import analyze_game
 from . import cache, mailer
 from .auth import current_user, tier_from, tier_of
-from .sync import SECONDS_PER_GAME, analyze_initial, analyze_pending, failed_ids, import_history, initial_rows, is_running, job_status, last_error, onboard, run_cron, start_job, run_job, sync_user
+from .sync import _fetch_err, SECONDS_PER_GAME, analyze_initial, analyze_pending, failed_ids, import_history, initial_rows, is_running, job_status, last_error, onboard, run_cron, start_job, run_job, sync_user
 from .promo import attribute_checkout, attribute_renewal, checkout_discount, is_admin, promo_for, router as promo_router
 from .train import router as train_router
 
@@ -163,12 +163,30 @@ def list_games(u=Depends(current_user)):
     return out
 
 
+def _moves_from_pgn(g: dict) -> list:
+    """Mosse dal PGN (senza valutazioni): per le partite scaricate e non ancora analizzate."""
+    import chess, chess.pgn, io as _io
+    out = []
+    try:
+        pg = chess.pgn.read_game(_io.StringIO(g["pgn"]))
+        board, white = pg.board(), (g.get("user_color") == "white")
+        for i, mv in enumerate(pg.mainline_moves()):
+            san = board.san(mv); board.push(mv)
+            out.append({"game_id": g["id"], "ply": i + 1, "san": san, "uci": mv.uci(), "fen_after": board.fen(), "eval_cp": None,
+                        "best_move_san": None, "classification": None, "is_user_move": ((i % 2 == 0) == white) if g.get("user_color") else False})
+    except Exception:
+        return []
+    return out
+
+
 @app.get("/games/{game_id}")
 def get_game(game_id: str, u=Depends(current_user)):
     g = sb.table("games").select("*").eq("id", game_id).eq("user_email", u["email"]).limit(1).execute().data
     if not g:
         raise HTTPException(404, "not_found")
     moves = sb.table("moves").select("*").eq("game_id", game_id).order("ply").execute().data
+    if not moves and g[0].get("pgn"):
+        moves = _moves_from_pgn(g[0])   # partita non ancora analizzata: le mosse si vedono comunque, leggendo il PGN
     errors = sb.table("errori_utenti").select("*").eq("game_id", game_id).eq("user_email", u["email"]).order("ply").execute().data
     prev = 0
     for m in moves:  # perdita di valutazione (centesimi di pedone) di chi ha mosso, 0 se la mossa migliora la posizione
@@ -533,7 +551,7 @@ def sync(bg: BackgroundTasks, n: int = 15, u=Depends(current_user)):
     job = start_job(u["email"], limit, imported)
     if job["ids"]:
         bg.add_task(run_job, u["email"], job["ids"])
-    return {"imported": imported, "job": job["status"]}
+    return {"imported": imported, "job": job["status"], "fetch_error": _fetch_err.get(u["email"])}
 
 
 @app.get("/sync/status")
@@ -557,3 +575,32 @@ def cron_sync(bg: BackgroundTasks, x_cron_secret: str = Header(None)):
         raise HTTPException(403, "forbidden")
     bg.add_task(run_cron)
     return {"started": True}
+
+
+@app.get("/diag")
+def diag(u=Depends(current_user)):
+    """Controlli rapidi per capire perché un'analisi non parte: database, colonne, motore, servizi esterni."""
+    import httpx as _hx
+    from . import engine as E
+    out = []
+    def add(name, ok, detail=""): out.append({"name": name, "ok": bool(ok), "detail": str(detail)[:200]})
+    for col in ("analysis_depth", "highlights", "accuracy_user", "analyzed_at"):
+        try:
+            sb.table("games").select(col).limit(1).execute(); add(f"colonna games.{col}", True)
+        except Exception as e:
+            add(f"colonna games.{col}", False, str(e) + "  -> esegui supabase/012_analysis_depth.sql")
+    try:
+        sb.table("eval_cache").select("fen").limit(1).execute(); add("tabella eval_cache", True)
+    except Exception as e:
+        add("tabella eval_cache", False, str(e) + "  -> esegui supabase/011_eval_cache.sql")
+    add("Stockfish sul server", bool(E.STOCKFISH), E.STOCKFISH or "assente: si usa il servizio online (può rifiutare le richieste)")
+    if E.STOCKFISH:
+        ev, san = E.eval_local("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"); add("Stockfish risponde", ev is not None, f"{ev} {san}")
+    with _hx.Client(headers={"User-Agent": "EloRise/1.0"}) as c:
+        ce, cs, cd = E.eval_cloud(c, "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1"); add("memoria pubblica Lichess", ce is not None, f"{ce} {cs} profondità {cd}")
+        ev, san = E.eval_fen(c, "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1"); add("servizio online chess-api.com", ev is not None, E._api_err or f"{ev} {san}")
+        try:
+            r = c.get("https://lichess.org/api/user/lichess", timeout=8.0); add("Lichess raggiungibile", r.status_code == 200, f"HTTP {r.status_code}")
+        except Exception as e:
+            add("Lichess raggiungibile", False, e)
+    return out

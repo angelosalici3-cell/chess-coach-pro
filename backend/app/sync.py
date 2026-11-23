@@ -17,11 +17,16 @@ log = logging.getLogger("sync")
 UA = {"User-Agent": "EloRise/1.0 (support@elorise.app)"}
 
 
+_fetch_err: dict = {}     # email -> ultimo errore di download
+
+
 def fetch_lichess(username: str, n: int) -> list[str]:
     r = httpx.get(f"https://lichess.org/api/games/user/{username.lower()}", params={"max": n, "opening": "true", "clocks": "true"},
                   headers={**UA, "Accept": "application/x-chess-pgn"}, timeout=25.0 if n <= 100 else 180.0)
-    if r.status_code != 200:
+    if r.status_code == 404:
         return []
+    if r.status_code != 200:
+        raise RuntimeError(f"Lichess ha risposto {r.status_code}")
     out, buf = [], io.StringIO(r.text)
     while (g := chess.pgn.read_game(buf)):
         out.append(str(g))
@@ -75,6 +80,7 @@ def _sync_profile(email: str, p: dict, n: int) -> int:
         pgns = fetch_lichess(p["username"], n) if src == "lichess" else fetch_chesscom(p["username"], n)
     except Exception as e:
         log.warning("fetch %s/%s: %s", src, p["username"], e)
+        _fetch_err[email] = f"{src}: {e}"
         sb.table("profili_scacchi").update({"last_sync_at": datetime.datetime.now(datetime.timezone.utc).isoformat()}).eq("id", p["id"]).execute()
         return 0
     rows = [r for r in (to_row(email, src, x, p["username"]) for x in pgns) if r]
@@ -96,6 +102,7 @@ def _sync_profile(email: str, p: dict, n: int) -> int:
 
 
 def sync_user(email: str, n: int = 15) -> int:
+    _fetch_err.pop(email, None)
     imported = 0
     for p in sb.table("profili_scacchi").select("*").eq("user_email", email).execute().data:
         if p["piattaforma"] in ("lichess", "chesscom"):
