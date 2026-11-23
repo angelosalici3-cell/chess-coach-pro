@@ -201,3 +201,6 @@ Le analisi fatte sul server (primo caricamento di un utente) restano a profondit
 
 ### v3.13
 - Hero: colonna dei commenti a dimensione fissa (non sposta più la scacchiera), commenti max 3 righe, ultimi 3 visibili, pausa con icona centrata, animazione ferma a scheda nascosta; pulsanti "Inizia gratis" / "Guarda come funziona" più leggibili.
+
+### v3.14
+- Hero (desktop): occupa esattamente la prima schermata sotto la barra del menu; titolo e scacchiera si adattano all'altezza, pulsanti sempre visibili.

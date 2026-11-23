@@ -794,3 +794,13 @@ a.dr-btn { padding: .55rem .8rem; border: 1px solid var(--line-2); border-radius
 @media (max-width: 860px) {
   .lv-side { height: 15.5rem; }
 }
+
+/* ===== v3.14: l'hero sta tutta nella prima schermata, sotto la barra del menu (68px) ===== */
+@media (min-width: 861px) {
+  .lp-hero { min-height: calc(100svh - 69px); display: flex; align-items: center; padding: 1rem 0 1.4rem; box-sizing: border-box; }
+  .lp-hero > .lp-wrap { width: 100%; }
+  .lp-hero h1 { font-size: clamp(2.2rem, min(5vw, 8.6svh), 4.4rem); margin-bottom: .9rem; }
+  .lp-lead { font-size: clamp(1rem, min(1.5vw, 2.7svh), 1.2rem); }
+  .lp-cta-row { margin: 1.1rem 0 .6rem; }
+  .lv-grid { grid-template-columns: 10px minmax(0, min(60%, calc(100svh - 69px - 2.4rem - 16px))) minmax(0, 1fr); }
+}
