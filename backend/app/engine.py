@@ -21,7 +21,8 @@ API = "https://chess-api.com/v1"
 DEPTH = 12            # profondità del servizio esterno
 # Stockfish in locale: se il programma è installato (STOCKFISH_PATH oppure nel PATH) si usa quello, senza limiti di richieste e più in profondità.
 # Sul server Render non c'è e si resta sul servizio esterno; nel lavoro notturno su GitHub viene installato (vedi analyze.yml).
-STOCKFISH = os.environ.get("STOCKFISH_PATH") or shutil.which("stockfish")
+_LOCAL_BIN = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "bin", "stockfish")   # scaricato da scripts/get_stockfish.sh
+STOCKFISH = os.environ.get("STOCKFISH_PATH") or shutil.which("stockfish") or (_LOCAL_BIN if os.path.exists(_LOCAL_BIN) else None)
 LOCAL_DEPTH = int(os.environ.get("LOCAL_DEPTH", "16"))
 LOCAL_TIME = float(os.environ.get("LOCAL_TIME", "4"))        # tetto di secondi per posizione
 LOCAL_HASH = int(os.environ.get("LOCAL_HASH", "64"))         # MB per motore
@@ -114,11 +115,17 @@ def eval_local(fen: str):
         return None, None
 
 
+_api_err = ""   # ultimo motivo per cui il servizio online non ha risposto (si legge nel messaggio d'errore mostrato all'utente)
+
+
 def eval_fen(client: httpx.Client, fen: str):
     """(valutazione in pedoni dal lato del Bianco, miglior mossa SAN) oppure (None, None)."""
+    global _api_err
     for i in range(3):
         try:
             r = client.post(API, json={"fen": fen, "depth": DEPTH}, timeout=12.0)
+            if r.status_code != 200:
+                _api_err = f"servizio online HTTP {r.status_code}"
             if r.status_code == 200:
                 d = r.json()
                 ev = None
@@ -131,6 +138,7 @@ def eval_fen(client: httpx.Client, fen: str):
                 return ev, d.get("san")
         except Exception as e:
             log.warning("eval fallita: %s", e)
+            _api_err = f"servizio online non raggiungibile ({e.__class__.__name__})"
         time.sleep(0.6 * (i + 1))
     return None, None
 
@@ -207,7 +215,7 @@ def analyze_game(game: dict) -> None:
     cache_put(fresh)   # anche se l'analisi risulta incompleta: le valutazioni arrivate non vanno rifatte al prossimo tentativo
     if moves and miss > max(2, 0.1 * len(moves)):
         # troppe valutazioni mancanti: non si salva niente e la partita resta "da analizzare", così riprova alla prossima esecuzione
-        raise RuntimeError(f"analisi incompleta: {miss}/{len(moves)} mosse senza valutazione")
+        raise RuntimeError(f"analisi incompleta: {miss}/{len(moves)} mosse senza valutazione" + ("" if STOCKFISH else f" ({_api_err or 'motore locale assente'}; installa Stockfish sul server)"))
     if move_rows:
         sb.table("moves").upsert(move_rows, on_conflict="game_id,ply").execute()
     if err_rows:
