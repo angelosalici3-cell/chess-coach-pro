@@ -19,7 +19,7 @@ from .db import sb
 from .engine import analyze_game
 from . import cache, mailer
 from .auth import current_user, tier_from, tier_of
-from .sync import SECONDS_PER_GAME, analyze_initial, analyze_pending, import_history, initial_rows, is_running, onboard, run_cron, sync_user
+from .sync import SECONDS_PER_GAME, analyze_initial, analyze_pending, failed_ids, import_history, initial_rows, is_running, job_status, last_error, onboard, run_cron, start_job, run_job, sync_user
 from .promo import attribute_checkout, attribute_renewal, checkout_discount, is_admin, promo_for, router as promo_router
 from .train import router as train_router
 
@@ -503,12 +503,15 @@ def onboarding_status(bg: BackgroundTasks, u=Depends(current_user)):
         return {"state": "no_profile"}
     rows = initial_rows(email, tier)
     target = get_plan(tier).initial_games
-    pending = sum(1 for r in rows if not r["analyzed_at"])
+    bad = failed_ids(email)
+    pending = sum(1 for r in rows if not r["analyzed_at"] and r["id"] not in bad)
+    failed = sum(1 for r in rows if not r["analyzed_at"] and r["id"] in bad)
     importing = any(not p.get("last_sync_at") for p in profs)
     if not importing and pending and not is_running(email):
         bg.add_task(analyze_initial, email, tier)  # se il server era stato riavviato, riprende da dove era rimasto
     state = "working" if (importing or pending) else "done"
-    return {"state": state, "target": target, "total": len(rows), "analyzed": len(rows) - pending, "pending": pending,
+    return {"state": state, "target": target, "total": len(rows), "analyzed": len(rows) - pending - failed, "pending": pending,
+            "failed": failed, "error": last_error(email) if failed else None,
             "importing": importing, "eta_min": max(1, round(pending * SECONDS_PER_GAME / 60)) if pending else 0}
 
 
@@ -522,13 +525,20 @@ def sync_history(bg: BackgroundTasks, u=Depends(current_user)):
 
 @app.post("/sync")
 def sync(bg: BackgroundTasks, n: int = 15, u=Depends(current_user)):
+    """Scarica le ultime partite e le analizza subito: il contatore si segue con GET /sync/status."""
     tier = tier_of(u["email"])
     imported = sync_user(u["email"], max(5, min(n, 100)))
     cache.bust(u["email"])
-    limit = 3 if tier == "Free" else 8
-    bg.add_task(analyze_pending, u["email"], limit)
-    pending = sb.table("games").select("id", count="exact").eq("user_email", u["email"]).is_("analyzed_at", "null").not_.is_("user_color", "null").execute().count or 0
-    return {"imported": imported, "analyzing": min(limit, pending), "pending": pending}
+    limit = 3 if tier == "Free" else 40
+    job = start_job(u["email"], limit, imported)
+    if job["ids"]:
+        bg.add_task(run_job, u["email"], job["ids"])
+    return {"imported": imported, "job": job["status"]}
+
+
+@app.get("/sync/status")
+def sync_status(u=Depends(current_user)):
+    return job_status(u["email"])
 
 
 @app.post("/games/{game_id}/analyze")

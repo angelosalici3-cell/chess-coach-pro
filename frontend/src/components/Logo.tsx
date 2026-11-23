@@ -2,27 +2,22 @@ import { useId } from "react";
 import { BRAND } from "../lib/brand";
 
 export function LogoMark({ size = 36 }: { size?: number }) {
+  // Un pedone che sale una scalinata di case della scacchiera: gli scacchi e la crescita dell'Elo in un solo segno.
   const u = useId().replace(/[^a-zA-Z0-9]/g, "");
-  const bg = `lmbg${u}`, pc = `lmpc${u}`;
+  const bg = `lmbg${u}`;
+  const sq: [number, number, string][] = [
+    [12.5, 40.5, "#e9eeff"], [26, 27, "#e9eeff"], [26, 40.5, "#6d7fb3"], [39.5, 27, "#6d7fb3"], [39.5, 40.5, "#e9eeff"],
+  ];
   return (
     <svg width={size} height={size} viewBox="0 0 64 64" aria-hidden="true">
-      <defs>
-        <linearGradient id={bg} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#222c5e" /><stop offset="1" stopColor="#0b0f1e" /></linearGradient>
-        <linearGradient id={pc} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#ffffff" /><stop offset="1" stopColor="#c9d3f5" /></linearGradient>
-      </defs>
+      <defs><linearGradient id={bg} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#222c5e" /><stop offset="1" stopColor="#0b0f1e" /></linearGradient></defs>
       <rect width="64" height="64" rx="16" fill={`url(#${bg})`} />
       <rect x=".5" y=".5" width="63" height="63" rx="15.5" fill="none" stroke="#fff" strokeOpacity=".14" />
-      <g fill={`url(#${pc})`}>
-        <path d="M21 24 L19 11 L26 19 L32 8 L38 19 L45 11 L43 24 Z" />
-        <rect x="21.5" y="25" width="21" height="4" rx="2" />
-        <path d="M25 29.5 H39 L42.5 46 H21.5 Z" />
-        <rect x="17.5" y="47" width="29" height="6.5" rx="3" />
+      {sq.map(([x, y, f]) => <rect key={x + "-" + y} x={x} y={y} width="12" height="12" rx="2" fill={f} />)}
+      <g fill="#ff6b3d" transform="translate(39.5 11.5)">
+        <circle cx="6" cy="3.7" r="3.5" /><rect x="2.4" y="7.3" width="7.2" height="1.8" rx=".9" />
+        <path d="M4 9 H8 L10 13.2 H2 Z" /><rect x=".9" y="12.6" width="10.2" height="2.9" rx="1.3" />
       </g>
-      <g fill="#ff6b3d"><circle cx="19" cy="11" r="2.3" /><circle cx="32" cy="8" r="2.6" /><circle cx="45" cy="11" r="2.3" /></g>
-      <g fill="none" stroke="#ff6b3d" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M32 32 V41" /><path d="M32 37 H36.5" /><path d="M42.5 38 H48 L51 35" /><path d="M21.5 38 H16 L13 41" />
-      </g>
-      <g fill="#ff6b3d"><circle cx="32" cy="42.5" r="1.8" /><circle cx="37.5" cy="37" r="1.6" /><circle cx="51.5" cy="34.5" r="2" /><circle cx="12.5" cy="41.5" r="2" /></g>
     </svg>
   );
 }

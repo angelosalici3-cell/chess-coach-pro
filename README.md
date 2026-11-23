@@ -160,3 +160,9 @@ Le analisi fatte sul server (primo caricamento di un utente) restano a profondit
 - Da fare a mano: acquistare `elorise.app`, impostare `FRONTEND_URL`, `MAIL_FROM` ("EloRise <noreply@elorise.app>") e `MAIL_REPLY_TO` (Vercel/Render), verificare il dominio su Resend, creare la casella `support@elorise.app` (compare nello User-Agent verso Lichess/Chess.com) e rinominare il template email su Supabase (Auth > Email Templates, incolla `supabase/email-templates/confirm-signup.html`).
 - Stripe: i prodotti già creati si rinominano dalla dashboard (lo script cambia solo i nuovi).
 - Home: scacchiera giocabile (`PlayBoard.tsx`, testi in `lib/play-copy.ts`). Il Coach commenta ogni mossa del Bianco; il Nero risponde con una euristica semplice. Il punteggio mostrato è dimostrativo.
+
+## v3.8 – Sincronizza che analizza + nuovo logo
+- **Sincronizza** ora scarica, mostra "Scaricate N nuove partite" e le analizza subito con un contatore reale ("Analizzo 3 di 8"). Endpoint `GET /sync/status`. Free: 3 partite per clic, piani a pagamento: fino a 40.
+- **Contatore fermo (43/50):** le partite non analizzate venivano ritentate all'infinito se il motore online falliva. Ora ogni partita fallita si riprova una volta, poi si ferma per 30 minuti e l'app dice quante sono e perché (testo dell'errore). Un nuovo clic su Sincronizza le riprova tutte.
+- **Motore sul server (consigliato):** `backend/scripts/get_stockfish.sh` scarica Stockfish durante la build su Render. Build Command: `pip install -r requirements.txt && bash scripts/get_stockfish.sh`; variabile `STOCKFISH_PATH` = percorso stampato nell'ultima riga del log (`.../backend/bin/stockfish`). Script non provato qui: controlla il log di build.
+- **Logo nuovo:** un pedone che sale una scalinata di case della scacchiera. Cartella `brand/`: icona, marchio a colori, in nero, in bianco, a due colori, e lockup con "EloRise" già trasformato in tracciati. File dell'app (icon, apple-touch, maskable, og) rigenerati.
