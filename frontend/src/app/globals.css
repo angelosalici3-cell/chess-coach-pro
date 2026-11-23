@@ -804,3 +804,15 @@ a.dr-btn { padding: .55rem .8rem; border: 1px solid var(--line-2); border-radius
   .lp-cta-row { margin: 1.1rem 0 .6rem; }
   .lv-grid { grid-template-columns: 10px minmax(0, min(60%, calc(100svh - 69px - 2.4rem - 16px))) minmax(0, 1fr); }
 }
+
+/* ===== v3.15: logo allineato al menu (il link conteneva un elemento "inline" che alzava il testo) ===== */
+.lp-nav-in > a:first-child, .side > a, .topbar a[aria-label="Home"] { display: flex; align-items: center; line-height: 1; }
+.logo { display: flex; align-items: center; line-height: 1; }
+.logo-text { line-height: 1; display: block; }
+.lp-links { align-items: center; } .lp-links a { line-height: 1; }
+@media (min-width: 861px) {
+  .lp-hero h1 { font-size: clamp(2rem, min(4.6vw, 7.4svh), 4.2rem); line-height: 1; }
+  .lp-hero { padding: .6rem 0 1rem; }
+  .lp-lead { margin-top: 0; }
+  .lp-note { margin: 0; }
+}

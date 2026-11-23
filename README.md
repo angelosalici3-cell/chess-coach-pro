@@ -204,3 +204,6 @@ Le analisi fatte sul server (primo caricamento di un utente) restano a profondit
 
 ### v3.14
 - Hero (desktop): occupa esattamente la prima schermata sotto la barra del menu; titolo e scacchiera si adattano all'altezza, pulsanti sempre visibili.
+
+### v3.15
+- Logo allineato verticalmente alle voci del menu (sito e app); titolo dell'hero più compatto per far stare i pulsanti nella prima schermata.
