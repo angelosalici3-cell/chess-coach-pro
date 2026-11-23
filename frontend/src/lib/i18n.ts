@@ -41,6 +41,7 @@ const S = {
   deleteAcc: { it: "Elimina il mio account", en: "Delete my account", es: "Eliminar mi cuenta" },
   deleteConfirm: { it: "Eliminare definitivamente account e dati? L'azione non è reversibile.", en: "Permanently delete your account and data? This cannot be undone.", es: "¿Eliminar definitivamente tu cuenta y datos? No se puede deshacer." },
   navHome: { it: "Home", en: "Home", es: "Inicio" },
+  navAnalysis: { it: "Analisi", en: "Analysis", es: "Análisis" },
   navPlay: { it: "Gioca", en: "Play", es: "Jugar" },
   navLessons: { it: "Lezioni GM", en: "GM lessons", es: "Lecciones GM" },
   sync: { it: "Sincronizza partite", en: "Sync games", es: "Sincronizar partidas" },
@@ -163,7 +164,7 @@ const S = {
   accountFilter: { it: "Account", en: "Account", es: "Cuenta" },
   speedFilter: { it: "Ritmo", en: "Time control", es: "Ritmo" },
   navRewards: { it: "Premi", en: "Rewards", es: "Premios" },
-  navTrain: { it: "Allenamento", en: "Training", es: "Entrenamiento" },
+  navTrain: { it: "Allenati", en: "Train", es: "Entrena" },
 } as const;
 export type K = keyof typeof S;
 export const tr = (k: K, l: Lang) => S[k][l];

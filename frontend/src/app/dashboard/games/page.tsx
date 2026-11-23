@@ -5,6 +5,7 @@ import GamesList from "../../../components/GamesList";
 import Lessons from "../../../components/Lessons";
 import { Seg } from "../../../components/ui/Seg";
 import { u } from "../../../lib/ui-copy";
+import AnalysisTabs from "../../../components/AnalysisTabs";
 
 export default function GamesPage() {
   const { lang } = useApp();
@@ -13,6 +14,7 @@ export default function GamesPage() {
   const pick = (v: "games" | "lessons") => { setTab(v); window.history.replaceState(null, "", v === "games" ? "?" : `?tab=${v}`); };
   return (
     <>
+      <AnalysisTabs />
       <div className="pagehead">
         <h1>{tab === "games" ? u("gTitle", lang) : u("tabLessons", lang)}</h1>
         <Seg<"games" | "lessons"> value={tab} onChange={pick} items={[{ v: "games", label: u("tabGames", lang) }, { v: "lessons", label: u("tabLessons", lang) }]} />

@@ -1,11 +1,11 @@
 /* Service worker: rende l'app installabile e mostra una pagina offline.
    Non mette mai in cache le chiamate API, il login o i dati personali. */
-const VERSION = "v1";
+const VERSION = "v2";
 const STATIC = `static-${VERSION}`;
 const OFFLINE = "/offline.html";
 
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(STATIC).then((c) => c.addAll([OFFLINE, "/icon-192.png", "/logo.svg"])).then(() => self.skipWaiting()));
+  e.waitUntil(caches.open(STATIC).then((c) => c.addAll([OFFLINE, "/icon-192.png", "/logo.svg"])));
 });
 self.addEventListener("activate", (e) => {
   e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== STATIC).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
@@ -24,3 +24,5 @@ self.addEventListener("fetch", (e) => {
     })));
   }
 });
+
+self.addEventListener("message", (e) => { if (e.data === "SKIP_WAITING") self.skipWaiting(); });

@@ -21,11 +21,10 @@ export const useApp = () => useContext(C);
 const I = (d: string) => (
   <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={d} /></svg>
 );
-const NAV: { href: string; k: K; icon: React.ReactNode }[] = [
+const NAV: { href: string; k: K; icon: React.ReactNode; match?: string[]; hero?: boolean }[] = [
   { href: "/dashboard", k: "navHome", icon: I("M3 11l9-8 9 8M5 10v10h14V10") },
-  { href: "/dashboard/play", k: "navPlay", icon: I("M7 4l13 8-13 8z") },
-  { href: "/dashboard/games", k: "navGames", icon: I("M4 4h16v16H4zM4 12h16M12 4v16") },
-  { href: "/dashboard/openings", k: "navOpenings", icon: I("M6 4v16M6 8h6a4 4 0 014 4v8M6 14h10") },
+  { href: "/dashboard/games", k: "navAnalysis", icon: I("M4 19V9M10 19V5M16 19v-7M22 19H2"), match: ["/dashboard/games", "/dashboard/openings", "/dashboard/lessons"] },
+  { href: "/dashboard/play", k: "navPlay", icon: I("M7 4l13 8-13 8z"), hero: true },
   { href: "/dashboard/train", k: "navTrain", icon: I("M13 2L4 14h7l-1 8 9-12h-7z") },
   { href: "/dashboard/rewards", k: "navRewards", icon: I("M8 21h8M12 17v4M7 4h10v5a5 5 0 01-10 0zM17 5h3v2a3 3 0 01-3 3M7 5H4v2a3 3 0 003 3") },
 ];
@@ -147,7 +146,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   if (!ready || !session) return <><Intro ready={false} /></>;
 
-  const on = (h: string) => (h === "/dashboard" ? path === "/dashboard" : path.startsWith(h));
+  const on = (n: { href: string; match?: string[] }) => (n.href === "/dashboard" ? path === "/dashboard" : (n.match || [n.href]).some((m) => path.startsWith(m)));
   const burger = (
     <button className="burger" onClick={() => setMenu(true)} aria-label={tMenu[lang]} aria-expanded={menu}>
       <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
@@ -161,7 +160,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <aside className="side">
           <Link href="/" aria-label="Home"><Logo size={34} /></Link>
           <nav aria-label="App">
-            {NAV.map((n) => <Link key={n.href} href={n.href} className={on(n.href) ? "on" : ""}>{n.icon}<span>{t(n.k)}</span></Link>)}
+            {NAV.map((n) => <Link key={n.href} href={n.href} className={(on(n) ? "on" : "") + (n.hero ? " hero" : "")}>{n.icon}<span>{t(n.k)}</span></Link>)}
           </nav>
           <div className="side-foot">
             <div className="who"><span className="pill-tier">{me?.tier || "…"}</span><span className="small muted ellip">{session.user.email}</span></div>
@@ -174,7 +173,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </header>
         <main className="content">{children}</main>
         <nav className="tabbar" aria-label="App">
-          {NAV.map((n) => <Link key={n.href} href={n.href} className={on(n.href) ? "on" : ""}>{n.icon}<span>{t(n.k)}</span></Link>)}
+          {NAV.map((n) => <Link key={n.href} href={n.href} className={(on(n) ? "on" : "") + (n.hero ? " hero" : "")}>{n.hero ? <b className="tab-play">{n.icon}</b> : n.icon}<span>{t(n.k)}</span></Link>)}
         </nav>
       </div>
       <Drawer open={menu} onClose={closeMenu} me={me} lang={lang} email={session.user.email || ""} onGuide={() => setGuide(true)} onLogout={logout} />

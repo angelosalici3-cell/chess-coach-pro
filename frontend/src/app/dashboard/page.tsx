@@ -12,7 +12,7 @@ const SYNC = {
 import { useApp } from "../../components/app";
 import { MultiLineChart } from "../../components/Charts";
 import { K, tr } from "../../lib/i18n";
-import TodayCard from "../../components/TodayCard";
+import Mission from "../../components/Mission";
 import TimeCard from "../../components/TimeCard";
 import PatternCard from "../../components/PatternCard";
 
@@ -131,6 +131,7 @@ export default function Home() {
     try {
       const r = await call("/sync", { method: "POST" });
       setJob(r.job);
+      if (r.fetch_error) setErr(String(r.fetch_error));
       if (r.job?.state === "done") { bust(); load(); refreshMe(); }
     } catch (e: any) { setErr(e.message); }
     setBusy(false);
@@ -141,7 +142,6 @@ export default function Home() {
       <div className="pagehead">
         <h1>{t("navHome")}</h1>
         <div className="row" style={{ gap: ".5rem" }}>
-          <Link href="/dashboard/play" className="btn btn-sm">{t("navPlay")}</Link>
           <button className="btn btn-primary" onClick={sync} disabled={busy}>{busy ? t("syncing") : t("sync")}</button>
         </div>
       </div>
@@ -156,11 +156,11 @@ export default function Home() {
             </>
           )}
           {job.state === "done" && job.total > 0 && <div className="muted small" style={{ marginTop: ".25rem" }}>{fm(SY.done, { o: job.ok })}</div>}
-          {job.state === "done" && job.failed > 0 && <div className="note err" style={{ marginTop: ".5rem" }}>{fm(SY.fail, { f: job.failed })}{job.error ? ` (${job.error})` : ""}</div>}
+          {job.state === "done" && job.failed > 0 && <div className="note err" style={{ marginTop: ".5rem" }}>{fm(SY.fail, { f: job.failed })}{job.error ? ` (${job.error})` : ""} <Link href="/dashboard/diag" className="accent">{lang === "en" ? "Check status" : lang === "es" ? "Ver estado" : "Controlla lo stato"}</Link></div>}
         </div>
       )}
       <InitBanner onDone={() => { bust(); load(); refreshMe(); }} />
-      <TodayCard />
+      <Mission />
       {info && <div className="note">{info}</div>}
       {err && <div className="note err">{err}</div>}
 

@@ -8,15 +8,15 @@ const D = {
   it: { menu: "Menu", close: "Chiudi menu", usage: "Piano e consumi", plan: "Piano", ai: "Lezioni AI questo mese", bonus: "Lezioni bonus", chess: "Account scacchi collegati",
         renew: "Rinnovo o scadenza", none: "Nessuna scadenza", free: "Piano gratuito: nessun rinnovo", data: "Dati account", email: "Email", since: "Iscritto dal",
         manage: "Gestione account", linked: "Account scacchi", plans: "Piano e abbonamento", del: "Elimina account", manual: "Manuale dell'app", manualHint: "Come usare l'app, passo dopo passo",
-        lang: "Lingua", promo: "Codici promo", logout: "Esci", site: "Sito", unlimited: "illimitate", upgrade: "Cambia piano" },
+        lang: "Lingua", install: "Installa l'app", installHint: "Aggiungi EloRise alla schermata Home", diag: "Stato analisi", diagHint: "Controlla perché una partita non si analizza", promo: "Codici promo", logout: "Esci", site: "Sito", unlimited: "illimitate", upgrade: "Cambia piano" },
   en: { menu: "Menu", close: "Close menu", usage: "Plan and usage", plan: "Plan", ai: "AI lessons this month", bonus: "Bonus lessons", chess: "Linked chess accounts",
         renew: "Renewal or expiry", none: "No expiry", free: "Free plan: no renewal", data: "Account details", email: "Email", since: "Member since",
         manage: "Manage account", linked: "Chess accounts", plans: "Plan and subscription", del: "Delete account", manual: "App manual", manualHint: "How to use the app, step by step",
-        lang: "Language", promo: "Promo codes", logout: "Log out", site: "Website", unlimited: "unlimited", upgrade: "Change plan" },
+        lang: "Language", install: "Install the app", installHint: "Add EloRise to your Home screen", diag: "Analysis status", diagHint: "Check why a game isn't being analysed", promo: "Promo codes", logout: "Log out", site: "Website", unlimited: "unlimited", upgrade: "Change plan" },
   es: { menu: "Menú", close: "Cerrar menú", usage: "Plan y consumo", plan: "Plan", ai: "Lecciones IA este mes", bonus: "Lecciones extra", chess: "Cuentas de ajedrez vinculadas",
         renew: "Renovación o vencimiento", none: "Sin vencimiento", free: "Plan gratuito: sin renovación", data: "Datos de la cuenta", email: "Correo", since: "Miembro desde",
         manage: "Gestión de la cuenta", linked: "Cuentas de ajedrez", plans: "Plan y suscripción", del: "Eliminar cuenta", manual: "Manual de la app", manualHint: "Cómo usar la app, paso a paso",
-        lang: "Idioma", promo: "Códigos promo", logout: "Salir", site: "Sitio web", unlimited: "ilimitadas", upgrade: "Cambiar plan" },
+        lang: "Idioma", install: "Instalar la app", installHint: "Añade EloRise a la pantalla de inicio", diag: "Estado del análisis", diagHint: "Comprueba por qué una partida no se analiza", promo: "Códigos promo", logout: "Salir", site: "Sitio web", unlimited: "ilimitadas", upgrade: "Cambiar plan" },
 } as const;
 
 const LOC: Record<Lang, string> = { it: "it-IT", en: "en-GB", es: "es-ES" };
@@ -78,6 +78,13 @@ export default function Drawer({ open, onClose, me, lang, email, onGuide, onLogo
             <Link href="/dashboard/plans" onClick={onClose} className="dr-link">{x.plans}</Link>
             <Link href="/dashboard/plans#delete" onClick={onClose} className="dr-link dr-danger">{x.del}</Link>
             {me?.is_admin && <Link href="/dashboard/promo" onClick={onClose} className="dr-link">{x.promo}</Link>}
+          </section>
+
+          <section>
+            <h3>{x.install}</h3>
+            <p className="muted small" style={{ margin: "0 0 .5rem" }}>{x.installHint}</p>
+            <button className="btn-out dr-btn" onClick={go(() => window.dispatchEvent(new Event("pwa-open")))}>⬇ {x.install}</button>
+            <Link href="/dashboard/diag" onClick={onClose} className="dr-link">{x.diag}</Link>
           </section>
 
           <section>

@@ -127,3 +127,30 @@ export const LIVE: Record<Lang, L> = {
     ],
   },
 };
+
+// ---------- Tre partite in rotazione ----------
+export type Tag = "sac" | "brill" | "mate" | "check";
+export type Game = { id: string; sans: string[]; emo: string[]; tags: Record<number, Tag>; name: Record<Lang, string>; lines: Record<Lang, string[]> };
+
+const LEGAL_SAN = "e4 e5 Nf3 d6 Bc4 Bg4 Nc3 g6 Nxe5 Bxd1 Bxf7+ Ke7 Nd5#".split(" ");
+const SCHOLAR_SAN = "e4 e5 Bc4 Nc6 Qh5 Nf6 Qxf7#".split(" ");
+
+export const GAMES: Game[] = [
+  { id: "legal", sans: LEGAL_SAN, emo: ["🚀","🪞","🐴","🛡️","🎯","📌","🛠️","🙄","💣","😈","👀","😬","🏆"], tags: { 8: "brill", 10: "check", 12: "mate" },
+    name: { it: "Il matto di Légal (1750)", en: "Légal's mate (1750)", es: "El mate de Légal (1750)" },
+    lines: {
+      it: ["Si parte con il pedone di re: classico.", "Il Nero risponde allo specchio.", "Cavallo fuori: attacca e5.", "Il Nero difende, ma resta un po' chiuso.", "Alfiere puntato su f7, il punto debole.", "Alfiere che inchioda il cavallo: sembra forte, ma attenzione.", "Il Bianco sviluppa. Sta preparando qualcosa...", "Il Nero muove un pedone che non serviva.", "Sacrificio! Il cavallo prende e5 e lascia la donna in presa.", "Il Nero abbocca e si prende la donna.", "Scacco! L'alfiere entra in f7.", "Il re è costretto a salire. Il cappio si stringe.", "Matto di Légal! Tre pezzi leggeri battono una donna."],
+      en: ["Starting with the king's pawn: classic.", "Black answers in the mirror.", "Knight out: hits e5.", "Black defends, but stays a bit cramped.", "Bishop aimed at f7, the weak spot.", "Bishop pins the knight: looks strong, but careful.", "White develops. Something is brewing...", "Black pushes a pawn that wasn't needed.", "Sacrifice! The knight takes e5 and leaves the queen hanging.", "Black bites and takes the queen.", "Check! The bishop lands on f7.", "The king has to step up. The noose tightens.", "Légal's mate! Three minor pieces beat a queen."],
+      es: ["Se empieza con el peón de rey: clásico.", "Las negras responden al espejo.", "Caballo fuera: ataca e5.", "Las negras defienden, pero quedan algo encerradas.", "Alfil apuntando a f7, el punto débil.", "Alfil que clava el caballo: parece fuerte, pero cuidado.", "Las blancas desarrollan. Algo se cocina...", "Las negras mueven un peón innecesario.", "¡Sacrificio! El caballo toma e5 y deja la dama en prise.", "Las negras muerden el anzuelo y toman la dama.", "¡Jaque! El alfil entra en f7.", "El rey tiene que subir. El lazo se aprieta.", "¡Mate de Légal! Tres piezas menores vencen a una dama."],
+    } },
+  { id: "scholar", sans: SCHOLAR_SAN, emo: ["🚀","🪞","🎯","🐴","👸","😱","🏆"], tags: { 6: "mate" },
+    name: { it: "Il matto del barbiere", en: "Scholar's mate", es: "El mate del pastor" },
+    lines: {
+      it: ["Si apre col pedone di re.", "Risposta classica.", "Alfiere su f7: la minaccia è già lì.", "Sviluppa il cavallo, ma non ha visto il pericolo.", "La donna esce presto: doppia minaccia su e5 e f7.", "Attacca la donna... ma dimentica f7!", "Matto del barbiere! Morale: proteggi sempre f7."],
+      en: ["Opening with the king's pawn.", "Classic reply.", "Bishop on f7's diagonal: the threat is already there.", "Develops the knight, but missed the danger.", "Queen out early: double threat on e5 and f7.", "Attacks the queen... but forgets f7!", "Scholar's mate! Moral: always guard f7."],
+      es: ["Se abre con el peón de rey.", "Respuesta clásica.", "Alfil en la diagonal de f7: la amenaza ya está.", "Desarrolla el caballo, pero no vio el peligro.", "Dama temprano: doble amenaza en e5 y f7.", "Ataca la dama... ¡pero olvida f7!", "¡Mate del pastor! Moraleja: protege siempre f7."],
+    } },
+  { id: "opera", sans: SAN, emo: EMO, tags: TAG as Record<number, Tag>,
+    name: { it: "L'Opera di Parigi (1858)", en: "The Paris Opera game (1858)", es: "La partida de la Ópera (1858)" },
+    lines: { it: LIVE.it.lines, en: LIVE.en.lines, es: LIVE.es.lines } },
+];
