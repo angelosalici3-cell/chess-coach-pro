@@ -1,0 +1,14 @@
+TESTO PER LA VOCE (italiano, tono giovane e diretto) - circa 53 secondi
+
+0:00  [logo, nessuna voce o solo "Chess Coach"]
+0:04  "Giochi tante partite, ma gli errori tornano sempre. Capire dove sbagli è la parte difficile."
+0:09  "Chess Coach analizza ogni partita: arrivano da Lichess o Chess.com, un motore le valuta mossa per mossa e ti mostra errori e imprecisioni."
+0:16  "Poi il Gran Maestro ti spiega perché: l'errore, l'idea giusta e la regola da ricordare. Una lezione sulle tue partite."
+0:23  "Alleni proprio i tuoi punti deboli: esercizi su misura e ripasso nel tempo, pochi minuti al giorno."
+0:30  "E collezioni carte rare: ogni volta che batti un avversario più forte di te, ogni cento punti, arriva la sua carta."
+0:37  "Guardi i tuoi progressi e scopri quali aperture funzionano davvero."
+0:43  "Parti gratis, cresci quando vuoi."
+0:48  "Chess Coach. Allenati sulle tue partite. Inizia gratis."
+
+Per mixare la voce (voce.mp3) sulla musica:
+ffmpeg -i chess-coach-infografica-it.mp4 -i voce.mp3 -filter_complex "[0:a]volume=0.35[m];[1:a]volume=1.4[v];[m][v]amix=inputs=2:duration=first:normalize=0[a]" -map 0:v -map "[a]" -c:v copy -c:a aac chess-coach-infografica-it-voce.mp4

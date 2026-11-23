@@ -1,0 +1,12 @@
+TESTO PER LA VOCE (italiano, tono giovane e diretto) - durata totale circa 49 secondi
+Leggi a ritmo vivace, con pause brevi tra le scene. Tempi indicativi dal video.
+
+0:00  "Perdi sempre allo stesso modo? Con Chess Coach smetti di ripetere gli stessi errori."
+0:05  "Collega il tuo account Lichess o Chess.com. Le tue partite arrivano da sole e vengono analizzate in pochi minuti."
+0:13  "Il motore Stockfish valuta ogni mossa e ti fa vedere subito dove hai perso la partita."
+0:24  "Poi chiedi aiuto al Gran Maestro: ti spiega l'errore, l'idea giusta e la regola da ricordare."
+0:35  "E mentre migliori collezioni carte rare, anche quando batti avversari più forti di te."
+0:43  "Chess Coach. Inizia gratis."
+
+Per aggiungere la voce al video (file voce.mp3 registrato o generato):
+ffmpeg -i chess-coach-presentazione.mp4 -i voce.mp3 -filter_complex "[0:a]volume=0.35[m];[1:a]volume=1.4[v];[m][v]amix=inputs=2:duration=first:normalize=0[a]" -map 0:v -map "[a]" -c:v copy -c:a aac chess-coach-con-voce.mp4
