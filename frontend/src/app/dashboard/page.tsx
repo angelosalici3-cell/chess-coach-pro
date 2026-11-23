@@ -5,9 +5,9 @@ import InitBanner from "../../components/InitBanner";
 import type { Lang } from "../../lib/i18n";
 
 const SYNC = {
-  it: { dl: "Scaricate {n} nuove partite.", none: "Nessuna partita nuova da scaricare.", run: "Analizzo {d} di {t} partite…", queued: "C'è già un'analisi in corso: i risultati compaiono man mano.", done: "Fatto: {o} partite analizzate.", fail: "{f} partite non analizzate. Riprova tra poco: se il problema resta, le ritento stanotte." },
-  en: { dl: "Downloaded {n} new games.", none: "No new games to download.", run: "Analyzing {d} of {t} games…", queued: "An analysis is already running: results appear as they are ready.", done: "Done: {o} games analyzed.", fail: "{f} games could not be analyzed. Try again shortly: if it persists, I'll retry tonight." },
-  es: { dl: "Descargadas {n} partidas nuevas.", none: "No hay partidas nuevas que descargar.", run: "Analizando {d} de {t} partidas…", queued: "Ya hay un análisis en curso: los resultados aparecen poco a poco.", done: "Hecho: {o} partidas analizadas.", fail: "{f} partidas sin analizar. Inténtalo de nuevo en breve: si sigue, las reintento esta noche." },
+  it: { lim: "Hai analizzato {d} partite oggi (limite Free: {m}). Con Plus, Pro o Elite scarichi e analizzi tutte le tue partite, anche di notte.", dl: "Scaricate {n} nuove partite.", none: "Nessuna partita nuova da scaricare.", run: "Analizzo {d} di {t} partite…", queued: "C'è già un'analisi in corso: i risultati compaiono man mano.", done: "Fatto: {o} partite analizzate.", fail: "{f} partite non analizzate. Riprova tra poco: se il problema resta, le ritento stanotte." },
+  en: { lim: "You analysed {d} games today (Free limit: {m}). Plus, Pro and Elite download and analyse all your games, even overnight.", dl: "Downloaded {n} new games.", none: "No new games to download.", run: "Analyzing {d} of {t} games…", queued: "An analysis is already running: results appear as they are ready.", done: "Done: {o} games analyzed.", fail: "{f} games could not be analyzed. Try again shortly: if it persists, I'll retry tonight." },
+  es: { lim: "Hoy has analizado {d} partidas (límite Free: {m}). Con Plus, Pro o Elite descargas y analizas todas tus partidas, también de noche.", dl: "Descargadas {n} partidas nuevas.", none: "No hay partidas nuevas que descargar.", run: "Analizando {d} de {t} partidas…", queued: "Ya hay un análisis en curso: los resultados aparecen poco a poco.", done: "Hecho: {o} partidas analizadas.", fail: "{f} partidas sin analizar. Inténtalo de nuevo en breve: si sigue, las reintento esta noche." },
 } as const;
 import { useApp } from "../../components/app";
 import { MultiLineChart } from "../../components/Charts";
@@ -221,7 +221,9 @@ export default function Home() {
       <p className="muted small" style={{ marginTop: 0 }}>{me?.auto_sync ? t("autoSyncOn") : <>{t("autoSyncOff")}. <Link href="/dashboard/plans" className="accent">{t("navPlans")}</Link></>}</p>
       {job && (
         <div className="card init-banner" role="status" aria-live="polite">
-          <b>{job.imported > 0 ? fm(SY.dl, { n: job.imported }) : SY.none}</b>
+          {job.state === "limit"
+            ? <><b>{fm(SY.lim, { d: job.done_today, m: job.daily })}</b> <Link href="/dashboard/plans" className="accent">{t("navPlans")}</Link></>
+            : <b>{job.imported > 0 ? fm(SY.dl, { n: job.imported }) : SY.none}</b>}
           {job.total > 0 && (job.state === "running" || job.state === "queued") && (
             <>
               <div className="muted small" style={{ margin: ".25rem 0" }}>{job.state === "queued" ? SY.queued : fm(SY.run, { d: job.done, t: job.total })}</div>

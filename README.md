@@ -223,3 +223,7 @@ Le analisi fatte sul server (primo caricamento di un utente) restano a profondit
 
 ### v3.19
 - Home: un solo contatore di analisi alla volta (la sincronizzazione in corso sostituisce il banner dell'analisi iniziale).
+
+### v3.20 — sincronizzazione secondo il piano
+- Piani a pagamento: "Sincronizza" completa lo storico del piano e analizza TUTTE le partite da analizzare (in background, con contatore); di notte continuano download e analisi automatici.
+- Free: 5 partite scaricate e analizzate a ogni clic, tetto di 10 analisi al giorno (costanti `FREE_PER_CLICK` e `FREE_PER_DAY` in `backend/app/main.py`); al tetto compare un messaggio con il collegamento ai piani.

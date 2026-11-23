@@ -541,17 +541,40 @@ def sync_history(bg: BackgroundTasks, u=Depends(current_user)):
     return {"started": True, "games": get_plan(tier).history_games}
 
 
+FREE_PER_CLICK = 5     # Free: partite scaricate e analizzate a ogni clic
+FREE_PER_DAY = 10      # Free: tetto giornaliero di analisi (limita il costo del server)
+
+
 @app.post("/sync")
 def sync(bg: BackgroundTasks, n: int = 15, u=Depends(current_user)):
-    """Scarica le ultime partite e le analizza subito: il contatore si segue con GET /sync/status."""
-    tier = tier_of(u["email"])
-    imported = sync_user(u["email"], max(5, min(n, 100)))
-    cache.bust(u["email"])
-    limit = 3 if tier == "Free" else 40
-    job = start_job(u["email"], limit, imported)
+    """Scarica le partite e le analizza subito, nei limiti del piano. Il contatore si segue con GET /sync/status.
+    - Piani a pagamento: si scarica lo storico del piano e si analizzano TUTTE le partite da analizzare.
+    - Free: poche partite a clic (FREE_PER_CLICK) e un tetto giornaliero (FREE_PER_DAY)."""
+    email = u["email"]
+    tier = tier_of(email)
+    plan = get_plan(tier)
+    if tier == "Free":
+        today = datetime.date.today().isoformat()
+        done_today = len(sb.table("games").select("id").eq("user_email", email).gte("analyzed_at", today).execute().data or [])
+        left = max(0, FREE_PER_DAY - done_today)
+        imported = sync_user(email, FREE_PER_CLICK)
+        cache.bust(email)
+        if left == 0:
+            return {"imported": imported, "fetch_error": _fetch_err.get(email),
+                    "job": {"state": "limit", "daily": FREE_PER_DAY, "done_today": done_today, "total": 0, "done": 0, "failed": 0, "imported": imported}}
+        limit = min(FREE_PER_CLICK, left)
+    else:
+        try:
+            import_history(email, tier)          # completa lo storico del piano (non rifà ciò che c'è già)
+        except Exception as e:
+            log.warning("storico %s: %s", email, e)
+        imported = sync_user(email, 200)
+        cache.bust(email)
+        limit = plan.history_games               # tutte le partite del piano
+    job = start_job(email, limit, imported)
     if job["ids"]:
-        bg.add_task(run_job, u["email"], job["ids"])
-    return {"imported": imported, "job": job["status"], "fetch_error": _fetch_err.get(u["email"])}
+        bg.add_task(run_job, email, job["ids"])
+    return {"imported": imported, "job": job["status"], "fetch_error": _fetch_err.get(email)}
 
 
 @app.get("/sync/status")
