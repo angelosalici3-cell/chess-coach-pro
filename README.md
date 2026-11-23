@@ -190,3 +190,7 @@ Le analisi fatte sul server (primo caricamento di un utente) restano a profondit
 2. Rilancia backend e frontend. Su Render imposta Build Command `pip install -r requirements.txt && bash scripts/get_stockfish.sh` e variabili `LOCAL_DEPTH=12 LOCAL_TIME=0.8 LOCAL_HASH=32`.
 3. Apri Menu → Stato analisi e controlla che tutte le righe siano verdi.
 4. Icona nuova: chi ha già installato l'app deve disinstallarla e reinstallarla.
+
+### v3.11
+- Hero: scacchiera centrata e più grande (si adatta all'altezza dello schermo), commenti del GM sotto la scacchiera sempre visibili (ultimo messaggio + precedente), mosse recenti, ritmo molto più veloce, badge "!!" sulla casa della mossa, emoji sulla casa di arrivo. Si parte dalla partita breve.
+- Icona: le immagini ora si prendono prima dalla rete (service worker v3) e hanno ?v=3: niente più logo vecchio nel banner di installazione.

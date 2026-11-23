@@ -16,12 +16,13 @@ type Props = {
   /** Caselle evidenziate (es. suggerimento o soluzione). */
   marks?: Record<string, string>;
   shake?: boolean;
+  animMs?: number;
 };
 
 const DOT = "radial-gradient(circle, rgba(255, 107, 61, .62) 0 22%, transparent 24%)";
 const RING = "radial-gradient(circle, transparent 0 68%, rgba(255, 107, 61, .62) 70% 86%, transparent 88%)";
 
-export default function ChessBoard({ fen, flip, last, notation = true, onDrop, marks, shake }: Props) {
+export default function ChessBoard({ fen, flip, last, notation = true, onDrop, marks, shake, animMs = 240 }: Props) {
   const [sel, setSel] = useState<string | null>(null);
   useEffect(() => { setSel(null); }, [fen]);   // dopo ogni mossa la selezione si azzera
 
@@ -64,7 +65,7 @@ export default function ChessBoard({ fen, flip, last, notation = true, onDrop, m
         onPieceDragBegin={onDrop ? (_p: string, sq: string) => setSel(mine(sq) ? sq : null) : undefined}
         onSquareClick={onDrop ? (sq: string) => click(sq) : undefined}
         autoPromoteToQueen={true}
-        animationDuration={240}
+        animationDuration={animMs}
         showBoardNotation={notation}
         customDarkSquareStyle={{ backgroundColor: "#6d7fb3" }}
         customLightSquareStyle={{ backgroundColor: "#e6e9f2" }}

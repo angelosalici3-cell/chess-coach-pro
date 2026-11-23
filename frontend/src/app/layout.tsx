@@ -13,7 +13,7 @@ export const metadata: Metadata = {
   description: "Analizza le tue partite di Lichess e Chess.com, scopri gli errori che ripeti e ricevi lezioni da un Gran Maestro AI.",
   manifest: "/manifest.webmanifest",
   appleWebApp: { capable: true, title: "EloRise", statusBarStyle: "black-translucent" },
-  icons: { icon: [{ url: "/icon-192.png", sizes: "192x192" }, { url: "/icon-512.png", sizes: "512x512" }], apple: "/apple-touch-icon.png" },
+  icons: { icon: [{ url: "/icon-192.png?v=3", sizes: "192x192" }, { url: "/icon-512.png?v=3", sizes: "512x512" }], apple: "/apple-touch-icon.png" },
   openGraph: { title: BRAND, description: "Il tuo Gran Maestro AI, sempre con te.", images: ["/og.png"], type: "website" },
 };
 export const viewport: Viewport = { themeColor: "#0b0f1e", width: "device-width", initialScale: 1, viewportFit: "cover" };

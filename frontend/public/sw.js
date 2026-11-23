@@ -1,6 +1,6 @@
 /* Service worker: rende l'app installabile e mostra una pagina offline.
    Non mette mai in cache le chiamate API, il login o i dati personali. */
-const VERSION = "v2";
+const VERSION = "v3";
 const STATIC = `static-${VERSION}`;
 const OFFLINE = "/offline.html";
 
@@ -17,11 +17,16 @@ self.addEventListener("fetch", (e) => {
     e.respondWith(fetch(req).catch(() => caches.match(OFFLINE)));
     return;
   }
-  if (url.pathname.startsWith("/_next/static/") || /\.(png|svg|woff2?)$/.test(url.pathname)) {  // risorse immutabili: cache-first
+  if (url.pathname.startsWith("/_next/static/")) {                              // file con hash nel nome: cache-first
     e.respondWith(caches.match(req).then((hit) => hit || fetch(req).then((res) => {
       if (res.ok) { const copy = res.clone(); caches.open(STATIC).then((c) => c.put(req, copy)); }
       return res;
     })));
+  } else if (/\.(png|svg|woff2?)$/.test(url.pathname)) {                         // icone e logo: prima la rete, così non restano mai quelle vecchie
+    e.respondWith(fetch(req).then((res) => {
+      if (res.ok) { const copy = res.clone(); caches.open(STATIC).then((c) => c.put(req, copy)); }
+      return res;
+    }).catch(() => caches.match(req)));
   }
 });
 

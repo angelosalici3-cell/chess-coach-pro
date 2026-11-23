@@ -57,21 +57,21 @@ export default function Pwa({ lang }: { lang: "it" | "en" | "es" }) {
     <>
       {update && (
         <div className="pwa-up" role="status">
-          <img src="/icon-192.png" alt="" width="36" height="36" />
+          <img src="/icon-192.png?v=3" alt="" width="36" height="36" />
           <b>{t.upT}</b>
           <button className="btn btn-primary btn-sm" onClick={applyUpdate}>{t.upB}</button>
         </div>
       )}
       {done ? (
         <div className="pwa" role="dialog" aria-label={t.doneT}>
-          <img src="/icon-192.png" alt="" width="44" height="44" />
+          <img src="/icon-192.png?v=3" alt="" width="44" height="44" />
           <div><b>{t.doneT}</b><div className="small muted">{t.done}</div></div>
           <div className="row"><button className="btn btn-primary btn-sm" onClick={() => { setDone(false); setHide(true); }}>{t.ok}</button></div>
         </div>
       ) : !hide && (
         <div className="pwa" role="dialog" aria-label={t.title}>
-          <img src="/icon-192.png" alt="" width="44" height="44" />
-          <div><b>{t.title}</b><div className="small muted">{evt ? t.body : ios ? t.ios : t.generic} {standalone ? "" : t.hint}<br />{t.reinstall}</div></div>
+          <img src="/icon-192.png?v=3" alt="" width="44" height="44" />
+          <div><b>{t.title}</b><div className="small muted">{evt ? t.body : ios ? t.ios : t.generic} {standalone ? "" : t.hint}</div></div>
           <div className="row">{evt && <button className="btn btn-primary btn-sm" onClick={install}>{t.install}</button>}<button className="btn btn-sm" onClick={close}>{t.later}</button></div>
         </div>
       )}
