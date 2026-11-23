@@ -198,3 +198,6 @@ Le analisi fatte sul server (primo caricamento di un utente) restano a profondit
 ### v3.12
 - Hero: scacchiera grande a destra con i commenti del GM affiancati (ultimi 4, il più recente evidenziato); tolta la scritta LIVE. Su telefono i commenti stanno sotto.
 - Barra in basso: tolto lo scorrimento che tagliava il pulsante Gioca.
+
+### v3.13
+- Hero: colonna dei commenti a dimensione fissa (non sposta più la scacchiera), commenti max 3 righe, ultimi 3 visibili, pausa con icona centrata, animazione ferma a scheda nascosta; pulsanti "Inizia gratis" / "Guarda come funziona" più leggibili.
