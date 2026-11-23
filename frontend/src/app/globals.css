@@ -816,3 +816,54 @@ a.dr-btn { padding: .55rem .8rem; border: 1px solid var(--line-2); border-radius
   .lp-lead { margin-top: 0; }
   .lp-note { margin: 0; }
 }
+
+/* ===== v3.16: Home riepilogo + schede, partita a due colonne ===== */
+.hm-top { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 1rem; align-items: stretch; margin: .4rem 0 1rem; }
+.hm-top .mission { margin: 0; }
+.hm-sum { margin: 0; display: grid; grid-template-columns: 1fr auto; grid-template-areas: "lvl ring" "facts facts"; gap: .8rem 1rem; align-items: center; }
+.hm-lvl { grid-area: lvl; min-width: 0; }
+.hm-big { font-family: var(--f-display); font-weight: 800; font-size: clamp(2.4rem, 5vw, 3.4rem); letter-spacing: -.04em; line-height: 1; margin: .15rem 0; font-variant-numeric: tabular-nums; }
+.hm-big em { font-style: normal; font-size: 1rem; margin-left: .5rem; letter-spacing: 0; padding: .1rem .5rem; border-radius: 999px; vertical-align: .6em; }
+.hm-big em.up { background: rgba(78, 227, 176, .16); color: var(--mint); } .hm-big em.down { background: rgba(255, 93, 143, .16); color: var(--bad); }
+.hm-spark { display: block; width: 100%; max-width: 220px; height: 44px; margin-top: .5rem; }
+.hm-ring { grid-area: ring; position: relative; width: 132px; height: 132px; }
+.hm-ring svg { width: 100%; height: 100%; display: block; }
+.hm-ring-c { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+.hm-ring-c b { font-family: var(--f-display); font-size: 1.7rem; letter-spacing: -.04em; } .hm-ring-c b small { font-size: .9rem; color: var(--mute); } .hm-ring-c span { font-size: .72rem; color: var(--mute); }
+.hm-facts { grid-area: facts; display: flex; gap: 1.4rem; align-items: center; flex-wrap: wrap; padding-top: .7rem; border-top: 1px solid var(--line); }
+.hm-facts > div { display: flex; flex-direction: column; line-height: 1.15; }
+.hm-facts b { font-family: var(--f-display); font-size: 1.35rem; letter-spacing: -.03em; } .hm-facts b small { font-size: .8rem; color: var(--mute); } .hm-facts span { font-size: .75rem; color: var(--mute); }
+.hm-wdl { flex-direction: row !important; align-items: center; gap: .3rem; margin-left: auto; font-weight: 800; font-variant-numeric: tabular-nums; }
+.hm-wdl i { width: 9px; height: 9px; border-radius: 50%; margin-left: .6rem; } .hm-wdl i:first-child { margin-left: 0; }
+.hm-ins .seg { margin-bottom: .6rem; }
+.hm-ins .card { margin-top: 0; }
+@media (max-width: 860px) { .hm-top { grid-template-columns: minmax(0, 1fr); } .hm-top .hm-sum { order: -1; } }
+.gv { display: grid; grid-template-columns: minmax(0, 460px) minmax(0, 1fr); gap: 1.2rem; align-items: start; margin: .6rem 0; }
+.gv-board { position: sticky; top: 1rem; }
+.gv-panel { min-width: 0; display: flex; flex-direction: column; gap: .7rem; }
+.gv-panel .critical { margin: 0; }
+.gv-scroll { max-height: min(560px, calc(100svh - 230px)); overflow: auto; }
+.gv-err { margin: .4rem 0; } .gv-err.on { border-color: var(--ember); }
+.gv-pick { background: none; border: none; color: inherit; text-align: left; padding: 0; flex: 1; min-width: 0; cursor: pointer; }
+.gv-chart { margin: 0; }
+@media (max-width: 860px) { .gv { grid-template-columns: minmax(0, 1fr); } .gv-board { position: static; } .gv-scroll { max-height: none; } }
+
+/* ===== v3.17: elenco partite, premi, piani ===== */
+.gsum { display: flex; flex-wrap: wrap; gap: .3rem 1.2rem; margin: .2rem 0 .8rem; color: var(--mute); font-size: .92rem; }
+.gsum b { color: var(--ice); font-family: var(--f-display); font-size: 1.1rem; letter-spacing: -.02em; } .gsum .warn b { color: var(--amber); }
+.gfilters { flex-direction: row; flex-wrap: wrap; align-items: center; } .gfilters .search { flex: 1 1 200px; min-width: 0; }
+.fmore { margin: 0; }
+.fscroll { flex-basis: 100%; }
+.plan { position: relative; } .plan.rec { border-color: var(--ember); box-shadow: 0 18px 40px -26px var(--ember); }
+.plan-tag { position: absolute; top: -.7rem; right: .8rem; background: var(--ember); color: #1a0b05; font-weight: 800; font-size: .72rem; padding: .15rem .6rem; border-radius: 999px; }
+.danger-zone { margin-top: 1.6rem; color: var(--mute); } .danger-zone summary { cursor: pointer; font-size: .9rem; } .danger-zone button { margin-top: .6rem; }
+@media (max-width: 520px) { .plans { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.hero-level { margin-bottom: .8rem; }
+
+/* Allenati e Aperture: tutto in una schermata, anche su telefono */
+@media (max-width: 860px) {
+  .drill .board-frame { max-width: min(100%, calc(100svh - 360px)); min-width: 260px; }
+  .om-panel .board-frame { max-width: min(420px, calc(100svh - 380px)); min-width: 260px; }
+  .om-scroll { max-height: 56svh; }
+}
+@media (min-width: 861px) { .om-scroll { max-height: calc(100svh - 240px); } .drill .board-frame { max-width: min(440px, calc(100svh - 200px)); } }

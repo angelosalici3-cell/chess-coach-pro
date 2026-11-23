@@ -44,7 +44,8 @@ export default function PlansPage() {
       </div>
       <div className="plans">
         {PLANS.map((p) => (
-          <div key={p.k} className={"card " + (me?.tier === p.k ? "cur" : "")}>
+          <div key={p.k} className={"card plan " + (me?.tier === p.k ? "cur" : "") + (p.k === "Pro" ? " rec" : "")}>
+            {p.k === "Pro" && <span className="plan-tag">{({ it: "Consigliato", en: "Popular", es: "Recomendado" } as const)[lang]}</span>}
             <h3>{p.k}</h3>
             <div className="price">€{(yearly && p.year ? p.year : p.price).toFixed(2)}<span className="muted small">{yearly && p.year ? per : t("perMonth")}</span></div>
             <p className="small">{t("accounts")}: {p.acc}<br />{t("lessons")}: {p.gm}<br />{t("historyN")}: {p.hist}<br />{p.sync ? t("autoSync") : ""}</p>
@@ -54,8 +55,7 @@ export default function PlansPage() {
       </div>
       {me?.tier !== "Free" && <button onClick={() => go("/billing/portal")}>{t("manage")}</button>}
       {me?.is_admin && <p><a href="/dashboard/promo" className="small muted">Codici promo</a></p>}
-      <hr className="sep" />
-      <button id="delete" className="danger" onClick={del}>{t("deleteAcc")}</button>
+      <details id="delete" className="danger-zone"><summary>{({ it: "Altre opzioni", en: "More options", es: "Más opciones" } as const)[lang]}</summary><button className="danger" onClick={del}>{t("deleteAcc")}</button></details>
     </>
   );
 }

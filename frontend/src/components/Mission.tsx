@@ -22,7 +22,7 @@ export default function Mission() {
   const steps = [
     { href: "/dashboard/play", n: 1, t: x.s1, d: x.s1d, done: false },
     { href: "/dashboard/train", n: 2, t: x.s2, d: x.s2d(due), done: !!o?.done_today },
-    { href: "/dashboard/games?tab=lessons", n: 3, t: x.s3, d: x.s3d, done: false },
+    { href: "/dashboard/lessons", n: 3, t: x.s3, d: x.s3d, done: false },
   ];
   const streak = o?.stats?.current_streak || 0;
   return (

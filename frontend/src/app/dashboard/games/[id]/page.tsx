@@ -8,6 +8,13 @@ import { EvalChart, LossChart, LossPt } from "../../../../components/Charts";
 import TimeChart from "../../../../components/TimeChart";
 import { tc } from "../../../../lib/train-copy";
 import { u } from "../../../../lib/ui-copy";
+import { Seg } from "../../../../components/ui/Seg";
+
+const GT = {
+  it: { errors: "Errori", charts: "Grafici", moves: "Mosse", eval: "Valutazione", loss: "Perdita", time: "Tempo" },
+  en: { errors: "Mistakes", charts: "Charts", moves: "Moves", eval: "Evaluation", loss: "Loss", time: "Time" },
+  es: { errors: "Errores", charts: "Gráficos", moves: "Jugadas", eval: "Evaluación", loss: "Pérdida", time: "Tiempo" },
+} as const;
 
 const START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 const CLS: Record<string, string> = { blunder: "var(--bad)", mistake: "var(--ember)", inaccuracy: "var(--amber)", brilliant: "var(--mint)", best: "var(--mint)" };
@@ -23,6 +30,8 @@ export default function GamePage() {
   const [busy, setBusy] = useState<number | null>(null);
   const [queued, setQueued] = useState(false);
   const [timeData, setTimeData] = useState<any>(null);
+  const [tab, setTab] = useState<"errors" | "charts" | "moves">("errors");
+  const [chart, setChart] = useState<"eval" | "loss" | "time">("eval");
 
   useEffect(() => {
     call(`/games/${id}`).then((x) => {
@@ -94,8 +103,8 @@ export default function GamePage() {
       {!g.analyzed_at && (
         <div className="card row"><span className="muted">{queued ? t("analyzingGame") : t("notAnalyzed")}</span>{!queued && <button className="btn btn-primary" onClick={analyze}>{t("analyze")}</button>}</div>
       )}
-      <div className="split">
-        <div>
+      <div className="gv">
+        <div className="gv-board">
           <ChessBoard fen={fenNow} flip={g.user_color === "black"} last={frame?.uci} />
           <div className="ctrls">
             <button onClick={() => setPly(0)} aria-label="Start">⏮</button>
@@ -105,78 +114,78 @@ export default function GamePage() {
             <button onClick={() => setPly(d.moves.length)} aria-label="End">⏭</button>
           </div>
         </div>
-        <div className="card movelist">
-          <b>{t("moves")}</b>
-          <div className="chips">
-            {d.moves.map((m: any) => (
-              <button key={m.ply} className={m.ply === ply ? "chip on" : "chip"} style={{ color: CLS[m.classification] }} onClick={() => setPly(m.ply)}>
-                {lbl(m.ply)} {m.san}
-              </button>
-            ))}
-          </div>
+        <div className="gv-panel">
+          {g.analyzed_at && critical && (
+            <div className="critical">
+              <div><span className="ctag">{u("critTitle", lang)}</span>
+                <p>{u("critText", lang, { m: `${lbl(critical.m.ply)} ${critical.m.san}`, a: sgnEv(critical.before), b: sgnEv(critical.after), best: critical.best || "—" })}</p></div>
+              <button className="btn btn-primary btn-sm" onClick={() => setPly(critical.m.ply)}>{u("critShow", lang)}</button>
+            </div>
+          )}
+          {g.analyzed_at && !critical && d.moves.length > 0 && <p className="muted small" style={{ margin: ".2rem 0" }}>{u("critNone", lang)}</p>}
+          <Seg<"errors" | "charts" | "moves"> value={tab} onChange={setTab} items={[{ v: "errors", label: GT[lang].errors, n: items.length }, { v: "charts", label: GT[lang].charts }, { v: "moves", label: GT[lang].moves }]} />
+
+          {tab === "errors" && (
+            <div className="gv-scroll">
+              {items.length === 0 && <p className="muted">{g.analyzed_at ? t("noMistakes") : t("notAnalyzed")}</p>}
+              {items.map(({ m, e, loss, best }: any) => {
+                const key = e ? e.id : -m.ply;
+                return (
+                  <div key={m.ply} className={"card gv-err" + (m.ply === ply ? " on" : "")}>
+                    <div className="row">
+                      <button className="gv-pick" onClick={() => setPly(m.ply)} aria-label="Show">
+                        <b>{lbl(m.ply)} {m.san}</b> <span className="tag" style={{ color: CLS[m.classification] }}>{tagName(m.classification)}</span>
+                        <span className="muted small"> {t("best")}: {best || "—"}{loss ? `, −${(loss / 100).toFixed(1)}` : ""}</span>
+                      </button>
+                      {!lessons[key] && <button className="btn btn-primary btn-sm" disabled={busy === key} onClick={() => lesson(key, m.ply, !!e)}>{busy === key ? t("thinking") : t("askLesson")}</button>}
+                    </div>
+                    {lessons[key] && <p className="pre">{lessons[key]}</p>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {tab === "charts" && (
+            <div className="card chartcard gv-chart">
+              <Seg<"eval" | "loss" | "time"> value={chart} onChange={setChart} items={[
+                { v: "eval", label: GT[lang].eval }, { v: "loss", label: GT[lang].loss },
+                ...(timeData?.available ? [{ v: "time" as const, label: GT[lang].time }] : []),
+              ]} />
+              {chart === "eval" && (evals.length > 2 && g.analyzed_at
+                ? <><p className="muted small" style={{ margin: ".5rem 0" }}>{u("evalNote", lang)}</p><EvalChart evals={evals} active={ply} onPick={setPly} critical={critical?.m.ply} /></>
+                : <p className="muted">{t("notAnalyzed")}</p>)}
+              {chart === "loss" && (chartPts.some((p) => p.loss > 0)
+                ? <>
+                    <p className="muted small" style={{ margin: ".5rem 0" }}>{t("lossNote")}</p>
+                    <LossChart pts={chartPts} active={ply} onPick={setPly} />
+                    <div className="loss-legend">
+                      <span><i style={{ background: "var(--bad)" }} />{t("clsBlunder")}</span>
+                      <span><i style={{ background: "var(--ember)" }} />{t("clsMistake")}</span>
+                      <span><i style={{ background: "var(--amber)" }} />{t("clsInacc")}</span>
+                      <span><i style={{ background: "var(--mint)" }} />{t("lossYou")}</span>
+                      <span><i style={{ background: "var(--mute)", opacity: 0.5 }} />{t("lossOpp")}</span>
+                    </div>
+                  </>
+                : <p className="muted">{t("notAnalyzed")}</p>)}
+              {chart === "time" && timeData?.available && <TimeChart data={timeData} active={ply} onPick={setPly} />}
+              {timeData && !timeData.available && chart !== "time" && <p className="muted small" style={{ marginTop: ".6rem" }}>{tc("noClock", lang)}</p>}
+            </div>
+          )}
+
+          {tab === "moves" && (
+            <div className="card movelist gv-scroll">
+              <div className="chips">
+                {d.moves.map((m: any) => (
+                  <button key={m.ply} className={m.ply === ply ? "chip on" : "chip"} style={{ color: CLS[m.classification] }} onClick={() => setPly(m.ply)}>
+                    {lbl(m.ply)} {m.san}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
-
-      {g.analyzed_at && (
-        critical ? (
-          <div className="critical">
-            <div><span className="ctag">{u("critTitle", lang)}</span>
-              <p>{u("critText", lang, { m: `${lbl(critical.m.ply)} ${critical.m.san}`, a: sgnEv(critical.before), b: sgnEv(critical.after), best: critical.best || "—" })}</p></div>
-            <button className="btn btn-primary btn-sm" onClick={() => { setPly(critical.m.ply); window.scrollTo({ top: 0, behavior: "smooth" }); }}>{u("critShow", lang)}</button>
-          </div>
-        ) : d.moves.length > 0 && <p className="muted small">{u("critNone", lang)}</p>
-      )}
-
-      {evals.length > 2 && g.analyzed_at && (
-        <div className="card chartcard">
-          <b className="ctitle">{u("evalTitle", lang)}</b>
-          <p className="muted small" style={{ margin: ".2rem 0 .5rem" }}>{u("evalNote", lang)}</p>
-          <EvalChart evals={evals} active={ply} onPick={setPly} critical={critical?.m.ply} />
-        </div>
-      )}
-
-      {chartPts.some((p) => p.loss > 0) && (
-        <div className="card chartcard">
-          <b className="ctitle">{t("lossTitle")}</b>
-          <p className="muted small" style={{ margin: ".2rem 0 .4rem" }}>{t("lossNote")}</p>
-          <LossChart pts={chartPts} active={ply} onPick={setPly} />
-          <div className="loss-legend">
-            <span><i style={{ background: "var(--bad)" }} />{t("clsBlunder")}</span>
-            <span><i style={{ background: "var(--ember)" }} />{t("clsMistake")}</span>
-            <span><i style={{ background: "var(--amber)" }} />{t("clsInacc")}</span>
-            <span><i style={{ background: "var(--mint)" }} />{t("lossYou")}</span>
-            <span><i style={{ background: "var(--mute)", opacity: 0.5 }} />{t("lossOpp")}</span>
-          </div>
-        </div>
-      )}
-
-      {timeData?.available && (
-        <div className="card chartcard">
-          <b className="ctitle">{tc("timeChartTitle", lang)}</b>
-          <TimeChart data={timeData} active={ply} onPick={setPly} />
-        </div>
-      )}
-
-      {timeData && !timeData.available && <p className="muted small">{tc("noClock", lang)}</p>}
-
-      <h2>{t("mistakes")}</h2>
-      {items.length === 0 && <p className="muted">{t("noMistakes")}</p>}
-      {items.map(({ m, e, loss, best }: any) => (
-        <div key={m.ply} className="card">
-          <div className="row">
-            <span className="errline">
-              <span>{lbl(m.ply)} <b>{m.san}</b></span>
-              <span className="tag" style={{ color: CLS[m.classification] }}>{tagName(m.classification)}</span>
-              <span className="muted small">{t("best")}: {best || "—"}{loss ? `, −${(loss / 100).toFixed(1)}` : ""}</span>
-            </span>
-            <span className="row">
-              <button onClick={() => setPly(m.ply)} aria-label="Show">♟</button>
-              {!lessons[e ? e.id : -m.ply] && <button className="btn btn-primary" disabled={busy === (e ? e.id : -m.ply)} onClick={() => lesson(e ? e.id : -m.ply, m.ply, !!e)}>{busy === (e ? e.id : -m.ply) ? t("thinking") : t("askLesson")}</button>}
-            </span>
-          </div>
-          {lessons[e ? e.id : -m.ply] && <p className="pre">{lessons[e ? e.id : -m.ply]}</p>}
-        </div>
-      ))}
     </>
   );
 }

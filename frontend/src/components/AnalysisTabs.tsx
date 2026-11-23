@@ -10,6 +10,7 @@ export default function AnalysisTabs() {
   const path = usePathname();
   const items = [
     { href: "/dashboard/games", label: u("tabGames", lang), on: path.startsWith("/dashboard/games") },
+    { href: "/dashboard/lessons", label: u("tabLessons", lang), on: path.startsWith("/dashboard/lessons") },
     { href: "/dashboard/openings", label: lang === "it" ? "Aperture" : lang === "es" ? "Aperturas" : "Openings", on: path.startsWith("/dashboard/openings") },
   ];
   return <div className="subtabs" role="tablist">{items.map((i) => <Link key={i.href} href={i.href} className={i.on ? "on" : ""}>{i.label}</Link>)}</div>;

@@ -207,3 +207,16 @@ Le analisi fatte sul server (primo caricamento di un utente) restano a profondit
 
 ### v3.15
 - Logo allineato verticalmente alle voci del menu (sito e app); titolo dell'hero più compatto per far stare i pulsanti nella prima schermata.
+
+### v3.16 — revisione dell'app dopo l'accesso
+- Home: riepilogo a colpo d'occhio (rating con andamento 30 giorni, anello risultati, precisione, partite) accanto alla Missione; sotto, un solo pannello a schede (Rating · Quando giochi · Errori ricorrenti) al posto di quattro blocchi impilati. Grafico del rating più alto.
+- Partita: scacchiera fissa a sinistra, a destra momento critico + schede Errori · Grafici (Valutazione / Perdita / Tempo, uno alla volta) · Mosse. Niente più scroll lungo tra i grafici.
+
+### v3.17 — revisione delle altre pagine
+- Partite: una riga di riepilogo al posto di 4 riquadri e delle etichette ridondanti; filtri secondari (colore, ritmo) dietro il pulsante Filtri.
+- Premi: Carte in tre viste (Album · Progressi · Obiettivi); Scudi in tre viste (Scudi · Aperture · Ricompense), livello sempre in alto.
+- Piani: piano consigliato evidenziato, 2 colonne su telefono, eliminazione account sotto "Altre opzioni".
+- Allenati e Aperture: scacchiera dimensionata sull'altezza dello schermo, esercizio e pulsanti sempre visibili senza scorrere.
+
+### v3.18
+- Analisi: una sola barra di sezioni (Partite · Lezioni GM · Aperture); tolti il doppio selettore e il titolo ripetuto.

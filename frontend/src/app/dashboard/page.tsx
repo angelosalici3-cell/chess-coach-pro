@@ -15,6 +15,7 @@ import { K, tr } from "../../lib/i18n";
 import Mission from "../../components/Mission";
 import TimeCard from "../../components/TimeCard";
 import PatternCard from "../../components/PatternCard";
+import { Seg } from "../../components/ui/Seg";
 
 const SPEED_COLOR: Record<string, string> = { bullet: "#ff5d8f", blitz: "#ffb84d", rapid: "#4ee3b0", classical: "#5aa9ff", daily: "#b7c0dc", other: "#8d97b8" };
 const RANGES: [K, number | null][] = [["range30", 30], ["range90", 90], ["range365", 365], ["rangeAll", null]];
@@ -90,6 +91,78 @@ function RatingCard({ accounts }: { accounts: any[] }) {
   );
 }
 
+const HS = {
+  it: { level: "Il tuo livello", pts: "in {n} giorni", games: "partite", win: "vittorie", acc: "precisione", tabs: ["Rating", "Quando giochi", "Errori ricorrenti"], noRating: "Collega un account per vedere il rating." },
+  en: { level: "Your level", pts: "in {n} days", games: "games", win: "wins", acc: "accuracy", tabs: ["Rating", "When you play", "Recurring mistakes"], noRating: "Link an account to see your rating." },
+  es: { level: "Tu nivel", pts: "en {n} días", games: "partidas", win: "victorias", acc: "precisión", tabs: ["Rating", "Cuándo juegas", "Errores recurrentes"], noRating: "Vincula una cuenta para ver tu rating." },
+} as const;
+
+/** Riepilogo a colpo d'occhio: rating attuale con andamento, risultati in un anello, precisione. */
+function Summary({ s, lang }: { s: any; lang: Lang }) {
+  const x = HS[lang];
+  // serie principale: quella con più punti
+  let best: any = null;
+  (s.rating || []).forEach((a: any) => a.series.forEach((r: any) => { if (!best || r.points.length > best.points.length) best = r; }));
+  const pts: { d: string; r: number }[] = best?.points || [];
+  const last = pts.length ? pts[pts.length - 1].r : null;
+  const tEnd = pts.length ? new Date(pts[pts.length - 1].d).getTime() : 0;
+  const old = pts.find((p) => new Date(p.d).getTime() >= tEnd - 30 * 864e5) || pts[0];
+  const days = old && pts.length ? Math.max(1, Math.round((tEnd - new Date(old.d).getTime()) / 864e5)) : 0;
+  const delta = last != null && old ? last - old.r : 0;
+  const spark = pts.slice(-40);
+  const lo = Math.min(...spark.map((p) => p.r)), hi = Math.max(...spark.map((p) => p.r));
+  const sx = (i: number) => (spark.length > 1 ? (i / (spark.length - 1)) * 120 : 0), sy = (r: number) => 34 - (hi === lo ? 0.5 : (r - lo) / (hi - lo)) * 30;
+  const tot = Math.max(1, s.w + s.d + s.l), C = 2 * Math.PI * 38;
+  const seg = [["var(--mint)", s.w], ["var(--mute)", s.d], ["var(--bad)", s.l]] as const;
+  let off = 0;
+  return (
+    <section className="card hm-sum" aria-label={x.level}>
+      <div className="hm-lvl">
+        <span className="muted small">{x.level}{best ? ` · ${(best.speed || "")}` : ""}</span>
+        {last != null ? (
+          <>
+            <div className="hm-big">{last}<em className={delta >= 0 ? "up" : "down"}>{delta >= 0 ? "+" : "−"}{Math.abs(delta)}</em></div>
+            <span className="muted small">{x.pts.replace("{n}", String(days))}</span>
+            {spark.length > 1 && (
+              <svg viewBox="0 0 120 38" className="hm-spark" aria-hidden="true" preserveAspectRatio="none">
+                <polyline points={spark.map((p, i) => `${sx(i).toFixed(1)},${sy(p.r).toFixed(1)}`).join(" ")} fill="none" stroke="var(--ember)" strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+              </svg>
+            )}
+          </>
+        ) : <p className="muted small">{x.noRating}</p>}
+      </div>
+      <div className="hm-ring">
+        <svg viewBox="0 0 100 100" role="img" aria-label={`${s.w}/${s.d}/${s.l}`}>
+          <circle cx="50" cy="50" r="38" fill="none" stroke="var(--ink-3)" strokeWidth="14" />
+          {seg.map(([c, v], i) => { const len = (v / tot) * C; const el = <circle key={i} cx="50" cy="50" r="38" fill="none" stroke={c} strokeWidth="14" strokeDasharray={`${Math.max(0, len - 1.5)} ${C}`} strokeDashoffset={-off} transform="rotate(-90 50 50)" />; off += len; return el; })}
+        </svg>
+        <div className="hm-ring-c"><b>{s.win_rate ?? "—"}{s.win_rate != null && <small>%</small>}</b><span>{x.win}</span></div>
+      </div>
+      <div className="hm-facts">
+        <div><b>{s.games}</b><span>{x.games}</span></div>
+        <div><b>{s.accuracy ?? "—"}{s.accuracy != null && <small>%</small>}</b><span>{x.acc}</span></div>
+        <div className="hm-wdl"><i style={{ background: "var(--mint)" }} />{s.w}<i style={{ background: "var(--mute)" }} />{s.d}<i style={{ background: "var(--bad)" }} />{s.l}</div>
+      </div>
+    </section>
+  );
+}
+
+function Insights({ s, lang }: { s: any; lang: Lang }) {
+  const x = HS[lang];
+  const [tab, setTab] = useState<"rating" | "time" | "patterns">(s.rating.length ? "rating" : "patterns");
+  return (
+    <section className="hm-ins">
+      <Seg<"rating" | "time" | "patterns"> value={tab} onChange={setTab} items={[
+        ...(s.rating.length ? [{ v: "rating" as const, label: x.tabs[0] }] : []),
+        { v: "time", label: x.tabs[1] }, { v: "patterns", label: x.tabs[2] },
+      ]} />
+      {tab === "rating" && <RatingCard accounts={s.rating} />}
+      {tab === "time" && <TimeCard />}
+      {tab === "patterns" && <PatternCard />}
+    </section>
+  );
+}
+
 export default function Home() {
   const { call, t, lang, me, refreshMe, bust } = useApp();
   const [s, setS] = useState<any>(null);
@@ -160,27 +233,16 @@ export default function Home() {
         </div>
       )}
       <InitBanner onDone={() => { bust(); load(); refreshMe(); }} />
-      <Mission />
       {info && <div className="note">{info}</div>}
       {err && <div className="note err">{err}</div>}
 
       {s && s.games === 0 && <div className="card muted">{t("noData")} <Link href="/dashboard/accounts" className="accent">{t("navAccounts")}</Link></div>}
-      {s && s.games > 0 && (
+      {s && s.games > 0 ? (
         <>
-          <div className="kpis">
-            <div><span>{t("statGames")}</span><b>{s.games}</b></div>
-            <div><span>{t("statWin")}</span><b>{s.win_rate ?? "—"}{s.win_rate != null && <small>%</small>}</b></div>
-            <div><span>{t("statAcc")}</span><b>{s.accuracy ?? "—"}{s.accuracy != null && <small>%</small>}</b></div>
-          </div>
-          <div className="wdl-line" title={`${t("wins")} ${s.w} · ${t("draws")} ${s.d} · ${t("losses")} ${s.l}`}>
-            <div className="wdl"><div style={{ flex: s.w, background: "var(--mint)" }} /><div style={{ flex: s.d, background: "var(--mute)" }} /><div style={{ flex: s.l, background: "var(--bad)" }} /></div>
-            <span className="muted small">{t("wins")} {s.w} · {t("draws")} {s.d} · {t("losses")} {s.l}</span>
-          </div>
-          <PatternCard />
-          {s.rating.length > 0 && <RatingCard accounts={s.rating} />}
-          <TimeCard />
+          <div className="hm-top"><Mission /><Summary s={s} lang={lang as Lang} /></div>
+          <Insights s={s} lang={lang as Lang} />
         </>
-      )}
+      ) : <Mission />}
     </>
   );
 }

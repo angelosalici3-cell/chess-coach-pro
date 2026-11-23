@@ -19,6 +19,7 @@ export default function GamesList() {
   const [speed, setSpeed] = useState("all");
   const [q, setQ] = useState("");
   const [shown, setShown] = useState(30);
+  const [more, setMore] = useState(false);   // filtri secondari (colore, ritmo)
   useEffect(() => { call("/games").then(setGames).catch((e) => setErr(e.message)); call("/stats").then(setStats).catch(() => {}); }, [call]);
 
   const list = useMemo(() => (games || []).filter((g) =>
@@ -51,25 +52,20 @@ export default function GamesList() {
       {err && <div className="note err">{err}</div>}
       {games && games.length > 0 && (
         <>
-          <div className="kpis">
-            <div><span>{u("gGames", lang)}</span><b>{sum.n}</b></div>
-            <div><span>{u("gWin", lang)}</span><b>{sum.win ?? "—"}{sum.win != null && <small>%</small>}</b></div>
-            <div><span>{u("gAcc", lang)}</span><b>{sum.acc ?? "—"}{sum.acc != null && <small>%</small>}</b></div>
-            <div><span>{u("gAnalyzed", lang)}</span><b>{sum.done}<small>/{sum.n}</small></b></div>
+          <div className="gsum">
+            <span><b>{sum.n}</b> {u("gGames", lang).toLowerCase()}</span>
+            <span><b>{sum.win ?? "—"}{sum.win != null && "%"}</b> {u("gWin", lang).toLowerCase()}</span>
+            <span><b>{sum.acc ?? "—"}{sum.acc != null && "%"}</b> {u("gAcc", lang).toLowerCase()}</span>
+            <span className={sum.done < sum.n ? "warn" : ""}><b>{sum.done}/{sum.n}</b> {u("gAnalyzed", lang).toLowerCase()}</span>
           </div>
-          {stats?.categories?.length > 0 && (
-            <div className="weak">
-              <span className="muted small">{u("gWeak", lang)}</span>
-              {stats.categories.slice(0, 3).map((c: any) => <span key={c.cat} className="chip">{tr(("cat_" + c.cat) as K, lang)} · {c.count}</span>)}
-            </div>
-          )}
           <div className="gfilters">
             <input className="search" placeholder={u("fSearch", lang)} value={q} onChange={(e) => setQ(e.target.value)} aria-label={u("fSearch", lang)} />
             <Seg<"all" | "w" | "d" | "l"> value={res} onChange={setRes} label={u("fResult", lang)} items={[{ v: "all", label: u("fAll", lang) }, { v: "w", label: u("fWin", lang), n: cnt("w") }, { v: "d", label: u("fDraw", lang), n: cnt("d") }, { v: "l", label: u("fLoss", lang), n: cnt("l") }]} />
-            <div className="fscroll">
+            <button className={"chip fmore" + (more || col !== "all" || speed !== "all" ? " on" : "")} onClick={() => setMore((m) => !m)} aria-expanded={more}>{lang === "it" ? "Filtri" : lang === "es" ? "Filtros" : "Filters"}{col !== "all" || speed !== "all" ? " •" : ""}</button>
+            {(more || col !== "all" || speed !== "all") && <div className="fscroll">
               <Seg<"all" | "white" | "black"> value={col} onChange={setCol} label={u("fColor", lang)} items={[{ v: "all", label: u("fAll", lang) }, { v: "white", label: u("fWhite", lang) }, { v: "black", label: u("fBlack", lang) }]} />
               {speeds.length > 1 && <Seg<string> value={speed} onChange={setSpeed} label={u("fSpeed", lang)} items={[{ v: "all", label: u("fAll", lang) }, ...speeds.map((s) => ({ v: s, label: tr(("speed" + s[0].toUpperCase() + s.slice(1)) as K, lang) }))]} />}
-            </div>
+            </div>}
           </div>
         </>
       )}

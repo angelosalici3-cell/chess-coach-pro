@@ -5,6 +5,7 @@ import { useApp } from "../app";
 import GameCard, { ApiCard } from "../GameCard";
 import CardCarousel from "./CardCarousel";
 import { rarityColor } from "../../lib/cardArt";
+import { Seg } from "../ui/Seg";
 import { goalCopy, rarityName, speedName, tc } from "../../lib/train-copy";
 
 export default function Cards({ onProgress }: { onProgress: () => void }) {
@@ -12,6 +13,7 @@ export default function Cards({ onProgress }: { onProgress: () => void }) {
   const [data, setData] = useState<{ cards: ApiCard[]; goals: any[]; new: number; progress: any; hour_steps: number[] } | null>(null);
   const [err, setErr] = useState("");
   const [open, setOpen] = useState<ApiCard | null>(null);
+  const [sub, setSub] = useState<"album" | "progress" | "goals">("album");
 
   useEffect(() => {
     call("/cards").then((d) => { setData(d); if (d.cards.some((c: ApiCard) => c.new)) call("/cards/seen", { method: "POST" }).then(onProgress).catch(() => {}); }).catch((e) => setErr(e.message));
@@ -26,15 +28,16 @@ export default function Cards({ onProgress }: { onProgress: () => void }) {
   if (!data) return <p className="muted">…</p>;
   const { cards, goals, progress: pr, hour_steps: steps } = data;
   const singles = goals.filter((g) => g.group === "single");
+  const SUB = { it: ["Album", "Progressi", "Obiettivi"], en: ["Album", "Progress", "Goals"], es: ["Álbum", "Progreso", "Objetivos"] }[lang];
   return (
     <div>
-      <p className="muted" style={{ marginTop: 0 }}>{tc("cardsSub", lang)}</p>
-      {data.new > 0 && <div className="note ok">{tc("cardsNew", lang, { n: data.new })}</div>}
-      {cards.length === 0 ? <div className="card"><p style={{ margin: 0 }}>{tc("cardsEmpty", lang)}</p></div> : (
+      <Seg<"album" | "progress" | "goals"> value={sub} onChange={setSub} items={[{ v: "album", label: SUB[0], n: cards.length }, { v: "progress", label: SUB[1] }, { v: "goals", label: SUB[2] }]} />
+      {sub === "album" && <p className="muted" style={{ marginTop: ".6rem" }}>{tc("cardsSub", lang)}</p>}
+      {sub === "album" && data.new > 0 && <div className="note ok">{tc("cardsNew", lang, { n: data.new })}</div>}
+      {sub === "album" && (cards.length === 0 ? <div className="card"><p style={{ margin: 0 }}>{tc("cardsEmpty", lang)}</p></div> : (
         <CardCarousel cards={cards} onOpen={setOpen} />
-      )}
-      <h2>{tc("cardsProgress", lang)}</h2>
-      <div className="card prog">
+      ))}
+      {sub === "progress" && <div className="card prog" style={{ marginTop: ".6rem" }}>
         <div className="muted small">{tc("hoursTitle", lang)}</div>
         <div className="prog-grid">
           {(["bullet", "blitz", "rapid", "classical"] as const).map((sp) => {
@@ -62,9 +65,8 @@ export default function Cards({ onProgress }: { onProgress: () => void }) {
         <div className="chips" style={{ marginTop: ".7rem" }}>
           {(["all", "w", "b"] as const).map((k) => <span key={k} className="chip">{tc(k === "all" ? "streakAll" : k === "w" ? "streakW" : "streakB", lang)}: {tc("streakNow", lang, { n: pr.runs[k], b: pr.best_runs[k] })}</span>)}
         </div>
-      </div>
-      <h2>{tc("cardsGoals", lang)}</h2>
-      <div className="goal-list">
+      </div>}
+      {sub === "goals" && <div className="goal-list" style={{ marginTop: ".6rem" }}>
         {singles.map((g) => {
           const t = goalCopy(g.goal, lang);
           return (
@@ -88,7 +90,7 @@ export default function Cards({ onProgress }: { onProgress: () => void }) {
           </div>
         ))}
         <div className="card goal"><i className="goal-dot" style={{ background: rarityColor("rare") }} aria-hidden="true" /><div><b>{tc("openShieldsTitle", lang)}</b><div className="muted small">{tc("openShieldsSub", lang)}</div></div></div>
-      </div>
+      </div>}
       {open && (
         <div className="ob-back" onMouseDown={(e) => { if (e.target === e.currentTarget) setOpen(null); }}>
           <div className="viewer" role="dialog" aria-modal="true">

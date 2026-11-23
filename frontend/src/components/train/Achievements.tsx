@@ -1,4 +1,5 @@
 "use client";
+import { Seg } from "../ui/Seg";
 import { useEffect, useState } from "react";
 import { useApp } from "../app";
 import Shield from "../Shield";
@@ -9,6 +10,7 @@ import { makeShieldPng } from "../../lib/shieldShare";
 const CONFETTI = ["#ff6b3d", "#ffd56a", "#4ee3b0", "#5aa9ff", "#ff5d8f"];
 
 export default function Achievements({ onProgress }: { onProgress: () => void }) {
+  const [view, setView] = useState<"shields" | "openings" | "rewards">("shields");
   const { call, lang, refreshMe } = useApp();
   const [a, setA] = useState<any>(null);
   const [err, setErr] = useState("");
@@ -82,18 +84,13 @@ export default function Achievements({ onProgress }: { onProgress: () => void })
         </div>
       </div>
 
-      <h2>{tc("shieldsTitle", lang)}</h2>
-      <Grid list={a.shields.filter((s: any) => s.kind !== "opening")} />
-
-      <h2>{tc("openShieldsTitle", lang)}</h2>
-      <p className="muted" style={{ marginTop: 0 }}>{tc("openShieldsSub", lang)}</p>
-      <Grid list={a.shields.filter((s: any) => s.kind === "opening")} />
-
-      <h2>{tc("rewardsTitle", lang)}</h2>
-      <p className="muted" style={{ marginTop: 0 }}>{tc("rewardsSub", lang)}</p>
+      <Seg<"shields" | "openings" | "rewards"> value={view} onChange={setView} items={[{ v: "shields", label: tc("shieldsTitle", lang) }, { v: "openings", label: tc("openShieldsTitle", lang) }, { v: "rewards", label: tc("rewardsTitle", lang) }]} />
+      {view === "shields" && <Grid list={a.shields.filter((s: any) => s.kind !== "opening")} />}
+      {view === "openings" && <><p className="muted" style={{ marginBottom: 0 }}>{tc("openShieldsSub", lang)}</p><Grid list={a.shields.filter((s: any) => s.kind === "opening")} /></>}
+      {view === "rewards" && <p className="muted" style={{ marginBottom: ".4rem" }}>{tc("rewardsSub", lang)}</p>}
       {msg && <div className="note ok">{msg}</div>}
       {err && <div className="note err">{err}</div>}
-      <div className="ladder">
+      {view === "rewards" && <div className="ladder">
         {a.rewards.map((r: any) => (
           <div key={r.lvl} className={"card rung" + (r.claimable ? " can" : "") + (r.claimed ? " done" : "")}>
             <div className="lv">{tc("lockedAt", lang, { l: r.lvl })}</div>
@@ -103,7 +100,7 @@ export default function Achievements({ onProgress }: { onProgress: () => void })
             {r.claimed ? <span className="muted small">{tc("claimed", lang)}</span> : r.claimable ? <button className="btn btn-primary btn-sm" onClick={() => claim(r.lvl)}>{tc("claim", lang)}</button> : <span className="muted small">{a.level} / {r.lvl}</span>}
           </div>
         ))}
-      </div>
+      </div>}
     </div>
   );
 }

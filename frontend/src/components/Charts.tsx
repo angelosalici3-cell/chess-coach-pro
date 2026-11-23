@@ -118,7 +118,7 @@ export function MultiLineChart({ series, days }: { series: Series[]; days: numbe
   const tMin = days ? tMax - days * DAY : Math.min(...all);
   const vis = series.map((s) => ({ ...s, pts: s.points.filter((p) => ts(p.d) >= tMin) })).filter((s) => s.pts.length);
   if (!vis.length) return <p className="muted small">—</p>;
-  const H = W < 480 ? 250 : 280, L = 50, R = 14, T = 14, B = 30;
+  const H = W < 480 ? 260 : 340, L = 50, R = 14, T = 14, B = 30;
   const rs = vis.flatMap((s) => s.pts.map((p) => p.r));
   const lo = Math.min(...rs), hi = Math.max(...rs), pad = Math.max(12, (hi - lo) * 0.12);
   // asse del punteggio con righe a multipli di 50 (100 solo se l'intervallo è molto ampio)
