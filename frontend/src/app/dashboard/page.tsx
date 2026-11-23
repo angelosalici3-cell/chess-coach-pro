@@ -122,6 +122,10 @@ export default function Home() {
     return () => clearTimeout(t);
   }, [job, call]); // eslint-disable-line
 
+  useEffect(() => {   // se un'analisi è già in corso (per esempio dopo una partita giocata qui) il contatore riappare
+    call("/sync/status").then((j: any) => { if (j && (j.state === "running" || j.state === "queued")) setJob(j); }).catch(() => {});
+  }, [call]); // eslint-disable-line
+
   const sync = async () => {
     setBusy(true); setErr(""); setInfo(""); setJob(null);
     try {
@@ -136,7 +140,10 @@ export default function Home() {
     <>
       <div className="pagehead">
         <h1>{t("navHome")}</h1>
-        <button className="btn btn-primary" onClick={sync} disabled={busy}>{busy ? t("syncing") : t("sync")}</button>
+        <div className="row" style={{ gap: ".5rem" }}>
+          <Link href="/dashboard/play" className="btn btn-sm">{t("navPlay")}</Link>
+          <button className="btn btn-primary" onClick={sync} disabled={busy}>{busy ? t("syncing") : t("sync")}</button>
+        </div>
       </div>
       <p className="muted small" style={{ marginTop: 0 }}>{me?.auto_sync ? t("autoSyncOn") : <>{t("autoSyncOff")}. <Link href="/dashboard/plans" className="accent">{t("navPlans")}</Link></>}</p>
       {job && (

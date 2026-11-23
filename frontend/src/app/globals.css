@@ -67,8 +67,8 @@ input { width: 100%; } input:focus, select:focus { border-color: var(--ember); o
   .topbar { align-self: start; }
   .side { display: none; }
   .topbar { display: flex; justify-content: space-between; align-items: center; padding: .7rem 1rem; position: sticky; top: 0; z-index: 20; background: rgba(11, 15, 30, .86); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
-  .tabbar { display: grid; grid-template-columns: repeat(5, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; background: rgba(14, 20, 48, .94); backdrop-filter: blur(14px); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
-  .tabbar a { flex-direction: column; gap: .15rem; font-size: .66rem; padding: .55rem .1rem; border-radius: 0; text-align: center; }
+  .tabbar { display: grid; grid-template-columns: repeat(6, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; background: rgba(14, 20, 48, .94); backdrop-filter: blur(14px); border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom); }
+  .tabbar a { flex-direction: column; gap: .15rem; font-size: .6rem; padding: .55rem .05rem; border-radius: 0; text-align: center; }
   .tabbar a.on { color: var(--ember); }
   .content { padding-bottom: 6.5rem; }
 }
@@ -681,22 +681,57 @@ a.dr-btn { padding: .55rem .8rem; border: 1px solid var(--line-2); border-radius
 .pattern .plist a { color: inherit; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
 .drillnote { display: flex; align-items: center; justify-content: space-between; gap: .8rem; flex-wrap: wrap; }
 
-/* ===== Scacchiera giocabile della home ===== */
-.pb { position: relative; }
-.pb .board-frame { position: relative; z-index: 1; }
-.pb-elo { position: absolute; z-index: 3; top: -.9rem; right: -.4rem; display: flex; align-items: baseline; gap: .45rem; padding: .45rem .85rem; border-radius: 999px; background: rgba(17, 23, 51, .92); border: 1px solid var(--line-2); box-shadow: 0 18px 34px -18px #000; font-size: .78rem; color: var(--mute); }
-.pb-elo b { font-family: var(--f-display); font-size: 1.15rem; color: var(--text); font-variant-numeric: tabular-nums; }
-.pb-elo i { font-style: normal; font-weight: 800; font-size: .85rem; animation: pbpop .9s ease-out both; }
-.pb-elo i.up { color: var(--mint); } .pb-elo i.down { color: #ff5d73; }
-.pb-coach { position: absolute; z-index: 3; left: -1.2rem; bottom: -1.5rem; max-width: min(300px, 82%); display: flex; gap: .6rem; align-items: flex-start; padding: .7rem .9rem; border-radius: 16px 16px 16px 4px; background: rgba(17, 23, 51, .95); border: 1px solid var(--line-2); box-shadow: 0 24px 40px -20px #000; animation: pbin .35s cubic-bezier(.2, 1.4, .4, 1) both; }
-.pb-coach.good { border-color: rgba(61, 220, 151, .6); } .pb-coach.bad { border-color: rgba(255, 93, 115, .65); }
-.pb-coach em { display: block; font-style: normal; font-weight: 700; font-size: .72rem; color: var(--mute); }
-.pb-coach p { margin: .1rem 0 0; font-size: .92rem; line-height: 1.35; color: #dfe5fb; }
-.pb-av { flex: none; line-height: 0; }
-.pb-again { position: absolute; z-index: 3; right: 0; bottom: -2.9rem; padding: .35rem .8rem; border-radius: 999px; background: transparent; border: 1px solid var(--line-2); color: var(--ice); font-weight: 700; font-size: .8rem; cursor: pointer; }
-.pb-again:hover { border-color: var(--ember); color: var(--ember-2); }
-.pb-hint { margin: .8rem 0 0; text-align: center; font-size: .85rem; color: var(--mute); }
-@keyframes pbin { from { opacity: 0; transform: translateY(10px) scale(.94); } to { opacity: 1; transform: none; } }
-@keyframes pbpop { 0% { opacity: 0; transform: translateY(8px) scale(.7); } 25% { opacity: 1; transform: none; } 100% { opacity: .0; transform: translateY(-10px); } }
-@media (max-width: 860px) { .pb-coach { left: 0; } .pb-elo { right: 0; } .pb-again { bottom: -2.6rem; } .lp-hero-board { padding-bottom: 3.4rem; } }
-@media (prefers-reduced-motion: reduce) { .pb-coach, .pb-elo i { animation: none; } }
+/* ===== Partita in diretta nella home (commento del GM) ===== */
+.lv { position: relative; display: grid; gap: .8rem; }
+.lv-top { display: flex; align-items: center; gap: .6rem; }
+.lv-live { display: inline-flex; align-items: center; gap: .4rem; padding: .25rem .65rem; border-radius: 999px; background: #ff3d5a; color: #fff; font-weight: 800; font-size: .72rem; letter-spacing: .04em; }
+.lv-live i { width: 7px; height: 7px; border-radius: 50%; background: #fff; animation: lvpulse 1.2s ease-in-out infinite; }
+.lv-title { font-family: var(--f-display); font-weight: 700; color: var(--ice); }
+.lv-ctl { margin-left: auto; width: 34px; height: 34px; border-radius: 50%; background: rgba(17, 23, 51, .9); border: 1px solid var(--line-2); color: var(--ice); font-size: .8rem; cursor: pointer; }
+.lv-ctl:hover { border-color: var(--ember); color: var(--ember-2); }
+.lv-stage { display: flex; gap: .6rem; align-items: stretch; }
+.lv-bar { flex: none; width: 12px; border-radius: 8px; background: #1b2347; border: 1px solid var(--line-2); display: flex; align-items: flex-end; overflow: hidden; }
+.lv-bar > div { width: 100%; background: linear-gradient(180deg, #fff, #c9d3f5); transition: height .8s cubic-bezier(.3, 1.3, .5, 1); }
+.lv-board { position: relative; flex: 1; min-width: 0; }
+.lv-board .board-frame { position: relative; z-index: 1; }
+.lv-tag { position: absolute; z-index: 3; top: -.8rem; right: -.2rem; padding: .35rem .8rem; border-radius: 999px; font-weight: 800; font-size: .9rem; color: #0b0f1e; background: var(--amber); box-shadow: 0 14px 28px -10px #000; animation: lvtag 2.2s cubic-bezier(.2, 1.5, .4, 1) both; }
+.lv-tag.brill { background: var(--mint); } .lv-tag.mate { background: #ff6b3d; color: #fff; } .lv-tag.check { background: #ffd24d; }
+.lv-chat { position: relative; display: flex; gap: .65rem; align-items: flex-start; }
+.lv-av { flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; font-size: 1.35rem; color: #1a0b05; background: linear-gradient(135deg, #ffb08f, var(--ember)); box-shadow: 0 8px 20px -8px var(--ember); }
+.lv-bubble { flex: 1; min-width: 0; min-height: 5.4rem; padding: .6rem .9rem .75rem; border-radius: 4px 18px 18px 18px; background: rgba(17, 23, 51, .95); border: 1px solid var(--line-2); box-shadow: 0 20px 36px -22px #000; }
+.lv-moves { display: flex; gap: .4rem; font-size: .72rem; color: var(--mute); font-variant-numeric: tabular-nums; margin-bottom: .2rem; }
+.lv-moves .now { color: var(--ember-2); font-weight: 800; }
+.lv-bubble p { margin: 0; font-size: 1rem; line-height: 1.4; color: #eef1ff; min-height: 2.8em; }
+.lv-caret { display: inline-block; width: 2px; height: 1em; margin-left: 2px; vertical-align: -2px; background: var(--ember); animation: lvblink .7s steps(2) infinite; }
+.lv-dots b { display: inline-block; width: 7px; height: 7px; margin-right: 4px; border-radius: 50%; background: var(--mute); animation: lvdot 1s ease-in-out infinite; }
+.lv-dots b:nth-child(2) { animation-delay: .15s; } .lv-dots b:nth-child(3) { animation-delay: .3s; }
+.lv-emoji { position: absolute; right: .4rem; top: -.4rem; font-size: 1.7rem; animation: lvfloat 1.9s ease-out both; pointer-events: none; }
+.lv-prog { display: flex; gap: 2px; }
+.lv-prog i { flex: 1; height: 4px; border-radius: 2px; background: #1b2347; transition: background .3s; }
+.lv-prog i.on { background: var(--ember); }
+@keyframes lvpulse { 50% { opacity: .35; transform: scale(.8); } }
+@keyframes lvblink { 50% { opacity: 0; } }
+@keyframes lvdot { 0%, 100% { transform: translateY(0); opacity: .5; } 50% { transform: translateY(-4px); opacity: 1; } }
+@keyframes lvtag { 0% { opacity: 0; transform: scale(.4) rotate(-8deg); } 15% { opacity: 1; transform: scale(1.12) rotate(3deg); } 25% { transform: scale(1) rotate(0); } 85% { opacity: 1; } 100% { opacity: 0; transform: translateY(-6px); } }
+@keyframes lvfloat { 0% { opacity: 0; transform: translateY(12px) scale(.5); } 20% { opacity: 1; transform: translateY(0) scale(1.15); } 100% { opacity: 0; transform: translateY(-34px) scale(1); } }
+@media (max-width: 860px) { .lp-hero-board { padding-bottom: 0; } }
+@media (prefers-reduced-motion: reduce) { .lv-live i, .lv-caret, .lv-dots b, .lv-tag, .lv-emoji { animation: none; } .lv-emoji { opacity: 1; } .lv-tag { opacity: 1; } }
+
+/* ===== Gioca su Lichess ===== */
+.play-wrap { display: grid; grid-template-columns: minmax(0, 520px) minmax(220px, 1fr); gap: 1.2rem; align-items: start; }
+.play-side { display: grid; gap: .5rem; }
+.play-player { display: flex; align-items: baseline; gap: .4rem; padding: .45rem .8rem; border-radius: 12px; background: var(--ink-2); border: 1px solid var(--line); }
+.play-player.on { border-color: var(--ember); }
+.play-clock { margin-left: auto; font-family: var(--f-display); font-weight: 800; font-size: 1.25rem; font-variant-numeric: tabular-nums; }
+.play-panel { margin: 0; }
+.play-turn { margin: 0 0 .8rem; font-family: var(--f-display); font-weight: 700; font-size: 1.2rem; }
+.play-turn.res { color: var(--ember-2); }
+.play-btns { display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: .8rem; }
+.play-modes { display: flex; gap: .5rem; flex-wrap: wrap; margin: .5rem 0 1rem; }
+.play-seek { display: flex; align-items: center; gap: .7rem; margin-bottom: .6rem; }
+.linklike { background: none; border: 0; padding: 0; color: var(--ember-2); cursor: pointer; text-decoration: underline; font: inherit; }
+@media (max-width: 860px) { .play-wrap { grid-template-columns: minmax(0, 1fr); } }
+
+.spinner { display: inline-block; width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--line-2); border-top-color: var(--ember); animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }

@@ -23,6 +23,7 @@ const I = (d: string) => (
 );
 const NAV: { href: string; k: K; icon: React.ReactNode }[] = [
   { href: "/dashboard", k: "navHome", icon: I("M3 11l9-8 9 8M5 10v10h14V10") },
+  { href: "/dashboard/play", k: "navPlay", icon: I("M7 4l13 8-13 8z") },
   { href: "/dashboard/games", k: "navGames", icon: I("M4 4h16v16H4zM4 12h16M12 4v16") },
   { href: "/dashboard/openings", k: "navOpenings", icon: I("M6 4v16M6 8h6a4 4 0 014 4v8M6 14h10") },
   { href: "/dashboard/train", k: "navTrain", icon: I("M13 2L4 14h7l-1 8 9-12h-7z") },

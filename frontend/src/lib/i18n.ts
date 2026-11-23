@@ -41,6 +41,7 @@ const S = {
   deleteAcc: { it: "Elimina il mio account", en: "Delete my account", es: "Eliminar mi cuenta" },
   deleteConfirm: { it: "Eliminare definitivamente account e dati? L'azione non è reversibile.", en: "Permanently delete your account and data? This cannot be undone.", es: "¿Eliminar definitivamente tu cuenta y datos? No se puede deshacer." },
   navHome: { it: "Home", en: "Home", es: "Inicio" },
+  navPlay: { it: "Gioca", en: "Play", es: "Jugar" },
   navLessons: { it: "Lezioni GM", en: "GM lessons", es: "Lecciones GM" },
   sync: { it: "Sincronizza partite", en: "Sync games", es: "Sincronizar partidas" },
   syncing: { it: "Sincronizzazione…", en: "Syncing…", es: "Sincronizando…" },

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { LangSwitch, useLang } from "./lang";
 import { Logo } from "./Logo";
-import PlayBoard from "./PlayBoard";
+import LiveBoard from "./LiveBoard";
 import { COPY, Copy } from "../lib/landing-copy";
 import { BRAND, SUPPORT } from "../lib/brand";
 import { supabase } from "../lib/supabase";
@@ -57,7 +57,7 @@ function Hero({ c }: { c: Copy }) {
         </div>
         <div className="lp-hero-board">
           <div className="lp-board-glow" aria-hidden="true" />
-          <PlayBoard lang={lang} />
+          <LiveBoard lang={lang} />
         </div>
       </div>
     </section>
