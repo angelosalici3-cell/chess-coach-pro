@@ -8,13 +8,14 @@ set -euo pipefail
 VER="${SF_VERSION:-sf_17.1}"
 DEST="$(cd "$(dirname "$0")/.." && pwd)/bin"
 mkdir -p "$DEST" && cd "$DEST"
-if [ -x ./stockfish ]; then echo "Stockfish già presente: $DEST/stockfish"; exit 0; fi
+if [ -f ./stockfish ] && [ -x ./stockfish ]; then echo "Stockfish già presente: $DEST/stockfish"; exit 0; fi
+rm -rf ./stockfish sf.tar sf_tmp
 URL="https://github.com/official-stockfish/Stockfish/releases/download/${VER}/stockfish-ubuntu-x86-64.tar"   # versione base: gira su qualsiasi CPU
 curl -fsSL "$URL" -o sf.tar
-tar -xf sf.tar
-BIN="$(find . -type f -name 'stockfish*' ! -name '*.tar' ! -name '*.txt' | head -n1)"
+mkdir sf_tmp && tar -xf sf.tar -C sf_tmp
+BIN="$(find sf_tmp -type f -name 'stockfish*' ! -name '*.txt' ! -name '*.md' | head -n1)"
 [ -n "$BIN" ] || { echo "Stockfish non trovato nell'archivio"; exit 1; }
-mv "$BIN" ./stockfish && chmod +x ./stockfish
-rm -rf sf.tar stockfish-ubuntu* 2>/dev/null || true
+mv "$BIN" ./stockfish.bin && rm -rf sf.tar sf_tmp
+mv ./stockfish.bin ./stockfish && chmod +x ./stockfish
 echo "STOCKFISH_PATH=$DEST/stockfish"
 echo "uci" | ./stockfish | head -n2
