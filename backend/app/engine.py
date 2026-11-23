@@ -1,10 +1,15 @@
 """Analisi di una partita: valutazione per posizione (una sola chiamata per FEN) e salvataggio in moves/errori_utenti."""
+import atexit
 import datetime
 import io
 import logging
+import os
+import shutil
+import threading
 import time
 
 import chess
+import chess.engine
 import chess.pgn
 import httpx
 
@@ -13,7 +18,14 @@ from .db import sb
 
 log = logging.getLogger("engine")
 API = "https://chess-api.com/v1"
-DEPTH = 12
+DEPTH = 12            # profondità del servizio esterno
+# Stockfish in locale: se il programma è installato (STOCKFISH_PATH oppure nel PATH) si usa quello, senza limiti di richieste e più in profondità.
+# Sul server Render non c'è e si resta sul servizio esterno; nel lavoro notturno su GitHub viene installato (vedi analyze.yml).
+STOCKFISH = os.environ.get("STOCKFISH_PATH") or shutil.which("stockfish")
+LOCAL_DEPTH = int(os.environ.get("LOCAL_DEPTH", "16"))
+LOCAL_TIME = float(os.environ.get("LOCAL_TIME", "4"))        # tetto di secondi per posizione
+LOCAL_HASH = int(os.environ.get("LOCAL_HASH", "64"))         # MB per motore
+NOW_DEPTH = LOCAL_DEPTH if STOCKFISH else DEPTH              # profondità di questa esecuzione
 _off_until = 0.0   # se la tabella eval_cache non c'è ancora (o il database non risponde) si analizza come prima, senza memoria condivisa
 
 
@@ -22,16 +34,17 @@ def fkey(fen: str) -> str:
     return " ".join(fen.split()[:4])
 
 
-def cache_get(keys: list[str]) -> dict:
-    """{chiave: (valutazione, miglior mossa SAN)} per le posizioni già calcolate in passato da chiunque."""
+def cache_get(keys: list[str], min_depth: int = 0) -> dict:
+    """{chiave: (valutazione, miglior mossa SAN)} per le posizioni già calcolate in passato da chiunque, almeno alla profondità richiesta."""
     global _off_until
     if time.time() < _off_until or not keys:
         return {}
     out: dict = {}
     try:
         for i in range(0, len(keys), 100):
-            for r in sb.table("eval_cache").select("fen,eval_pawns,best_san").in_("fen", keys[i:i + 100]).execute().data:
-                out[r["fen"]] = (float(r["eval_pawns"]), r.get("best_san"))
+            for r in sb.table("eval_cache").select("fen,eval_pawns,best_san,depth").in_("fen", keys[i:i + 100]).execute().data:
+                if (r.get("depth") or 0) >= min_depth:
+                    out[r["fen"]] = (float(r["eval_pawns"]), r.get("best_san"))
     except Exception as e:
         log.warning("eval_cache non leggibile: %s", e)
         _off_until = time.time() + 600
@@ -39,17 +52,66 @@ def cache_get(keys: list[str]) -> dict:
 
 
 def cache_put(rows: dict) -> None:
-    """Salva le valutazioni nuove: una posizione già presente (magari più profonda, da altra fonte) non si sovrascrive."""
+    """Salva le valutazioni nuove. Una posizione già presente si sostituisce solo se la nuova è più profonda (funzione SQL eval_cache_put);
+    se la funzione non c'è ancora, si aggiungono soltanto le posizioni mancanti."""
     global _off_until
     if time.time() < _off_until or not rows:
         return
-    data = [{"fen": k, "eval_pawns": v[0], "best_san": v[1], "depth": DEPTH, "src": "chess_api"} for k, v in rows.items()]
+    data = [{"fen": k, "eval_pawns": v[0], "best_san": v[1], "depth": v[2], "src": "stockfish_local" if v[2] != DEPTH else "chess_api"} for k, v in rows.items()]
     try:
         for i in range(0, len(data), 200):
-            sb.table("eval_cache").upsert(data[i:i + 200], on_conflict="fen", ignore_duplicates=True).execute()
+            chunk = data[i:i + 200]
+            try:
+                sb.rpc("eval_cache_put", {"p": chunk}).execute()
+            except Exception:
+                sb.table("eval_cache").upsert(chunk, on_conflict="fen", ignore_duplicates=True).execute()
     except Exception as e:
         log.warning("eval_cache non scrivibile: %s", e)
         _off_until = time.time() + 600
+
+
+# ---- Stockfish locale: un motore per thread (il lavoro notturno analizza più partite insieme)
+_tl = threading.local()
+_all: list = []
+
+
+def _close_all():
+    for e in _all:
+        try:
+            e.quit()
+        except Exception:
+            pass
+
+
+atexit.register(_close_all)
+
+
+def _engine():
+    e = getattr(_tl, "engine", None)
+    if e is None:
+        e = chess.engine.SimpleEngine.popen_uci(STOCKFISH)
+        e.configure({"Threads": 1, "Hash": LOCAL_HASH})
+        _tl.engine = e
+        _all.append(e)
+    return e
+
+
+def eval_local(fen: str):
+    """(valutazione in pedoni dal lato del Bianco, miglior mossa SAN) con il Stockfish locale, oppure (None, None)."""
+    try:
+        board = chess.Board(fen)
+        if board.is_game_over():       # matto o patta: il motore non ha nulla da calcolare
+            out = board.outcome()
+            return (0.0 if out is None or out.winner is None else 100.0 if out.winner == chess.WHITE else -100.0), None
+        info = _engine().analyse(board, chess.engine.Limit(depth=LOCAL_DEPTH, time=LOCAL_TIME))
+        sc = info["score"].white()
+        ev = (100.0 if sc.mate() > 0 else -100.0) if sc.is_mate() else sc.score() / 100.0
+        pv = info.get("pv") or []
+        return ev, (board.san(pv[0]) if pv else None)
+    except Exception as e:
+        log.warning("stockfish locale fallito: %s", e)
+        _tl.engine = None            # al prossimo giro si riapre il motore
+        return None, None
 
 
 def eval_fen(client: httpx.Client, fen: str):
@@ -86,7 +148,8 @@ def analyze_game(game: dict) -> None:
     for mv in moves:
         b2.push(mv)
         keys.append(fkey(b2.fen()))
-    shared = cache_get(list(dict.fromkeys(keys)))
+    # con il motore locale si riusano solo valutazioni almeno quasi altrettanto profonde; quelle superficiali si rifanno e si sostituiscono
+    shared = cache_get(list(dict.fromkeys(keys)), min_depth=(LOCAL_DEPTH - 2) if STOCKFISH else 0)
     fresh: dict = {}
     move_rows, err_rows, losses, prev = [], [], [], 0.0
     miss = 0  # valutazioni non ricevute dal motore (limite di richieste, rete)
@@ -97,9 +160,12 @@ def analyze_game(game: dict) -> None:
                 if k in shared:
                     cache[fen] = shared[k]
                 else:
-                    cache[fen] = eval_fen(c, fen)
+                    dep = LOCAL_DEPTH
+                    cache[fen] = eval_local(fen) if STOCKFISH else (None, None)
+                    if cache[fen][0] is None:
+                        cache[fen], dep = eval_fen(c, fen), DEPTH      # senza motore locale, o se ha fallito: servizio esterno
                     if cache[fen][0] is not None:
-                        fresh[k] = cache[fen]
+                        fresh[k] = (cache[fen][0], cache[fen][1], dep)
             return cache[fen]
 
         for i, mv in enumerate(moves):
@@ -147,7 +213,7 @@ def analyze_game(game: dict) -> None:
     if err_rows:
         sb.table("errori_utenti").upsert(err_rows, on_conflict="user_email,game_id,ply").execute()
     acc = round(max(0.0, 100 - 40 * (sum(losses) / len(losses))), 1) if losses else None
-    upd = {"analyzed_at": now, "analysis_depth": DEPTH, "accuracy_user": acc}
+    upd = {"analyzed_at": now, "analysis_depth": NOW_DEPTH, "accuracy_user": acc}
     try:  # momenti salienti (rimonta, mosse brillanti); se la colonna non esiste ancora, l'analisi si salva comunque
         sb.table("games").update({**upd, "highlights": highlights_from_moves(move_rows, color)}).eq("id", game["id"]).execute()
     except Exception:

@@ -145,3 +145,11 @@ anche se arrivano da una fonte più profonda). Così le aperture comuni, le part
 tra due utenti dell'app si analizzano una volta sola. Nel log dell'analisi ogni partita riporta "posizioni N, dalla memoria M, dal motore K".
 Finché la tabella non esiste, l'analisi funziona come prima.
 Sonda sul dataset Lichess/chess-position-evaluations: workflow `lichess-eval-probe` (copertura, segno delle valutazioni, ordinamento).
+
+## Stockfish in locale nell'analisi notturna (v3.4)
+
+`engine.py` usa il Stockfish installato (`STOCKFISH_PATH` o nel PATH) invece di chess-api.com: nessun limite di richieste, profondità 16 invece di 12
+(`LOCAL_DEPTH`, tetto `LOCAL_TIME` secondi per posizione). Se il motore non c'è (come sul server Render) o fallisce, si usa il servizio esterno come prima.
+`analyze.yml` lo installa con apt. In `eval_cache` ogni posizione ha la sua profondità: con il motore locale si riusano solo valutazioni da almeno
+`LOCAL_DEPTH − 2` e quelle più profonde sostituiscono le superficiali (funzione SQL `eval_cache_put`, in `supabase/011_eval_cache.sql`: rieseguilo).
+Le analisi fatte sul server (primo caricamento di un utente) restano a profondità 12.
