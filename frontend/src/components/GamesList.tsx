@@ -85,7 +85,12 @@ export default function GamesList() {
                 {g.analyzed_at ? (
                   <>
                     <b>{g.accuracy_user != null ? Math.round(g.accuracy_user) : "—"}{g.accuracy_user != null && <small>%</small>}</b>
-                    <span className="small">{g.blunders + g.mistakes === 0 ? <span className="ok">{u("gClean", lang)}</span> : g.blunders > 0 ? <span className="bad">{u("gBlunders", lang, { n: g.blunders })}</span> : <span className="warn">{u("gMistakes", lang, { n: g.mistakes })}</span>}</span>
+                    <span className="small">{(() => {
+                      const parts: [number, string, string, string, string][] = [[g.blunders, "bad", "gSevere1", "gSevere", ""], [g.mistakes, "warn", "gErr1", "gMistakes", ""], [g.inaccuracies || 0, "muted", "gInacc1", "gInacc", ""]];
+                      const shown = parts.filter((p) => p[0] > 0);
+                      if (!shown.length) return <span className="ok">{u("gClean", lang)}</span>;
+                      return shown.map((p, k) => <span key={p[2]} className={p[1]}>{k ? " · " : ""}{p[0] === 1 ? u(p[2] as any, lang) : u(p[3] as any, lang, { n: p[0] })}</span>);
+                    })()}</span>
                   </>
                 ) : <span className="tag muted">{t("notAnalyzed")}</span>}
               </span>

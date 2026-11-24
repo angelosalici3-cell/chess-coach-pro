@@ -10,7 +10,7 @@ const U = {
   fResult: x("Risultato", "Result", "Resultado"), fColor: x("Colore", "Color", "Color"), fSpeed: x("Ritmo", "Pace", "Ritmo"),
   gToday: x("Oggi", "Today", "Hoy"), gYesterday: x("Ieri", "Yesterday", "Ayer"),
   gNoMatch: x("Nessuna partita con questi filtri.", "No games match these filters.", "Ninguna partida con estos filtros."),
-  gMore: x("Mostra altre", "Show more", "Mostrar más"), gBlunders: x("{n} errori gravi", "{n} blunders", "{n} errores graves"), gMistakes: x("{n} errori", "{n} mistakes", "{n} errores"),
+  gMore: x("Mostra altre", "Show more", "Mostrar más"), gBlunders: x("{n} errori gravi", "{n} blunders", "{n} errores graves"), gMistakes: x("{n} errori", "{n} mistakes", "{n} errores"), gErr1: x("1 errore", "1 mistake", "1 error"), gSevere: x("{n} gravi", "{n} blunders", "{n} graves"), gSevere1: x("1 grave", "1 blunder", "1 grave"), gInacc: x("{n} imprecisioni", "{n} inaccuracies", "{n} imprecisiones"), gInacc1: x("1 imprecisione", "1 inaccuracy", "1 imprecisión"),
   gClean: x("Nessun errore", "No mistakes", "Sin errores"), gWeak: x("I tuoi punti deboli", "Your weak spots", "Tus puntos débiles"),
   critTitle: x("Mossa critica", "Critical move", "Jugada crítica"),
   critText: x("{m}: la valutazione passa da {a} a {b}. La migliore era {best}.", "{m}: the evaluation goes from {a} to {b}. The best was {best}.", "{m}: la evaluación pasa de {a} a {b}. La mejor era {best}."),

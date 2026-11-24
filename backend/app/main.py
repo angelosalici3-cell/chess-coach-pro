@@ -154,6 +154,15 @@ def list_games(u=Depends(current_user)):
     for e in sb.table("errori_utenti").select("game_id,classification").eq("user_email", u["email"]).in_("classification", ["mistake", "blunder"]).limit(5000).execute().data:
         c = errs.setdefault(e["game_id"], {"blunder": 0, "mistake": 0})
         c[e["classification"]] += 1
+    # imprecisioni: non stanno in errori_utenti ma nelle mosse; così l'elenco conta quanto il dettaglio della partita
+    inacc: dict = {}
+    ids = [g["id"] for g in rows]
+    for i in range(0, len(ids), 50):
+        try:
+            for m in sb.table("moves").select("game_id").in_("game_id", ids[i:i + 50]).eq("is_user_move", True).eq("classification", "inaccuracy").limit(5000).execute().data:
+                inacc[m["game_id"]] = inacc.get(m["game_id"], 0) + 1
+        except Exception:
+            break
     out = []
     for g in rows:
         c, res = g["user_color"], g["result"]
@@ -163,7 +172,7 @@ def list_games(u=Depends(current_user)):
         e = errs.get(g["id"], {"blunder": 0, "mistake": 0})
         out.append({**g, "outcome": outcome, "me": (g["white"] if c == "white" else g["black"]) if c else None,
                     "opp": (g["black"] if c == "white" else g["white"]) if c else None,
-                    "speed": _speed(g["time_control"]), "blunders": e["blunder"], "mistakes": e["mistake"]})
+                    "speed": _speed(g["time_control"]), "blunders": e["blunder"], "mistakes": e["mistake"], "inaccuracies": inacc.get(g["id"], 0)})
     return out
 
 
