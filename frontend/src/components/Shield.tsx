@@ -12,6 +12,7 @@ export const ICONS: Record<string, string> = {
   lessons: "M5 4h9a3 3 0 013 3v13H8a3 3 0 01-3-3zM8 8h6M8 12h6",
   accuracy: "M12 3a9 9 0 100 18 9 9 0 000-18zm0 5a4 4 0 100 8 4 4 0 000-8zm0 3a1 1 0 100 2 1 1 0 000-2z",
   openings: "M6 4v16M6 8h6a4 4 0 014 4v8M6 14h10",
+  supporter: "M12 20s-7-4.6-7-10a4 4 0 017-2.6A4 4 0 0119 10c0 5.4-7 10-7 10z",
   clean: "M12 3l2.2 6.3L21 12l-6.8 2.7L12 21l-2.2-6.3L3 12l6.8-2.7z",
 };
 export const GLYPH: Record<string, string> = { games: "♟", analyzed: "♝", puzzles: "♞", puzzle_rating: "♛" };
@@ -33,7 +34,7 @@ export default function Shield({ id, tier, size }: { id: string; tier: number; s
       {glyph ? (
         <text x="50" y="62" textAnchor="middle" fontSize="40" fill={on ? "#1b1206" : "#4a5688"} fillOpacity={on ? 0.82 : 1}>{glyph}</text>
       ) : (
-        <path d={icon} transform="translate(26 24) scale(2)" fill={id === "streak" || id === "clean" ? (on ? "#1b1206" : "#4a5688") : "none"} fillOpacity={on ? 0.82 : 1}
+        <path d={icon} transform="translate(26 24) scale(2)" fill={id === "streak" || id === "clean" || id === "supporter" ? (on ? "#1b1206" : "#4a5688") : "none"} fillOpacity={on ? 0.82 : 1}
           stroke={on ? "#1b1206" : "#4a5688"} strokeOpacity={on ? 0.82 : 1} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
       )}
     </svg>

@@ -261,8 +261,13 @@ def _ach(email: str) -> dict:
     lvl = T.level_of(xp)
     claimed = {r["code"] for r in sb.table("rewards").select("code").eq("user_email", email).execute().data}
     bonus = (sb.table("config_utenti").select("bonus_lessons").eq("user_email", email).limit(1).execute().data or [{}])[0].get("bonus_lessons") or 0
+    try:
+        gifts = sum(float(d["amount"]) for d in sb.table("donations").select("amount").eq("user_email", email).execute().data)
+    except Exception:   # tabella non ancora creata (014 non eseguito)
+        gifts = 0
+    sup = [{"id": "supporter", "value": int(gifts), "tiers": [3, 10, 30], "tier": T.shield_tier(int(gifts), [3, 10, 30])}] if gifts > 0 else []
     return {"xp": xp, "level": lvl, "level_xp": T.xp_for_level(lvl), "next_xp": T.xp_for_level(lvl + 1), "bonus_lessons": bonus,
-            "shields": [{"id": sid, "value": m[sid], "tiers": tiers, "tier": T.shield_tier(m[sid], tiers)} for sid, tiers in T.SHIELDS]
+            "shields": [{"id": sid, "value": m[sid], "tiers": tiers, "tier": T.shield_tier(m[sid], tiers)} for sid, tiers in T.SHIELDS] + sup
                        + [{"id": "op_" + oid, "value": n, "tiers": CL.OPEN_TIERS, "tier": CL.tier_of(n), "kind": "opening", "color": next(o["color"] for o in CL.OPENINGS if o["id"] == oid)}
                           for oid, n in _open_wins(email).items()],
             "rewards": [{**r, "claimed": f"lvl{r['lvl']}" in claimed, "claimable": lvl >= r["lvl"] and f"lvl{r['lvl']}" not in claimed} for r in T.REWARDS],

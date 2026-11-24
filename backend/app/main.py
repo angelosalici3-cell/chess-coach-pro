@@ -20,6 +20,7 @@ from .engine import analyze_game
 from . import cache, mailer
 from .auth import current_user, tier_from, tier_of
 from .sync import _fetch_err, SECONDS_PER_GAME, analyze_initial, analyze_pending, failed_ids, import_history, initial_rows, is_running, job_status, last_error, onboard, run_cron, start_job, run_job, sync_user
+from .profile import router as profile_router
 from .promo import attribute_checkout, attribute_renewal, checkout_discount, is_admin, promo_for, router as promo_router
 from .train import router as train_router
 
@@ -34,6 +35,7 @@ log = logging.getLogger("main")
 app = FastAPI(title="EloRise API")
 app.include_router(train_router)
 app.include_router(promo_router)
+app.include_router(profile_router)
 app.add_middleware(CORSMiddleware, allow_origins=[FRONTEND_URL], allow_methods=["*"], allow_headers=["*"])
 
 
@@ -366,6 +368,26 @@ def checkout(body: CheckoutIn, u=Depends(current_user)):
     return {"url": stripe.checkout.Session.create(**args).url}
 
 
+class DonateIn(BaseModel):
+    amount: int            # euro interi, da 1 a 500
+    lang: str = "it"
+
+
+@app.post("/billing/donate")
+def donate(body: DonateIn, u=Depends(current_user)):
+    """Donazione una tantum con Stripe Checkout: nessun piano cambia, chi dona riceve lo scudo Sostenitore."""
+    if not 1 <= body.amount <= 500:
+        raise HTTPException(400, "invalid_amount")
+    lang = body.lang if body.lang in ("it", "en", "es") else "it"
+    name = {"it": "Sostieni EloRise", "en": "Support EloRise", "es": "Apoya EloRise"}[lang]
+    ses = stripe.checkout.Session.create(
+        mode="payment", customer_email=u["email"], locale=lang,
+        line_items=[{"quantity": 1, "price_data": {"currency": "eur", "unit_amount": body.amount * 100, "product_data": {"name": name}}}],
+        success_url=f"{FRONTEND_URL}/dashboard/rewards?tab=path&thanks=1", cancel_url=f"{FRONTEND_URL}/dashboard/rewards?tab=path",
+        metadata={"email": u["email"], "kind": "donation"})
+    return {"url": ses.url}
+
+
 @app.post("/billing/portal")
 def portal(u=Depends(current_user)):
     row = sb.table("config_utenti").select("stripe_customer_id").eq("user_email", u["email"]).limit(1).execute().data
@@ -382,6 +404,14 @@ async def webhook(request: Request, bg: BackgroundTasks):
     except Exception:
         raise HTTPException(400, "bad_signature")
     obj = ev["data"]["object"]
+    if ev["type"] == "checkout.session.completed" and (obj.get("metadata") or {}).get("kind") == "donation":
+        email = obj["metadata"].get("email")
+        try:
+            sb.table("donations").upsert({"user_email": email, "amount": (obj.get("amount_total") or 0) / 100, "stripe_session_id": obj["id"]}, on_conflict="stripe_session_id").execute()
+            cache.bust(email)
+        except Exception as e:
+            log.warning("donazione non registrata: %s", e)
+        return {"received": True}
     if ev["type"] == "checkout.session.completed":
         email, plan = obj["metadata"]["email"], obj["metadata"]["plan"]
         prev = tier_of(email)

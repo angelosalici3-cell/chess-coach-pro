@@ -82,6 +82,7 @@ const C = {
   sh_accuracy: x("Precisione", "Precision", "Precisión"), un_accuracy: x("% di precisione in una partita", "% accuracy in one game", "% de precisión en una partida"),
   sh_openings: x("Esploratore", "Explorer", "Explorador"), un_openings: x("aperture diverse giocate", "different openings played", "aperturas distintas jugadas"),
   sh_puzzle_rating: x("Mente tattica", "Tactical mind", "Mente táctica"), un_puzzle_rating: x("rating puzzle", "puzzle rating", "rating de puzzles"),
+  sh_supporter: x("Sostenitore", "Supporter", "Mecenas"), un_supporter: x("euro donati", "euros donated", "euros donados"),
   sh_clean: x("Partita pulita", "Clean game", "Partida limpia"), un_clean: x("partite senza errori", "games without mistakes", "partidas sin errores"),
   // home
   todayTitle: x("Allenamento di oggi", "Today's training", "Entrenamiento de hoy"),

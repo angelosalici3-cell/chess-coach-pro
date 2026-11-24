@@ -888,3 +888,22 @@ a.dr-btn { padding: .55rem .8rem; border: 1px solid var(--line-2); border-radius
 .nav-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ember); margin-left: 6px; vertical-align: middle; }
 .shield-new { position: absolute; top: 8px; right: 8px; background: var(--ember); color: #1a0b05; font-size: .62rem; font-weight: 800; padding: .14rem .45rem; border-radius: 999px; }
 .shield-card { position: relative; }
+
+/* v3.22 Il tuo percorso */
+.jy { display: grid; gap: 1rem; margin-top: .8rem; max-width: 880px; }
+.jy-letter { padding: 1.4rem 1.5rem; border-left: 3px solid var(--ember); }
+.jy-quote { font-size: 1.15rem; line-height: 1.6; margin: .5rem 0 0; max-width: 62ch; }
+.jy-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: .8rem; }
+.jy-stat { display: flex; flex-direction: column; gap: .15rem; }
+.jy-big { font-size: 2rem; line-height: 1.1; }
+.jy-cap { grid-column: 1 / -1; }
+.jy-d { font-size: .85rem; font-weight: 700; color: var(--mute); }
+.jy-d.up { color: #4ee3b0; } .jy-d.down { color: #ff7a6b; }
+.jy-curve { width: 100%; height: auto; display: block; margin-top: .4rem; }
+.jy-two { display: grid; grid-template-columns: repeat(2, 1fr); gap: .8rem; }
+.jy-h { font-size: 1.1rem; margin: .4rem 0 .6rem; }
+.jy-tl { display: grid; gap: .7rem; }
+.jy-item p { margin: .4rem 0 0; line-height: 1.55; }
+.jy-up { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+@media (max-width: 560px) { .jy-two { grid-template-columns: 1fr; } .jy-big { font-size: 1.6rem; } }
+.don { padding: 1.3rem 1.5rem; } .don-in { width: 8.5rem; background: var(--ink-3); border: 1px solid var(--line-2); color: var(--ice); border-radius: 999px; padding: .45rem .9rem; font: inherit; }

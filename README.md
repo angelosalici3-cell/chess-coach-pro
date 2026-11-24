@@ -236,3 +236,10 @@ Le analisi fatte sul server (primo caricamento di un utente) restano a profondit
 - **Scudi** con soglie più realistiche (partite 25/150/500, analizzate 10/75/300, puzzle 25/150/600, serie 3/14/60, ecc.) e flag NEW quando sale il livello.
 - Il menu "Premi" diventa "Profilo" (con puntino NEW).
 - File: backend `cardlogic.py`, `train.py`, `trainlogic.py`; frontend `Cards.tsx`, `CardCarousel.tsx`, `CardCelebration.tsx`, `Achievements.tsx`, `app.tsx`, `cardArt.ts`, `train-copy.ts`, `i18n.ts`, `ui-copy.ts`, `globals.css`.
+
+### v3.22 — Profilo: "Il tuo percorso" e donazioni
+- **Profilo** (ex Premi) ha tre schede: Percorso · Carte · Scudi. Il Percorso mostra la lettera del coach, tre numeri degli ultimi 30 giorni confrontati con i 30 prima, la curva del rating, apertura migliore ed errori ricorrenti.
+- **Lettere del coach**: i numeri sono calcolati dal server, Gemini scrive solo il racconto (e non può inventare dati; se l'AI non risponde, testo di riserva dai numeri). Free: prima impressione dopo 20 partite analizzate (costo zero). Plus: lettera mensile. Pro: settimanale + mensile. Elite: anche la stagione trimestrale (la generazione della stagione e l'immagine condivisibile arrivano nella prossima versione). Una lettera per periodo, generata alla prima apertura del Profilo: nessun cron da configurare.
+- **Donazioni**: Stripe Checkout una tantum (3/5/10 € o importo libero, 1–500 €), in fondo al Percorso. Il webhook registra la donazione e sblocca lo scudo condivisibile **Sostenitore** (3/10/30 € donati).
+- **Da eseguire su Supabase**: `013_coach_reports.sql` e `014_donations.sql`. Nel webhook Stripe esistente non serve nulla di nuovo (evento `checkout.session.completed`).
+- File: backend `profile.py` (nuovo), `main.py`, `train.py`; frontend `Journey.tsx`, `Donate.tsx` (nuovi), `rewards/page.tsx`, `Shield.tsx`, `shieldShare.ts`, `train-copy.ts`, `globals.css`.

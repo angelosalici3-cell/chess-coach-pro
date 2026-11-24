@@ -27,7 +27,7 @@ export async function makeShieldPng(s: ShieldShare, fonts: Fonts): Promise<Blob>
   const glyph = GLYPH[s.id], icon = ICONS[s.id] ?? (s.id.startsWith("op_") ? ICONS.openings : undefined);
   ctx.fillStyle = "rgba(27,18,6,.82)"; ctx.strokeStyle = "rgba(27,18,6,.82)";
   if (glyph) { ctx.font = `40px 'Segoe UI Symbol','Noto Sans Symbols 2','DejaVu Sans',sans-serif`; ctx.textAlign = "center"; ctx.fillText(glyph + "︎", 50, 62); }
-  else if (icon) { ctx.translate(26, 24); ctx.scale(2, 2); ctx.lineWidth = 1.6; ctx.lineCap = "round"; const ip = new Path2D(icon); if (s.id === "streak" || s.id === "clean") ctx.fill(ip); ctx.stroke(ip); }
+  else if (icon) { ctx.translate(26, 24); ctx.scale(2, 2); ctx.lineWidth = 1.6; ctx.lineCap = "round"; const ip = new Path2D(icon); if (s.id === "streak" || s.id === "clean" || s.id === "supporter") ctx.fill(ip); ctx.stroke(ip); }
   ctx.restore();
   // testi
   ctx.textAlign = "center";
