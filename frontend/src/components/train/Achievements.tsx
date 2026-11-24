@@ -25,6 +25,16 @@ export default function Achievements({ onProgress }: { onProgress: () => void })
       setMsg(r === "shared" ? tc("cardShared", lang) : r === "saved" ? tc("cardSaved", lang) : "");
     } catch { setErr(tc("cardFail", lang)); }
   };
+  // flag NEW sugli scudi: confronto con l'ultimo livello visto su questo dispositivo
+  const [seenT, setSeenT] = useState<Record<string, number> | null>(null);
+  useEffect(() => { try { setSeenT(JSON.parse(localStorage.getItem("elo:shields:seen") || "null") || {}); } catch { setSeenT({}); } }, []);
+  useEffect(() => {
+    if (!a || seenT === null) return;
+    const t = setTimeout(() => {   // dopo qualche secondo di visione: il NEW si spegne
+      try { localStorage.setItem("elo:shields:seen", JSON.stringify(Object.fromEntries(a.shields.map((x: any) => [x.id, x.tier])))); } catch {}
+    }, 4000);
+    return () => clearTimeout(t);
+  }, [a, seenT]);
   const load = () => call("/achievements").then(setA).catch((e) => setErr(e.message));
   useEffect(() => { load(); }, [call]);
 
@@ -51,6 +61,7 @@ export default function Achievements({ onProgress }: { onProgress: () => void })
         const prev = s.tier > 0 ? s.tiers[s.tier - 1] : 0;
         return (
           <div key={s.id} className={"card shield-card t" + s.tier}>
+            {seenT && s.tier > (seenT[s.id] ?? 0) && Object.keys(seenT).length > 0 && <span className="shield-new">{tc("newFlag", lang)}</span>}
             <Shield id={s.id} tier={s.tier} />
             <div className="nm">{shieldTitle(s.id, lang)}</div>
             {s.kind === "opening" && <div className="muted small">{tc(s.color === "w" ? "openAsWhite" : "openAsBlack", lang)}</div>}

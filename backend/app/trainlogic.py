@@ -9,17 +9,17 @@ LEITNER_DAYS = {2: 1, 3: 3, 4: 7, 5: 16}
 LEITNER_MASTERED_DAYS = 35
 
 # (id, soglie bronzo/argento/oro)
-SHIELDS = [
-    ("games", [10, 50, 200]),
-    ("analyzed", [5, 25, 100]),
-    ("puzzles", [10, 50, 250]),
-    ("streak", [3, 7, 30]),
-    ("fixed", [10, 50, 200]),
+SHIELDS = [   # bronzo / argento / oro: per chi usa l'app con regolarità, circa 1 settimana / 1-2 mesi / 4-6 mesi
+    ("games", [25, 150, 500]),
+    ("analyzed", [10, 75, 300]),
+    ("puzzles", [25, 150, 600]),
+    ("streak", [3, 14, 60]),
+    ("fixed", [15, 75, 300]),
     ("lessons", [3, 15, 50]),
-    ("accuracy", [85, 92, 97]),
+    ("accuracy", [80, 88, 94]),
     ("openings", [5, 15, 40]),
     ("puzzle_rating", [1400, 1700, 2000]),
-    ("clean", [1, 5, 20]),
+    ("clean", [3, 10, 30]),
 ]
 TIER_XP = [50, 150, 400]
 XP_PER_PUZZLE, XP_PER_FIX, XP_PER_DAY = 4, 6, 10

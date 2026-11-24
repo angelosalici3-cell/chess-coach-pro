@@ -137,6 +137,15 @@ const C = {
   cardsSub: x("Ogni carta racconta una tua partita speciale. Rigiocala e condividila.", "Every card tells one of your special games. Replay it and share it.", "Cada carta cuenta una de tus partidas especiales. Reprodúcela y compártela."),
   cardsEmpty: x("Ancora nessuna carta. Sincronizza le partite e fai analizzare le più belle: la prima carta arriva con la tua prima vittoria di almeno 10 mosse a testa.", "No cards yet. Sync your games and get your best ones analyzed: your first card comes with your first win of at least 10 moves each.", "Aún no hay cartas. Sincroniza tus partidas y analiza las mejores: tu primera carta llega con tu primera victoria de al menos 10 jugadas por bando."),
   cardsNew: x("{n} carte nuove!", "{n} new cards!", "¡{n} cartas nuevas!"),
+  albumTitle: x("Il tuo album", "Your album", "Tu álbum"),
+  albumHint: x("Scegli una rarità per sfogliare le carte. Quelle grigie sono ancora da conquistare: toccale per scoprire come.", "Pick a rarity to browse your cards. Grey ones are still to be won: tap them to see how.", "Elige una rareza para ver tus cartas. Las grises aún se pueden ganar: tócalas para ver cómo."),
+  albumBack: x("Tutte le rarità", "All rarities", "Todas las rarezas"),
+  albumOwned: x("{a} di {b}", "{a} of {b}", "{a} de {b}"),
+  lockedTag: x("Da conquistare", "To win", "Por ganar"),
+  howTo: x("Come ottenerla", "How to get it", "Cómo conseguirla"),
+  monthNote: x("Ogni mese, la tua partita più precisa diventa una carta rara.", "Each month, your most accurate game becomes a rare card.", "Cada mes, tu partida más precisa se convierte en una carta rara."),
+  nextRating: x("Prossima quota: {n} punti", "Next rating: {n}", "Próximo nivel: {n}"),
+  newFlag: x("NEW", "NEW", "NEW"),
   cardNewTag: x("NUOVA", "NEW", "NUEVA"),
   cardsGoals: x("Obiettivi delle carte", "Card goals", "Objetivos de cartas"),
   cardOwned: x("{a} di {b}", "{a} of {b}", "{a} de {b}"),
@@ -153,7 +162,7 @@ const C = {
   cardShareTextNoWin: x("La mia carta su EloRise #EloRise #scacchi", "My card on EloRise #EloRise #chess", "Mi carta en EloRise #EloRise #ajedrez"),
   rarCommon: x("COMUNE", "COMMON", "COMÚN"), rarRare: x("RARA", "RARE", "RARA"), rarEpic: x("EPICA", "EPIC", "ÉPICA"), rarLegendary: x("LEGGENDARIA", "LEGENDARY", "LEGENDARIA"),
   cWin: x("Vittoria", "Win", "Victoria"), cLoss: x("Sconfitta", "Loss", "Derrota"), cDraw: x("Patta", "Draw", "Tablas"),
-  cMe: x("TU", "YOU", "TÚ"), cOpp: x("VS", "VS", "VS"), cMoves: x("mosse", "moves", "jugadas"), cAcc: x("PREC.", "ACC.", "PREC."),
+  cMe: x("TU", "YOU", "TÚ"), cOpp: x("VS", "VS", "VS"), cMoves: x("mosse", "moves", "jugadas"), cAcc: x("Precisione", "Accuracy", "Precisión"),
   celebTitle: x("Nuova carta {rarity}!", "New {rarity} card!", "¡Nueva carta {rarity}!"),
   celebSub: x("Hai sbloccato: {title}", "You unlocked: {title}", "Has desbloqueado: {title}"),
   celebShare: x("Condividi", "Share", "Compartir"),
@@ -240,6 +249,16 @@ export function goalCopy(goal: string, lang: Lang, data: Record<string, any> = {
     const s = { it: `${n} vittorie di fila${who === "all" ? "" : who === "w" ? " giocando col Bianco" : " giocando col Nero"}`, en: `${n} wins in a row${who === "all" ? "" : who === "w" ? " playing White" : " playing Black"}`, es: `${n} victorias seguidas${who === "all" ? "" : who === "w" ? " con Blancas" : " con Negras"}` };
     return { title: t[lang], sub: s[lang] };
   }
+  const rt = goal.match(/^rating_(\d+)$/);
+  if (rt) {
+    const n = rt[1];
+    return { title: { it: `Quota ${n}`, en: `Rating ${n}`, es: `Nivel ${n}` }[lang], sub: { it: `Raggiungi ${n} punti di rating in una partita`, en: `Reach a ${n} rating in a game`, es: `Alcanza ${n} puntos de rating en una partida` }[lang] };
+  }
+  const mo = goal.match(/^month_(\d{4})-(\d{2})$/);
+  if (mo) {
+    const d = new Date(Number(mo[1]), Number(mo[2]) - 1, 1), name = d.toLocaleDateString(lang, { month: "long", year: "numeric" });
+    return { title: { it: `Partita del mese · ${name}`, en: `Game of the month · ${name}`, es: `Partida del mes · ${name}` }[lang], sub: { it: `La tua partita più precisa di ${name}`, en: `Your most accurate game of ${name}`, es: `Tu partida más precisa de ${name}` }[lang] };
+  }
   const vs = goal.match(/^vs_(\w+)_(\d+)$/);
   if (vs) {
     const sp = speedName(vs[1], lang), n = vs[2];
@@ -249,7 +268,7 @@ export function goalCopy(goal: string, lang: Lang, data: Record<string, any> = {
   }
   const hr = goal.match(/^hours_(\w+)_(\d)$/);
   if (hr) {
-    const h = [2, 10, 40][Number(hr[2]) - 1], sp = speedName(hr[1], lang);
+    const h = [20][Number(hr[2]) - 1], sp = speedName(hr[1], lang);
     const t = { it: `${sp}: ${h} ore`, en: `${sp}: ${h} hours`, es: `${sp}: ${h} horas` };
     const s = { it: `${h} ore giocate a ${sp}${data.games ? ` in ${data.games} partite` : ""}`, en: `${h} hours played in ${sp}${data.games ? ` over ${data.games} games` : ""}`, es: `${h} horas jugadas en ${sp}${data.games ? ` en ${data.games} partidas` : ""}` };
     return { title: t[lang], sub: s[lang] };

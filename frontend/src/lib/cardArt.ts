@@ -58,9 +58,10 @@ export function drawCard(ctx: CanvasRenderingContext2D, v: CardView, pos: Pos[],
 
   // intestazione: numero grande (precisione) a sinistra, titolo a destra
   const acc = g.acc != null ? Math.round(Number(g.acc)) : null;
-  ctx.fillStyle = "#fff"; ctx.textAlign = "center"; ctx.font = `800 ${acc != null ? 66 : 40}px ${D}`;
-  ctx.fillText(acc != null ? String(acc) : (g.result === "1/2-1/2" ? "½" : "★"), 82, 100);
-  ctx.fillStyle = T.accent; ctx.font = `700 12px ${B}`; ctx.fillText(acc != null ? L.accuracy : "", 82, 122);
+  ctx.fillStyle = "#fff"; ctx.textAlign = "center"; ctx.font = `800 66px ${D}`;
+  const nm = Math.ceil((g.sans?.length || 0) / 2);   // senza analisi: il numero di mosse, sempre con la sua etichetta
+  ctx.fillText(acc != null ? String(Math.round(acc)) : String(nm), 82, 100);
+  ctx.fillStyle = T.accent; ctx.font = `800 13px ${B}`; ctx.fillText((acc != null ? L.accuracy : L.moves).toUpperCase(), 82, 124);
   // pedina del colore dell'utente
   ctx.beginPath(); ctx.arc(82, 148, 11, 0, Math.PI * 2); ctx.fillStyle = g.color === "white" ? "#f4f7ff" : "#0f1430"; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = T.accent; ctx.stroke();
   ctx.fillStyle = T.accent; ctx.textAlign = "left";

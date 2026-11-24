@@ -61,7 +61,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (method !== "GET") {
       if (p === "/cards/seen") {   // segnare le carte come viste non deve buttare via tutta la memoria: si aggiorna solo l'album
         const c = store.current.get("/cards");
-        if (c) store.current.set("/cards", { t: c.t, d: { ...c.d, new: 0, cards: (c.d.cards || []).map((x: any) => ({ ...x, new: false })) } });
+        let only: string | undefined; try { only = JSON.parse(String(init?.body || "{}")).rarity; } catch {}
+        if (c) { const cards = (c.d.cards || []).map((x: any) => (!only || x.rarity === only ? { ...x, new: false } : x)); store.current.set("/cards", { t: c.t, d: { ...c.d, cards, new: cards.filter((x: any) => x.new).length } }); }
         return api<T>(p, token || "", init);
       }
       store.current.clear();
@@ -160,7 +161,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <aside className="side">
           <Link href="/" aria-label="Home"><Logo size={34} /></Link>
           <nav aria-label="App">
-            {NAV.map((n) => <Link key={n.href} href={n.href} className={(on(n) ? "on" : "") + (n.hero ? " hero" : "")}>{n.icon}<span>{t(n.k)}</span></Link>)}
+            {NAV.map((n) => <Link key={n.href} href={n.href} className={(on(n) ? "on" : "") + (n.hero ? " hero" : "")}>{n.icon}<span>{t(n.k)}{n.href.endsWith("/rewards") && !!me?.new_cards && <i className="nav-dot" aria-label="new" />}</span></Link>)}
           </nav>
           <div className="side-foot">
             <div className="who"><span className="pill-tier">{me?.tier || "…"}</span><span className="small muted ellip">{session.user.email}</span></div>
@@ -173,7 +174,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </header>
         <main className="content">{children}</main>
         <nav className="tabbar" aria-label="App">
-          {NAV.map((n) => <Link key={n.href} href={n.href} className={(on(n) ? "on" : "") + (n.hero ? " hero" : "")}>{n.hero ? <b className="tab-play">{n.icon}</b> : n.icon}<span>{t(n.k)}</span></Link>)}
+          {NAV.map((n) => <Link key={n.href} href={n.href} className={(on(n) ? "on" : "") + (n.hero ? " hero" : "")}>{n.hero ? <b className="tab-play">{n.icon}</b> : n.icon}<span>{t(n.k)}{n.href.endsWith("/rewards") && !!me?.new_cards && <i className="nav-dot" aria-label="new" />}</span></Link>)}
         </nav>
       </div>
       <Drawer open={menu} onClose={closeMenu} me={me} lang={lang} email={session.user.email || ""} onGuide={() => setGuide(true)} onLogout={logout} />

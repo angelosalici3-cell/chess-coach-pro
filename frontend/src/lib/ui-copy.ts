@@ -1,7 +1,7 @@
 import type { Lang } from "./i18n";
 const x = (it: string, en: string, es: string) => ({ it, en, es });
 const U = {
-  navRewards: x("Premi", "Rewards", "Premios"),
+  navRewards: x("Profilo", "Profile", "Perfil"),
   tabGames: x("Partite", "Games", "Partidas"), tabLessons: x("Lezioni GM", "GM lessons", "Lecciones GM"),
   gTitle: x("Le tue partite", "Your games", "Tus partidas"),
   gGames: x("Partite", "Games", "Partidas"), gWin: x("Vittorie", "Wins", "Victorias"), gAcc: x("Precisione", "Accuracy", "Precisión"), gAnalyzed: x("Analizzate", "Analyzed", "Analizadas"),

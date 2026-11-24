@@ -8,35 +8,80 @@ import { rarityColor } from "../../lib/cardArt";
 import { Seg } from "../ui/Seg";
 import { goalCopy, rarityName, speedName, tc } from "../../lib/train-copy";
 
+const ORDER = ["common", "rare", "epic", "legendary"] as const;
+type Cat = { goal: string; rarity: string; group: string; owned: boolean };
+
 export default function Cards({ onProgress }: { onProgress: () => void }) {
-  const { call, lang } = useApp();
-  const [data, setData] = useState<{ cards: ApiCard[]; goals: any[]; new: number; progress: any; hour_steps: number[] } | null>(null);
+  const { call, lang, refreshMe } = useApp();
+  const [data, setData] = useState<{ cards: ApiCard[]; catalog: Cat[]; new: number; progress: any; hour_steps: number[] } | null>(null);
   const [err, setErr] = useState("");
   const [open, setOpen] = useState<ApiCard | null>(null);
-  const [sub, setSub] = useState<"album" | "progress" | "goals">("album");
+  const [sub, setSub] = useState<"album" | "progress">("album");
+  const [rar, setRar] = useState<string | null>(null);
 
-  useEffect(() => {
-    call("/cards").then((d) => { setData(d); if (d.cards.some((c: ApiCard) => c.new)) call("/cards/seen", { method: "POST" }).then(onProgress).catch(() => {}); }).catch((e) => setErr(e.message));
-  }, [call]); // eslint-disable-line
+  const load = () => call("/cards").then(setData).catch((e) => setErr(e.message));
+  useEffect(() => { load(); }, [call]); // eslint-disable-line
   useEffect(() => {
     if (!open) return;
     const k = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(null); };
     window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k);
   }, [open]);
 
+  // il NEW sparisce solo quando apri quella rarità
+  const pickRarity = async (r: string) => {
+    setRar(r);
+    if (data?.cards.some((c) => c.rarity === r && c.new)) {
+      setData({ ...data, cards: data.cards.map((c) => (c.rarity === r ? { ...c, new: c.new } : c)) });
+      call("/cards/seen", { method: "POST", body: JSON.stringify({ rarity: r }) }).then(() => { refreshMe(); onProgress(); }).catch(() => {});
+    }
+  };
+  const closeRarity = () => { setRar(null); load(); };
+
   if (err) return <div className="note err">{err}</div>;
   if (!data) return <p className="muted">…</p>;
-  const { cards, goals, progress: pr, hour_steps: steps } = data;
-  const singles = goals.filter((g) => g.group === "single");
-  const SUB = { it: ["Album", "Progressi", "Obiettivi"], en: ["Album", "Progress", "Goals"], es: ["Álbum", "Progreso", "Objetivos"] }[lang];
+  const { cards, catalog, progress: pr, hour_steps: steps } = data;
+  const SUB = { it: ["Album", "Progressi"], en: ["Album", "Progress"], es: ["Álbum", "Progreso"] }[lang];
+  const total = (r: string) => catalog.filter((c) => c.rarity === r).length;
+  const owned = (r: string) => cards.filter((c) => c.rarity === r && catalog.some((k) => k.goal === c.goal)).length;
+  const monthCards = (r: string) => cards.filter((c) => c.rarity === r && c.goal.startsWith("month_"));
+  const rarCards = (r: string) => cards.filter((c) => c.rarity === r);
+  const lockedOf = (r: string) => catalog.filter((c) => c.rarity === r && !c.owned).map((c) => ({ goal: c.goal, rarity: c.rarity }));
+  const newIn = (r: string) => cards.filter((c) => c.rarity === r && c.new).length;
+
   return (
     <div>
-      <Seg<"album" | "progress" | "goals"> value={sub} onChange={setSub} items={[{ v: "album", label: SUB[0], n: cards.length }, { v: "progress", label: SUB[1] }, { v: "goals", label: SUB[2] }]} />
-      {sub === "album" && <p className="muted" style={{ marginTop: ".6rem" }}>{tc("cardsSub", lang)}</p>}
-      {sub === "album" && data.new > 0 && <div className="note ok">{tc("cardsNew", lang, { n: data.new })}</div>}
-      {sub === "album" && (cards.length === 0 ? <div className="card"><p style={{ margin: 0 }}>{tc("cardsEmpty", lang)}</p></div> : (
-        <CardCarousel cards={cards} onOpen={setOpen} />
-      ))}
+      <Seg<"album" | "progress"> value={sub} onChange={(v) => { setSub(v); setRar(null); }} items={[{ v: "album", label: SUB[0], n: cards.length }, { v: "progress", label: SUB[1] }]} />
+
+      {sub === "album" && !rar && (
+        <>
+          <p className="muted" style={{ marginTop: ".6rem" }}>{tc("albumHint", lang)}</p>
+          <div className="rar-grid">
+            {ORDER.map((r) => {
+              const n = newIn(r), got = owned(r) + (r === "rare" ? monthCards(r).length : 0), tot = total(r) + (r === "rare" ? monthCards(r).length : 0);
+              return (
+                <button key={r} className={"rar-box" + (got === 0 ? " empty" : "")} style={{ ["--rc" as any]: rarityColor(r as any) }} onClick={() => pickRarity(r)}>
+                  {n > 0 && <span className="new-pill">{tc("newFlag", lang)} · {n}</span>}
+                  <span className="rar-gem" aria-hidden="true" />
+                  <b>{rarityName(r, lang)}</b>
+                  <span className="rar-count">{tc("albumOwned", lang, { a: got, b: tot })}</span>
+                  <span className="bar"><i style={{ width: `${tot ? (100 * got) / tot : 0}%` }} /></span>
+                </button>
+              );
+            })}
+          </div>
+          {cards.length === 0 && <div className="card" style={{ marginTop: ".8rem" }}><p style={{ margin: 0 }}>{tc("cardsEmpty", lang)}</p></div>}
+          <p className="muted small" style={{ textAlign: "center" }}>{tc("monthNote", lang)}</p>
+        </>
+      )}
+
+      {sub === "album" && rar && (
+        <>
+          <button className="btn btn-sm rar-back" onClick={closeRarity}>‹ {tc("albumBack", lang)}</button>
+          <h2 className="rar-h" style={{ color: rarityColor(rar as any) }}>{rarityName(rar, lang)}</h2>
+          <CardCarousel cards={rarCards(rar)} locked={lockedOf(rar)} onOpen={setOpen} />
+        </>
+      )}
+
       {sub === "progress" && <div className="card prog" style={{ marginTop: ".6rem" }}>
         <div className="muted small">{tc("hoursTitle", lang)}</div>
         <div className="prog-grid">
@@ -52,45 +97,12 @@ export default function Cards({ onProgress }: { onProgress: () => void }) {
             );
           })}
         </div>
-        <p className="muted small" style={{ margin: ".6rem 0 0" }}>{tc("hoursNote", lang)}</p>
-        {pr.vs && Object.keys(pr.vs).length > 0 && (
-          <div style={{ marginTop: ".8rem" }}>
-            <div className="muted small">{tc("vsGroup", lang)}</div>
-            <div className="chips" style={{ marginTop: ".3rem" }}>
-              {Object.entries(pr.vs).map(([sp, v]: any) => <span key={sp} className="chip">{tc("vsNext", lang, { sp: speedName(sp, lang), n: v.next })}</span>)}
-            </div>
-            <p className="muted small" style={{ margin: ".4rem 0 0" }}>{tc("vsNote", lang)}</p>
-          </div>
-        )}
         <div className="chips" style={{ marginTop: ".7rem" }}>
-          {(["all", "w", "b"] as const).map((k) => <span key={k} className="chip">{tc(k === "all" ? "streakAll" : k === "w" ? "streakW" : "streakB", lang)}: {tc("streakNow", lang, { n: pr.runs[k], b: pr.best_runs[k] })}</span>)}
+          <span className="chip">{tc("streakAll", lang)}: {tc("streakNow", lang, { n: pr.runs.all, b: pr.best_runs.all })}</span>
+          {pr.rating_next && <span className="chip">{tc("nextRating", lang, { n: pr.rating_next })}</span>}
         </div>
       </div>}
-      {sub === "goals" && <div className="goal-list" style={{ marginTop: ".6rem" }}>
-        {singles.map((g) => {
-          const t = goalCopy(g.goal, lang);
-          return (
-            <div key={g.goal} className={"card goal" + (g.owned ? " got" : "")}>
-              <i className="goal-dot" style={{ background: rarityColor(g.rarity) }} aria-hidden="true" />
-              <div><b>{t.title}</b> <span className="muted small">{rarityName(g.rarity, lang)}</span><div className="muted small">{t.sub.replace(/\{\w+\}/g, "…")}</div></div>
-              <span className="muted small">{tc("cardOwned", lang, { a: g.owned, b: g.max })}</span>
-            </div>
-          );
-        })}
-        {([["streak_all", "streakAll"], ["streak_w", "streakW"], ["streak_b", "streakB"], ["hours", "hoursTitle"], ["vs", "vsGroup"]] as const).filter(([grp]) => grp !== "vs" || goals.some((g) => g.group === "vs")).map(([grp, label]) => (
-          <div key={grp} className="card goal grp">
-            <div style={{ flex: 1 }}>
-              <b>{tc(label, lang)}</b>
-              <div className="chips" style={{ margin: ".4rem 0 0" }}>
-                {goals.filter((g) => g.group === grp).map((g) => (
-                  <span key={g.goal} className={"chip" + (g.owned ? " on" : "")} title={goalCopy(g.goal, lang).sub} style={{ borderColor: rarityColor(g.rarity) }}>{g.owned ? "✓ " : ""}{goalCopy(g.goal, lang).title}</span>
-                ))}
-              </div>
-            </div>
-          </div>
-        ))}
-        <div className="card goal"><i className="goal-dot" style={{ background: rarityColor("rare") }} aria-hidden="true" /><div><b>{tc("openShieldsTitle", lang)}</b><div className="muted small">{tc("openShieldsSub", lang)}</div></div></div>
-      </div>}
+
       {open && (
         <div className="ob-back" onMouseDown={(e) => { if (e.target === e.currentTarget) setOpen(null); }}>
           <div className="viewer" role="dialog" aria-modal="true">

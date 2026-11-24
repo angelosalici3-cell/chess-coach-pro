@@ -465,7 +465,16 @@ def _cards_build(u):
     ensure_highlights(email)
     rows = _game_rows(email)
     n_new, progress = assign_cards(email, rows, with_progress=True)
-    owned = sb.table("cards").select("*").eq("user_email", email).order("created_at", desc=True).limit(300).execute().data
+    raw = sb.table("cards").select("*").eq("user_email", email).order("created_at").limit(600).execute().data
+    owned, seen_goal = [], set()
+    for c in raw:   # una sola carta per traguardo (la prima ottenuta) e solo quelle del catalogo attuale
+        if CL.in_catalog(c["goal"]) and c["goal"] not in seen_goal:
+            seen_goal.add(c["goal"]); owned.append(c)
+    keep = {c["id"] for c in owned}
+    stale = [c["id"] for c in raw if c["id"] not in keep and not c["seen"]]
+    if stale:   # carte del vecchio catalogo o doppioni: niente NEW fantasma
+        sb.table("cards").update({"seen": True}).in_("id", stale).execute()
+    owned.sort(key=lambda c: c["created_at"], reverse=True)
     by_id = {str(g["id"]): g for g in rows}
     missing = [c["game_id"] for c in owned if c["game_id"] not in by_id]
     if missing:  # partita fuori dalle ultime 1000: la recupero a parte
@@ -483,25 +492,21 @@ def _cards_build(u):
                              "result": g["result"], "opening": g.get("opening_name"), "date": (g.get("played_at") or "")[:10], "acc": g.get("accuracy_user"),
                              "elo": CL.elo(g["pgn"], g["user_color"]), "opp_elo": CL.elo(g["pgn"], "black" if w else "white"), "sans": g["sans"][:160],
                              "hi": (c["data"] or {}).get("hi")}})
-    have_goals = {c["goal"] for c in owned}
-    have = {}
-    for c in owned:
-        have[c["goal"]] = have.get(c["goal"], 0) + 1
-    goals = [{"goal": k, "rarity": v["rarity"], "max": v["max"], "owned": have.get(k, 0), "group": "single"} for k, v in CL.GOALS.items()]
-    for k, steps in CL.STREAK_STEPS.items():
-        goals += [{"goal": f"streak_{k}_{n}", "rarity": CL.TIER_RARITY[i], "max": 3, "owned": have.get(f"streak_{k}_{n}", 0), "group": f"streak_{k}"} for i, n in enumerate(steps, 1)]
-    for sp in CL.SPEEDS:
-        goals += [{"goal": f"hours_{sp}_{i}", "rarity": CL.TIER_RARITY[i], "max": 1, "owned": have.get(f"hours_{sp}_{i}", 0), "group": "hours"} for i in (1, 2, 3)]
-    seen_vs = {}
-    for c in owned:
-        if c["goal"].startswith("vs_"):
-            seen_vs[c["goal"]] = c["rarity"]
-    goals += [{"goal": k, "rarity": r, "max": 1, "owned": 1, "group": "vs"} for k, r in sorted(seen_vs.items(), key=lambda kv: (kv[0].split("_")[1], int(kv[0].split("_")[2])))]
-    return {"cards": out, "goals": goals, "new": n_new, "progress": progress, "hour_steps": CL.HOUR_STEPS}
+    have = {c["goal"] for c in owned}
+    catalog = [dict(it, owned=it["goal"] in have) for it in CL.catalog()]
+    return {"cards": out, "catalog": catalog, "new": sum(1 for c in out if c["new"]), "progress": progress, "hour_steps": CL.HOUR_STEPS}
+
+
+class SeenIn(BaseModel):
+    rarity: str | None = None
 
 
 @router.post("/cards/seen")
-def cards_seen(u=Depends(current_user)):
-    sb.table("cards").update({"seen": True}).eq("user_email", u["email"]).eq("seen", False).execute()
+def cards_seen(body: SeenIn | None = None, u=Depends(current_user)):
+    """Toglie il NEW dalle carte viste: tutte, oppure solo quelle di una rarità."""
+    q = sb.table("cards").update({"seen": True}).eq("user_email", u["email"]).eq("seen", False)
+    if body and body.rarity:
+        q = q.eq("rarity", body.rarity)
+    q.execute()
     cache.bust(u["email"])
     return {"ok": True}

@@ -227,3 +227,12 @@ Le analisi fatte sul server (primo caricamento di un utente) restano a profondit
 ### v3.20 — sincronizzazione secondo il piano
 - Piani a pagamento: "Sincronizza" completa lo storico del piano e analizza TUTTE le partite da analizzare (in background, con contatore); di notte continuano download e analisi automatici.
 - Free: 5 partite scaricate e analizzate a ogni clic, tetto di 10 analisi al giorno (costanti `FREE_PER_CLICK` e `FREE_PER_DAY` in `backend/app/main.py`); al tetto compare un messaggio con il collegamento ai piani.
+
+
+### v3.21 — carte e scudi riordinati (fase 1)
+- **Carte**: una sola copia per traguardo, circa 30 carte in tutto (comuni, rare, epiche, leggendarie) più la "Partita del mese" (la tua partita più precisa di ogni mese concluso). Niente più carte per aperture, serie col Bianco/Nero e avversari forti; nuove carte "Quota 1200–2000" e "20 ore" per ritmo. Le vecchie carte doppie o fuori catalogo spariscono dall'album (resta la più vecchia per traguardo).
+- **Album**: si apre con quattro box per rarità (posseduto/totale + flag NEW); toccando un box compare lo slider con anche le carte ancora da conquistare, in sagoma con l'indizio "Come ottenerla". Il NEW si spegne solo aprendo quella rarità (`POST /cards/seen {rarity}`); il popup a ogni carta nuova è stato tolto.
+- Ogni carta mostra sempre un numero con etichetta: Precisione, oppure il numero di mosse se la partita non è analizzata.
+- **Scudi** con soglie più realistiche (partite 25/150/500, analizzate 10/75/300, puzzle 25/150/600, serie 3/14/60, ecc.) e flag NEW quando sale il livello.
+- Il menu "Premi" diventa "Profilo" (con puntino NEW).
+- File: backend `cardlogic.py`, `train.py`, `trainlogic.py`; frontend `Cards.tsx`, `CardCarousel.tsx`, `CardCelebration.tsx`, `Achievements.tsx`, `app.tsx`, `cardArt.ts`, `train-copy.ts`, `i18n.ts`, `ui-copy.ts`, `globals.css`.

@@ -3,6 +3,7 @@
 Carte: si ottengono con obiettivi particolari su una partita (es. la prima con almeno 10 mosse a testa e precisione >= 95%).
 Scudi delle aperture: vittorie giocando una linea di apertura. Le linee non superano le 10 semimosse (5 mosse a testa).
 """
+import datetime
 import re
 
 RARITIES = ["common", "rare", "epic", "legendary"]
@@ -27,28 +28,49 @@ OPENINGS = [
 ]
 
 # codice obiettivo -> rarità, quante carte al massimo (le prime partite che lo soddisfano)
-STREAK_STEPS = {"all": [3, 5, 10], "w": [3, 5, 8], "b": [3, 5, 8]}   # serie di vittorie: totali, col Bianco, col Nero
+STREAK_STEPS = {"all": [3, 5, 10]}   # serie di vittorie: totali, col Bianco, col Nero
 TIER_RARITY = {1: "rare", 2: "epic", 3: "legendary"}
 SPEEDS = ["bullet", "blitz", "rapid", "classical"]
-HOUR_STEPS = [2, 10, 40]                                              # stesse ore giocate per ogni ritmo: l'impegno è equivalente
-GOALS = {
-    "new_opening": {"rarity": "common", "max": 10},
-    "short_win": {"rarity": "rare", "max": 5},
-    "short_win_pro": {"rarity": "epic", "max": 3},
-    "photo_finish": {"rarity": "epic", "max": 5},
-    "revenge": {"rarity": "epic", "max": 5},
-    "comeback": {"rarity": "epic", "max": 5},
-    "comeback_big": {"rarity": "legendary", "max": 3},
-    "brilliant": {"rarity": "epic", "max": 5},
+HOUR_STEPS = [20]                                              # stesse ore giocate per ogni ritmo: l'impegno è equivalente
+GOALS = {   # una sola carta per traguardo: l'album è un percorso, non una raccolta infinita
     "first_win": {"rarity": "common", "max": 1},
+    "new_opening": {"rarity": "common", "max": 1},
+    "short_win": {"rarity": "common", "max": 1},
     "first_95": {"rarity": "rare", "max": 1},
-    "lightning": {"rarity": "rare", "max": 3},
-    "flawless": {"rarity": "epic", "max": 5},
-    "master": {"rarity": "epic", "max": 5},
-    "giant": {"rarity": "epic", "max": 5},
-    "giant_big": {"rarity": "legendary", "max": 3},
-    "masterpiece": {"rarity": "legendary", "max": 3},
+    "lightning": {"rarity": "rare", "max": 1},
+    "flawless": {"rarity": "rare", "max": 1},
+    "short_win_pro": {"rarity": "rare", "max": 1},
+    "photo_finish": {"rarity": "epic", "max": 1},
+    "revenge": {"rarity": "epic", "max": 1},
+    "comeback": {"rarity": "epic", "max": 1},
+    "brilliant": {"rarity": "epic", "max": 1},
+    "giant": {"rarity": "epic", "max": 1},
+    "master": {"rarity": "epic", "max": 1},
+    "comeback_big": {"rarity": "legendary", "max": 1},
+    "giant_big": {"rarity": "legendary", "max": 1},
+    "masterpiece": {"rarity": "legendary", "max": 1},
 }
+# gruppi dell'album (solo per presentarli in ordine)
+GROUPS = {
+    "first": ["first_win", "first_95", "new_opening", "lightning"],
+    "moments": ["short_win", "short_win_pro", "photo_finish", "revenge", "comeback", "comeback_big", "brilliant", "flawless"],
+    "challenges": ["giant", "giant_big", "master", "masterpiece"],
+}
+RATING_STEPS = [1200, 1400, 1600, 1800, 2000]
+RATING_RARITY = {1200: "common", 1400: "rare", 1600: "rare", 1800: "epic", 2000: "legendary"}
+
+
+def catalog() -> list[dict]:
+    """Tutte le carte ottenibili (esclusa la carta del mese, che si ripete ogni mese)."""
+    out = [{"goal": k, "rarity": GOALS[k]["rarity"], "group": g} for g, ks in GROUPS.items() for k in ks]
+    out += [{"goal": f"streak_all_{n}", "rarity": TIER_RARITY[i], "group": "streak"} for i, n in enumerate(STREAK_STEPS["all"], 1)]
+    out += [{"goal": f"hours_{sp}_1", "rarity": "rare", "group": "pace"} for sp in SPEEDS]
+    out += [{"goal": f"rating_{n}", "rarity": RATING_RARITY[n], "group": "rating"} for n in RATING_STEPS]
+    return out
+
+
+def in_catalog(goal: str) -> bool:
+    return goal.startswith("month_") or any(c["goal"] == goal for c in catalog())
 
 
 VS_STEP = 100                      # traguardi "prima vittoria contro un X+": uno ogni 100 punti
@@ -159,6 +181,8 @@ def evaluate(games: list[dict], clean_ids: set) -> dict:
     last_vs: dict = {}
     vs_base: dict = {}      # ritmo -> rating di chi gioca alla prima partita di quel ritmo (punto di partenza)
     vs_best: dict = {}      # ritmo -> ultimo traguardo raggiunto (multiplo di 100)
+    rated: set = set()
+    by_month: dict = {}
     secs = {k: 0.0 for k in SPEEDS}
     cnt = {k: 0 for k in SPEEDS}
 
@@ -199,26 +223,22 @@ def evaluate(games: list[dict], clean_ids: set) -> dict:
         if o == "w" and acc is not None and acc >= 97 and n >= 50 and (not (mine and opp) or opp >= mine):
             hit("masterpiece")
 
-        # --- prima vittoria contro un avversario forte, da 100 a 100 punti, a partire dal livello con cui l'utente è arrivato
-        spd = speed_of(g.get("tc"))
-        if spd and mine and spd not in vs_base:
-            vs_base[spd] = mine
-            vs_best[spd] = -(-mine // VS_STEP) * VS_STEP - VS_STEP    # i traguardi sotto il suo livello iniziale non esistono
-        if o == "w" and spd in vs_base and opp and n >= VS_MIN_PLIES:
-            top = opp // VS_STEP * VS_STEP
-            if top > vs_best[spd] and top <= 3000:
-                vs_best[spd] = top      # una vittoria che supera più traguardi assegna solo il più alto
-                give(f"vs_{spd}_{top}", vs_rarity(max(0, top - vs_base[spd])), g, **base, speed=spd, target=top, start=vs_base[spd])
+        # --- soglie di rating raggiunte (da una partita decisa e non banale)
+        if o and mine and n >= VS_MIN_PLIES:
+            for thr in RATING_STEPS:
+                if mine >= thr and thr not in rated:
+                    rated.add(thr)
+                    give(f"rating_{thr}", RATING_RARITY[thr], g, **base, rating=thr)
         # --- serie di vittorie (totali, Bianco, Nero): una patta o una sconfitta la interrompe
         if o:
             keys = ["all", "w" if col == "white" else "b"]
             for k in keys:
                 runs[k] = runs[k] + 1 if o == "w" else 0
                 best_runs[k] = max(best_runs[k], runs[k])
-                if o == "w" and runs[k] in STREAK_STEPS[k]:
+                if o == "w" and k in STREAK_STEPS and runs[k] in STREAK_STEPS[k]:
                     tier = STREAK_STEPS[k].index(runs[k]) + 1
                     code = f"streak_{k}_{runs[k]}"
-                    if counts.setdefault(code, 0) < 3:
+                    if counts.setdefault(code, 0) < 1:
                         counts[code] += 1
                         give(code, TIER_RARITY[tier], g, **base, run=runs[k])
         # --- prima vittoria con un'apertura nuova
@@ -257,15 +277,21 @@ def evaluate(games: list[dict], clean_ids: set) -> dict:
             after = secs[sp] / 3600
             for i, h in enumerate(HOUR_STEPS, 1):
                 if before < h <= after:
-                    give(f"hours_{sp}_{i}", TIER_RARITY[i], g, **base, speed=sp, hours=h, games=cnt[sp])
+                    give(f"hours_{sp}_{i}", "rare", g, **base, speed=sp, hours=h, games=cnt[sp])
+        if acc is not None and n >= 20 and g.get("played_at"):
+            by_month.setdefault(g["played_at"][:7], []).append((acc, g, base))
         if o == "w":
             for op in OPENINGS:
                 if opening_match(sans, col, op):
                     before = tier_of(wins[op["id"]])
                     wins[op["id"]] += 1
                     after = tier_of(wins[op["id"]])
-                    if after > before:
-                        give(f"op_{op['id']}_{after}", OPEN_RARITY[after], g, **base, opening=op["id"], tier=after)
+                    # gli scudi delle aperture si calcolano da open_wins: non generano più carte
+    cur = datetime.date.today().strftime("%Y-%m")
+    for ym, lst in by_month.items():
+        if ym < cur:   # la carta del mese arriva a mese concluso: la tua partita più precisa
+            acc_m, g_m, base_m = max(lst, key=lambda t: t[0])
+            give(f"month_{ym}", "rare", g_m, **base_m, month=ym)
     progress = {"hours": {k: round(secs[k] / 3600, 1) for k in SPEEDS}, "games": cnt, "runs": runs, "best_runs": best_runs,
-                "vs": {k: {"start": vs_base[k], "next": vs_best[k] + VS_STEP} for k in vs_base}}
+                "rating_next": next((n for n in RATING_STEPS if n not in rated), None)}
     return {"cards": cards, "open_wins": wins, "progress": progress}

@@ -867,3 +867,24 @@ a.dr-btn { padding: .55rem .8rem; border: 1px solid var(--line-2); border-radius
   .om-scroll { max-height: 56svh; }
 }
 @media (min-width: 861px) { .om-scroll { max-height: calc(100svh - 240px); } .drill .board-frame { max-width: min(440px, calc(100svh - 200px)); } }
+
+/* v3.21 album per rarità */
+.rar-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: .8rem; margin: .9rem 0; }
+@media (min-width: 720px) { .rar-grid { grid-template-columns: repeat(4, 1fr); } }
+.rar-box { position: relative; display: flex; flex-direction: column; align-items: center; gap: .35rem; padding: 1.3rem .8rem 1rem; border-radius: 18px; background: linear-gradient(160deg, color-mix(in srgb, var(--rc) 22%, var(--ink-2)), var(--ink-2) 70%); border: 1px solid color-mix(in srgb, var(--rc) 55%, transparent); color: var(--ice); text-align: center; cursor: pointer; transition: transform .2s, box-shadow .2s; min-height: 168px; }
+.rar-box:hover { transform: translateY(-3px); box-shadow: 0 10px 28px color-mix(in srgb, var(--rc) 28%, transparent); }
+.rar-box.empty { filter: saturate(.35); opacity: .85; }
+.rar-gem { width: 44px; height: 56px; clip-path: polygon(50% 0, 100% 28%, 100% 72%, 50% 100%, 0 72%, 0 28%); background: linear-gradient(145deg, #fff8, var(--rc) 45%, color-mix(in srgb, var(--rc) 55%, #000)); }
+.rar-count { font-size: .85rem; color: var(--mute, #9aa4b5); }
+.rar-box .bar { width: 80%; height: 5px; border-radius: 3px; background: #ffffff1a; overflow: hidden; display: block; }
+.rar-box .bar i { display: block; height: 100%; background: var(--rc); }
+.new-pill { position: absolute; top: 8px; right: 8px; background: var(--ember); color: #1a0b05; font-size: .66rem; font-weight: 800; padding: .16rem .5rem; border-radius: 999px; letter-spacing: .04em; animation: newpulse 2s ease-in-out infinite; }
+@keyframes newpulse { 50% { transform: scale(1.08); } }
+@media (prefers-reduced-motion: reduce) { .new-pill { animation: none; } }
+.rar-back { margin-top: .8rem; }
+.rar-h { margin: .5rem 0 0; text-align: center; font-size: 1.25rem; }
+.gc-locked { aspect-ratio: 540 / 760; border: 2px dashed; border-radius: 18px; background: repeating-linear-gradient(135deg, #ffffff08 0 10px, transparent 10px 20px), var(--ink-2); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .8rem; padding: 1rem; text-align: center; color: var(--mute, #9aa4b5); }
+.car-how { max-width: 420px; margin: .6rem auto 0; text-align: center; background: var(--ink-2); border: 1px solid var(--line-2); border-radius: 14px; padding: .7rem 1rem; font-size: .92rem; }
+.nav-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ember); margin-left: 6px; vertical-align: middle; }
+.shield-new { position: absolute; top: 8px; right: 8px; background: var(--ember); color: #1a0b05; font-size: .62rem; font-weight: 800; padding: .14rem .45rem; border-radius: 999px; }
+.shield-card { position: relative; }
