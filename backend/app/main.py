@@ -22,7 +22,7 @@ from .auth import current_user, tier_from, tier_of
 from .sync import _fetch_err, SECONDS_PER_GAME, analyze_initial, analyze_pending, failed_ids, import_history, initial_rows, is_running, job_status, last_error, onboard, run_cron, start_job, run_job, sync_user
 from .profile import router as profile_router
 from .studio import role_of, router as studio_router
-from .promo import attribute_checkout, attribute_renewal, checkout_discount, is_admin, promo_for, router as promo_router
+from .promo import attribution, record, attribute_checkout, attribute_renewal, checkout_discount, is_admin, promo_for, router as promo_router
 from .train import router as train_router
 
 stripe.api_key = os.environ.get("STRIPE_SECRET_KEY", "")
@@ -398,6 +398,23 @@ def portal(u=Depends(current_user)):
     return {"url": stripe.billing_portal.Session.create(customer=row[0]["stripe_customer_id"], return_url=f"{FRONTEND_URL}/dashboard/plans").url}
 
 
+def _log_payment(kind: str, email, amount: float, plan, stripe_id: str):
+    """Registro incassi reali per il pannello admin (idempotente su stripe_id). Non blocca mai il webhook."""
+    try:
+        code = attribution(email) if email and kind != "donation" else None
+        sb.table("payments").upsert({"user_email": email, "kind": kind, "amount": round(amount, 2), "plan": plan, "code": code, "stripe_id": stripe_id}, on_conflict="stripe_id").execute()
+    except Exception as e:
+        log.warning("pagamento non registrato: %s", e)
+
+
+def _email_of_customer(customer):
+    try:
+        r = sb.table("config_utenti").select("user_email,tier").eq("stripe_customer_id", customer).limit(1).execute().data
+        return (r[0]["user_email"], r[0].get("tier")) if r else (None, None)
+    except Exception:
+        return None, None
+
+
 @app.post("/billing/webhook")
 async def webhook(request: Request, bg: BackgroundTasks):
     try:
@@ -413,6 +430,7 @@ async def webhook(request: Request, bg: BackgroundTasks):
             cache.bust(email)
         except Exception as e:
             log.warning("donazione non registrata: %s", e)
+        _log_payment("donation", email, (obj.get("amount_total") or 0) / 100, None, obj["id"])
         return {"received": True}
     if ev["type"] == "checkout.session.completed":
         email, plan = obj["metadata"]["email"], obj["metadata"]["plan"]
@@ -426,6 +444,7 @@ async def webhook(request: Request, bg: BackgroundTasks):
             "user_email": email, "tier_precedente": prev, "tier_nuovo": plan, "azione": "attivazione",
             "importo": (obj.get("amount_total") or 0) / 100, "stripe_session_id": obj["id"]}).execute()
         attribute_checkout(obj, email, plan)
+        _log_payment("payment", email, (obj.get("amount_total") or 0) / 100, plan, obj["id"])
         bg.add_task(mailer.send_once, email, f"sub:{obj['id']}", "subscribed", obj["metadata"].get("lang", "it"), plan=plan, interval=obj["metadata"].get("interval", "month"))
         bg.add_task(onboard, email, plan)  # più storico e più partite analizzate col nuovo piano
     elif ev["type"] == "invoice.paid":
@@ -434,6 +453,29 @@ async def webhook(request: Request, bg: BackgroundTasks):
             "data_scadenza": datetime.date.fromtimestamp(end).isoformat(), "subscription_status": "active",
             "updated_at": now_iso()}).eq("stripe_customer_id", obj["customer"]).execute()
         attribute_renewal(obj)
+        if obj.get("billing_reason") == "subscription_cycle":
+            em, tier = _email_of_customer(obj["customer"])
+            _log_payment("renewal", em, (obj.get("amount_paid") or 0) / 100, tier, obj["id"])
+    elif ev["type"] == "charge.refunded":
+        em, tier = _email_of_customer(obj.get("customer"))
+        amt = (obj.get("amount_refunded") or 0) / 100
+        _log_payment("refund", em, -amt, tier, f"{obj['id']}:{amt}")
+        try:
+            code = attribution(em) if em else None
+            if code:
+                record(code, "refund", em, tier, -amt, f"{obj['id']}:{amt}")
+        except Exception:
+            pass
+    elif ev["type"] == "charge.dispute.created":
+        try:
+            ch = stripe.Charge.retrieve(obj["charge"])
+            em, tier = _email_of_customer(ch.get("customer"))
+        except Exception:
+            em, tier = None, None
+        amt = (obj.get("amount") or 0) / 100
+        _log_payment("dispute", em, -(amt + 20), tier, obj["id"])
+    elif ev["type"] == "invoice.payment_failed":
+        sb.table("config_utenti").update({"subscription_status": "past_due", "updated_at": now_iso()}).eq("stripe_customer_id", obj["customer"]).execute()
     elif ev["type"] == "customer.subscription.deleted":
         sb.table("config_utenti").update({
             "tier": "Free", "subscription_status": "canceled", "data_scadenza": None,

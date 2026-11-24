@@ -250,3 +250,12 @@ Le analisi fatte sul server (primo caricamento di un utente) restano a profondit
 - **Guadagno** = commissione % sugli incassi del suo codice + bonus una tantum a soglie di abbonati confermati (5→25 €, 15→100 €, 40→300 €, 100→1000 €; confermato = 30 giorni dal primo pagamento). Soglie in `studio.py` (`MILESTONES`, `CONFIRM_DAYS`).
 - **Admin**: totali, tabella creator (clic per vedere la vista del creator), abilitazione creator (crea anche il codice sconto Stripe), registro dei pagamenti con "da pagare".
 - **Da eseguire su Supabase**: `015_studio.sql`.
+
+## Studio v2 (v3.24): compensi creator, dati fiscali, pannello economico
+- Esegui `supabase/016_studio_v2.sql` (dopo 013, 014, 015).
+- Ogni creator ha un **profilo** (Nano, Standard, Partner, Fedeltà) e un **tetto** (default 20%) sul margine generato dai suoi abbonati. Il tetto conta il costo reale: con regime ordinario o estero il compenso costa il 22% in più (IVA indetraibile in forfettario). Regole in `backend/app/studio.py` (costanti in cima).
+- Abbonato confermato: ancora attivo dopo 30 giorni e senza rimborso. Si guadagna sui primi 12 mesi. Il premio di performance matura dopo 12 mesi di collaborazione.
+- Il creator inserisce regime, codice fiscale o P.IVA, IBAN e documento in `/dashboard/studio`. Senza dati completi non si può registrare il pagamento.
+- Nuova tabella `payments`: il webhook Stripe registra pagamenti, rinnovi, donazioni, rimborsi (`charge.refunded`) e contestazioni (`charge.dispute.created`, con 20 € di costo). `invoice.payment_failed` mette l'abbonamento in `past_due`. Nel dashboard Stripe aggiungi questi eventi all'endpoint del webhook.
+- Il pannello admin ha tre schede: Panoramica (incassi, costi, utile, pareggio, abbonati per piano, MRR, abbandono, funnel), Creator, Costi (i costi fissi li inserisci tu).
+- Tasse e costi variabili sono stime del business plan: confermale con il commercialista e con i dati reali.
