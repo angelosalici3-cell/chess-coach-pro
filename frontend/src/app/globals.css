@@ -907,3 +907,36 @@ a.dr-btn { padding: .55rem .8rem; border: 1px solid var(--line-2); border-radius
 .jy-up { display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
 @media (max-width: 560px) { .jy-two { grid-template-columns: 1fr; } .jy-big { font-size: 1.6rem; } }
 .don { padding: 1.3rem 1.5rem; } .don-in { width: 8.5rem; background: var(--ink-3); border: 1px solid var(--line-2); color: var(--ice); border-radius: 999px; padding: .45rem .9rem; font: inherit; }
+
+/* v3.23 Studio creator */
+.st { display: grid; gap: 1rem; margin-top: .8rem; max-width: 960px; }
+.st-hero { padding: 1.5rem; border-left: 3px solid var(--ember); background: linear-gradient(120deg, color-mix(in srgb, var(--ember) 14%, var(--ink-2)), var(--ink-2) 60%); }
+.st-hero h2 { font-size: 1.5rem; line-height: 1.3; margin: .3rem 0 .5rem; max-width: 30ch; }
+.st-hero h2 b { color: var(--ember-2); font-size: 1.15em; }
+.st-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: .8rem; }
+.st-kpi { display: flex; flex-direction: column; gap: .15rem; }
+.st-row { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
+.st-bars { display: flex; align-items: flex-end; gap: 6px; height: 150px; margin-top: .8rem; }
+.st-bar { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px; }
+.st-bar i { width: 100%; background: var(--ember); border-radius: 5px 5px 2px 2px; min-height: 3px; transition: opacity .2s; }
+.st-bar:hover i { opacity: .75; } .st-bar span { font-size: .72rem; color: var(--mute); }
+.st-lad { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: .8rem; }
+.st-step { display: flex; flex-direction: column; gap: .25rem; padding: .8rem; border-radius: 14px; border: 1px solid var(--line-2); }
+.st-step.on { border-color: var(--ember); background: color-mix(in srgb, var(--ember) 12%, transparent); }
+.st-step b { font-size: 1.3rem; }
+.st-split { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-top: .6rem; }
+.st-split > div { display: flex; flex-direction: column; }
+.st-pay { margin-top: .8rem; display: grid; gap: .2rem; }
+.st-link { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; margin: .6rem 0; }
+.st-link code { background: var(--ink-3); padding: .4rem .7rem; border-radius: 10px; overflow-wrap: anywhere; }
+.st-caps { display: grid; gap: .6rem; }
+.st-cap { display: flex; gap: .8rem; align-items: flex-start; justify-content: space-between; padding: .7rem; border: 1px solid var(--line-2); border-radius: 12px; }
+.st-cap p { margin: 0; font-size: .92rem; line-height: 1.5; }
+.st-tablewrap { overflow-x: auto; }
+.st-table { width: 100%; border-collapse: collapse; font-size: .92rem; white-space: nowrap; }
+.st-table th { text-align: left; color: var(--mute); font-weight: 600; padding: .4rem .7rem; } .st-table td { padding: .6rem .7rem; border-top: 1px solid var(--line-2); }
+.st-click { cursor: pointer; } .st-click:hover { background: var(--ink-3); }
+.st-two { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1rem; }
+.st-form { display: grid; gap: .6rem; } .st-form input, .st-form select { background: var(--ink-3); border: 1px solid var(--line-2); color: var(--ice); border-radius: 10px; padding: .55rem .8rem; font: inherit; width: 100%; }
+.st-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: .5rem; } .st-3 label { font-size: .78rem; color: var(--mute); display: grid; gap: .2rem; }
+@media (max-width: 560px) { .st-cap { flex-direction: column; } }

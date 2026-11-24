@@ -243,3 +243,10 @@ Le analisi fatte sul server (primo caricamento di un utente) restano a profondit
 - **Donazioni**: Stripe Checkout una tantum (3/5/10 € o importo libero, 1–500 €), in fondo al Percorso. Il webhook registra la donazione e sblocca lo scudo condivisibile **Sostenitore** (3/10/30 € donati).
 - **Da eseguire su Supabase**: `013_coach_reports.sql` e `014_donations.sql`. Nel webhook Stripe esistente non serve nulla di nuovo (evento `checkout.session.completed`).
 - File: backend `profile.py` (nuovo), `main.py`, `train.py`; frontend `Journey.tsx`, `Donate.tsx` (nuovi), `rewards/page.tsx`, `Shield.tsx`, `shieldShare.ts`, `train-copy.ts`, `globals.css`.
+
+### v3.23 — Studio creator (area B2B)
+- Pagina nascosta `/dashboard/studio` (nessun link nel menu salvo che per chi ha accesso: voce "Studio" nel Drawer). Due ruoli: **admin** (email in `ADMIN_EMAILS`) e **creator** (email abilitata in tabella `creators`). Chiunque altro riceve 403.
+- **Il creator vede solo numeri aggregati** (mai email né nomi degli iscritti): visite al link, iscritti, abbonati, iscritti per settimana, traguardi, guadagni, pagamenti ricevuti e un kit (link + 3 testi pronti).
+- **Guadagno** = commissione % sugli incassi del suo codice + bonus una tantum a soglie di abbonati confermati (5→25 €, 15→100 €, 40→300 €, 100→1000 €; confermato = 30 giorni dal primo pagamento). Soglie in `studio.py` (`MILESTONES`, `CONFIRM_DAYS`).
+- **Admin**: totali, tabella creator (clic per vedere la vista del creator), abilitazione creator (crea anche il codice sconto Stripe), registro dei pagamenti con "da pagare".
+- **Da eseguire su Supabase**: `015_studio.sql`.

@@ -77,6 +77,7 @@ export default function Drawer({ open, onClose, me, lang, email, onGuide, onLogo
             <Link href="/dashboard/accounts" onClick={onClose} className="dr-link">{x.linked}</Link>
             <Link href="/dashboard/plans" onClick={onClose} className="dr-link">{x.plans}</Link>
             <Link href="/dashboard/plans#delete" onClick={onClose} className="dr-link dr-danger">{x.del}</Link>
+            {me?.studio && <Link href="/dashboard/studio" onClick={onClose} className="dr-link">Studio</Link>}
             {me?.is_admin && <Link href="/dashboard/promo" onClick={onClose} className="dr-link">{x.promo}</Link>}
           </section>
 

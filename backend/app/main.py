@@ -21,6 +21,7 @@ from . import cache, mailer
 from .auth import current_user, tier_from, tier_of
 from .sync import _fetch_err, SECONDS_PER_GAME, analyze_initial, analyze_pending, failed_ids, import_history, initial_rows, is_running, job_status, last_error, onboard, run_cron, start_job, run_job, sync_user
 from .profile import router as profile_router
+from .studio import role_of, router as studio_router
 from .promo import attribute_checkout, attribute_renewal, checkout_discount, is_admin, promo_for, router as promo_router
 from .train import router as train_router
 
@@ -36,6 +37,7 @@ app = FastAPI(title="EloRise API")
 app.include_router(train_router)
 app.include_router(promo_router)
 app.include_router(profile_router)
+app.include_router(studio_router)
 app.add_middleware(CORSMiddleware, allow_origins=[FRONTEND_URL], allow_methods=["*"], allow_headers=["*"])
 
 
@@ -82,7 +84,7 @@ def me(bg: BackgroundTasks, lang: str = "it", u=Depends(current_user)):
         "lessons": {"used": q[0]["ai_analyses_used"] if q else 0, "limit": plan.gm_lessons_month},
         "auto_sync": plan.auto_sync, "history_games": plan.history_games,
         "new_cards": f_c.result(),
-        "is_admin": is_admin(email), "promo": f_p.result(),
+        "is_admin": is_admin(email), "studio": role_of(email), "promo": f_p.result(),
         "bonus_lessons": (cfg or {}).get("bonus_lessons") or 0,
         "renews": (cfg or {}).get("data_scadenza") if tier != "Free" else None,
         "member_since": u.get("created_at"),
