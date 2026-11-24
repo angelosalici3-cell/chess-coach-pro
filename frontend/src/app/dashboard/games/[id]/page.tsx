@@ -134,10 +134,10 @@ export default function GamePage() {
                   <div key={m.ply} className={"card gv-err" + (m.ply === ply ? " on" : "")}>
                     <div className="row">
                       <button className="gv-pick" onClick={() => setPly(m.ply)} aria-label="Show">
-                        <b>{lbl(m.ply)} {m.san}</b> <span className="tag" style={{ color: CLS[m.classification] }}>{tagName(m.classification)}</span>
-                        <span className="muted small"> {t("best")}: {best || "—"}{loss ? `, −${(loss / 100).toFixed(1)}` : ""}</span>
+                        <span className="gv-top"><b>{lbl(m.ply)} {m.san}</b><span className="tag" style={{ color: CLS[m.classification] }}>{tagName(m.classification)}</span></span>
+                        <span className="muted small gv-best">{t("best")}: {best || "—"}{loss ? `, −${(loss / 100).toFixed(1)}` : ""}</span>
                       </button>
-                      {!lessons[key] && <button className="btn btn-primary btn-sm" disabled={busy === key} onClick={() => lesson(key, m.ply, !!e)}>{busy === key ? t("thinking") : t("askLesson")}</button>}
+                      {!lessons[key] && <button className="btn btn-primary gv-ask" disabled={busy === key} onClick={() => lesson(key, m.ply, !!e)}>{busy === key ? t("thinking") : t("askLesson")}</button>}
                     </div>
                     {lessons[key] && <p className="pre">{lessons[key]}</p>}
                   </div>

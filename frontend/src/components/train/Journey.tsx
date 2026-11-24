@@ -2,7 +2,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useApp } from "../app";
-import Donate from "./Donate";
 
 const T = {
   it: {
@@ -30,6 +29,15 @@ const T = {
     best: "Mejor apertura", worst: "A mejorar",
   },
 } as const;
+
+
+// lettera in paragrafi brevi (due frasi ciascuno) con i numeri in evidenza
+function paras(text: string): (string)[][] {
+  const sents = text.replace(/\s+/g, " ").trim().split(/(?<=[.!?])\s+(?=[A-ZÀ-Ý¿¡])/);
+  const out: string[] = [];
+  for (let i = 0; i < sents.length; i += 2) out.push(sents.slice(i, i + 2).join(" "));
+  return out.map((p) => p.split(/(\d[\d.,]*\s?%?)/).filter(Boolean));
+}
 
 function Delta({ a, b, unit = "" }: { a: number | null | undefined; b: number | null | undefined; unit?: string }) {
   if (a == null || b == null) return null;
@@ -89,11 +97,14 @@ export default function Journey() {
   return (
     <div className="jy">
       <section className="card jy-letter">
-        <div className="muted small">{latest ? `${kindName(latest.kind)} · ${new Date(latest.created_at).toLocaleDateString(lang)}` : t.coach}</div>
-        {latest ? <p className="jy-quote">{latest.text}</p>
+        <div className="jy-lh">
+          <span className="jy-av" aria-hidden="true">♞</span>
+          <div><b>{t.coach}</b><div className="muted small">{latest ? `${kindName(latest.kind)} · ${new Date(latest.created_at).toLocaleDateString(lang, { day: "numeric", month: "long", year: "numeric" })}` : ""}</div></div>
+        </div>
+        {latest ? <div className="jy-body">{paras(latest.text).map((p, i) => <p key={i}>{p.map((x, k) => (/^\d/.test(x) ? <b key={k}>{x}</b> : x))}</p>)}</div>
           : busy ? <p className="jy-quote muted">{t.gen}</p>
           : <p className="jy-quote muted">{t.empty.replace("{n}", d.first_at).replace("{a}", all.analyzed ?? 0)}</p>}
-        {nextKind && latest && <div className="muted small">{t.wait.replace("{p}", nextKind === "week" ? t.pw : t.pm)}</div>}
+        {nextKind && latest && <div className="muted small jy-next">{t.wait.replace("{p}", nextKind === "week" ? t.pw : t.pm)}</div>}
       </section>
 
       <section className="jy-stats">
@@ -130,7 +141,6 @@ export default function Journey() {
         </section>
       )}
 
-      <Donate />
       {plan && (
         <section className="card jy-up">
           <p style={{ margin: 0 }}>{t.up.replace("{plan}", plan).replace("{per}", t.pm)}</p>

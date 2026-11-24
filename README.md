@@ -259,3 +259,9 @@ Le analisi fatte sul server (primo caricamento di un utente) restano a profondit
 - Nuova tabella `payments`: il webhook Stripe registra pagamenti, rinnovi, donazioni, rimborsi (`charge.refunded`) e contestazioni (`charge.dispute.created`, con 20 € di costo). `invoice.payment_failed` mette l'abbonamento in `past_due`. Nel dashboard Stripe aggiungi questi eventi all'endpoint del webhook.
 - Il pannello admin ha tre schede: Panoramica (incassi, costi, utile, pareggio, abbonati per piano, MRR, abbandono, funnel), Creator, Costi (i costi fissi li inserisci tu).
 - Tasse e costi variabili sono stime del business plan: confermale con il commercialista e con i dati reali.
+
+## v3.26
+- Lista errori nella partita: pulsante "Chiedi al GM" compatto, riga su due livelli.
+- Lettera del coach in Premi > Percorso: layout editoriale con paragrafi brevi e numeri evidenziati.
+- Donazione spostata in una pagina `/dashboard/support`, aperta dal menu laterale con l'icona del caffè (Stripe torna lì dopo il pagamento).
+- Elenco partite: gravi, errori e imprecisioni (v3.25, incluso).

@@ -969,3 +969,25 @@ a.dr-btn { padding: .55rem .8rem; border: 1px solid var(--line-2); border-radius
 .st-hrow { display: grid; grid-template-columns: 3.5rem 1fr 2rem; gap: .6rem; align-items: center; }
 .st-table tr.off { opacity: .5; }
 @media (max-width: 560px) { .st-3b { grid-template-columns: 1fr; } }
+
+/* v3.26 lista errori compatta, lettera del coach, caffè */
+.gv-err .row { flex-wrap: nowrap; align-items: center; gap: .6rem; }
+.gv-pick { display: grid; gap: .2rem; }
+.gv-top { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .5rem; }
+.gv-best { display: block; }
+.gv-ask { flex: none; white-space: nowrap; padding: .38rem .8rem; font-size: .8rem; line-height: 1.2; }
+.jy-letter { padding: 0; overflow: hidden; border-left: 0; background: linear-gradient(160deg, color-mix(in srgb, var(--ember) 10%, var(--ink-2)), var(--ink-2) 55%); }
+.jy-lh { display: flex; gap: .8rem; align-items: center; padding: 1rem 1.2rem; border-bottom: 1px solid var(--line); }
+.jy-av { width: 2.4rem; height: 2.4rem; border-radius: 50%; display: grid; place-items: center; font-size: 1.4rem; background: var(--ember); color: #1a0b05; flex: none; }
+.jy-body { padding: 1.1rem 1.2rem .4rem; display: grid; gap: .8rem; }
+.jy-body p { margin: 0; font-size: 1rem; line-height: 1.7; max-width: 58ch; color: var(--ice); }
+.jy-body b { color: var(--ember-2); font-weight: 700; white-space: nowrap; }
+.jy-next { padding: .4rem 1.2rem 1rem; }
+.jy-letter > .jy-quote { padding: 1.1rem 1.2rem; font-size: 1rem; }
+.jy-stats { background: var(--ink-2); border: 1px solid var(--line); border-radius: 18px; padding: .2rem; gap: 0; }
+.jy-stats .jy-stat { background: none; border: 0; border-radius: 0; box-shadow: none; padding: .9rem 1rem; }
+.jy-stats .jy-stat + .jy-stat { border-left: 1px solid var(--line); }
+.jy-stats .jy-cap { padding: 0 1rem .8rem; }
+.dr-coffee { display: flex; gap: .8rem; align-items: center; padding: .8rem; border-radius: 14px; border: 1px solid var(--line-2); color: var(--ice); background: color-mix(in srgb, var(--ember) 8%, transparent); }
+.dr-coffee:hover { border-color: var(--ember); }
+.dr-cup { width: 2.4rem; height: 2.4rem; border-radius: 50%; display: grid; place-items: center; background: var(--ember); color: #1a0b05; flex: none; }

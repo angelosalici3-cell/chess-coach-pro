@@ -8,15 +8,15 @@ const D = {
   it: { menu: "Menu", close: "Chiudi menu", usage: "Piano e consumi", plan: "Piano", ai: "Lezioni AI questo mese", bonus: "Lezioni bonus", chess: "Account scacchi collegati",
         renew: "Rinnovo o scadenza", none: "Nessuna scadenza", free: "Piano gratuito: nessun rinnovo", data: "Dati account", email: "Email", since: "Iscritto dal",
         manage: "Gestione account", linked: "Account scacchi", plans: "Piano e abbonamento", del: "Elimina account", manual: "Manuale dell'app", manualHint: "Come usare l'app, passo dopo passo",
-        lang: "Lingua", install: "Installa l'app", installHint: "Aggiungi EloRise alla schermata Home", diag: "Stato analisi", diagHint: "Controlla perché una partita non si analizza", promo: "Codici promo", logout: "Esci", site: "Sito", unlimited: "illimitate", upgrade: "Cambia piano" },
+        lang: "Lingua", install: "Installa l'app", installHint: "Aggiungi EloRise alla schermata Home", diag: "Stato analisi", diagHint: "Controlla perché una partita non si analizza", promo: "Codici promo", coffee: "Offrimi un caffè", coffeeHint: "Sostieni EloRise con una donazione", logout: "Esci", site: "Sito", unlimited: "illimitate", upgrade: "Cambia piano" },
   en: { menu: "Menu", close: "Close menu", usage: "Plan and usage", plan: "Plan", ai: "AI lessons this month", bonus: "Bonus lessons", chess: "Linked chess accounts",
         renew: "Renewal or expiry", none: "No expiry", free: "Free plan: no renewal", data: "Account details", email: "Email", since: "Member since",
         manage: "Manage account", linked: "Chess accounts", plans: "Plan and subscription", del: "Delete account", manual: "App manual", manualHint: "How to use the app, step by step",
-        lang: "Language", install: "Install the app", installHint: "Add EloRise to your Home screen", diag: "Analysis status", diagHint: "Check why a game isn't being analysed", promo: "Promo codes", logout: "Log out", site: "Website", unlimited: "unlimited", upgrade: "Change plan" },
+        lang: "Language", install: "Install the app", installHint: "Add EloRise to your Home screen", diag: "Analysis status", diagHint: "Check why a game isn't being analysed", promo: "Promo codes", coffee: "Buy me a coffee", coffeeHint: "Support EloRise with a donation", logout: "Log out", site: "Website", unlimited: "unlimited", upgrade: "Change plan" },
   es: { menu: "Menú", close: "Cerrar menú", usage: "Plan y consumo", plan: "Plan", ai: "Lecciones IA este mes", bonus: "Lecciones extra", chess: "Cuentas de ajedrez vinculadas",
         renew: "Renovación o vencimiento", none: "Sin vencimiento", free: "Plan gratuito: sin renovación", data: "Datos de la cuenta", email: "Correo", since: "Miembro desde",
         manage: "Gestión de la cuenta", linked: "Cuentas de ajedrez", plans: "Plan y suscripción", del: "Eliminar cuenta", manual: "Manual de la app", manualHint: "Cómo usar la app, paso a paso",
-        lang: "Idioma", install: "Instalar la app", installHint: "Añade EloRise a la pantalla de inicio", diag: "Estado del análisis", diagHint: "Comprueba por qué una partida no se analiza", promo: "Códigos promo", logout: "Salir", site: "Sitio web", unlimited: "ilimitadas", upgrade: "Cambiar plan" },
+        lang: "Idioma", install: "Instalar la app", installHint: "Añade EloRise a la pantalla de inicio", diag: "Estado del análisis", diagHint: "Comprueba por qué una partida no se analiza", promo: "Códigos promo", coffee: "Invítame a un café", coffeeHint: "Apoya EloRise con una donación", logout: "Salir", site: "Sitio web", unlimited: "ilimitadas", upgrade: "Cambiar plan" },
 } as const;
 
 const LOC: Record<Lang, string> = { it: "it-IT", en: "en-GB", es: "es-ES" };
@@ -92,6 +92,15 @@ export default function Drawer({ open, onClose, me, lang, email, onGuide, onLogo
             <h3>{x.manual}</h3>
             <p className="muted small" style={{ margin: "0 0 .5rem" }}>{x.manualHint}</p>
             <button className="btn-out dr-btn" onClick={go(onGuide)}>? {x.manual}</button>
+          </section>
+
+          <section>
+            <Link href="/dashboard/support" onClick={onClose} className="dr-coffee">
+              <span className="dr-cup" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 9h12v5a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V9z" /><path d="M16 10h2a2.5 2.5 0 0 1 0 5h-2" /><path d="M7 3v2M10 3v2M13 3v2" /></svg>
+              </span>
+              <span><b>{x.coffee}</b><span className="muted small" style={{ display: "block" }}>{x.coffeeHint}</span></span>
+            </Link>
           </section>
 
           <section>

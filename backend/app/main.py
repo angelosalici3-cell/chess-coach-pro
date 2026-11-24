@@ -394,7 +394,7 @@ def donate(body: DonateIn, u=Depends(current_user)):
     ses = stripe.checkout.Session.create(
         mode="payment", customer_email=u["email"], locale=lang,
         line_items=[{"quantity": 1, "price_data": {"currency": "eur", "unit_amount": body.amount * 100, "product_data": {"name": name}}}],
-        success_url=f"{FRONTEND_URL}/dashboard/rewards?tab=path&thanks=1", cancel_url=f"{FRONTEND_URL}/dashboard/rewards?tab=path",
+        success_url=f"{FRONTEND_URL}/dashboard/support?thanks=1", cancel_url=f"{FRONTEND_URL}/dashboard/support",
         metadata={"email": u["email"], "kind": "donation"})
     return {"url": ses.url}
 

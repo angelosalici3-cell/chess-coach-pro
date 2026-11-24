@@ -117,7 +117,7 @@ def _write(kind, f, prev, weak, lang, tier) -> str:
         client = genai.Client(api_key=os.environ["GEMINI_API_KEY"], http_options={"timeout": 45000})
         system = (f"Sei il coach di scacchi personale dell'utente e gli scrivi una lettera in {LANGS[lang]}, in prima persona, tono caldo, concreto e sincero. "
                   "Usa SOLO i numeri forniti nei dati: non inventare partite, mosse, punteggi o avversari. Racconta l'evoluzione rispetto al periodo precedente, "
-                  "cita un punto di forza e UN solo consiglio pratico per il prossimo periodo. Niente elenchi, niente titoli, niente saluti formali. "
+                  "cita un punto di forza e UN solo consiglio pratico per il prossimo periodo. Se il periodo precedente ha 0 partite non confrontare e non citare quello zero. Niente elenchi, niente titoli, niente saluti formali. "
                   + ("Massimo 120 parole." if kind != "season" else "Massimo 220 parole, come un riassunto di stagione."))
         prompt = f"Tipo: {kind}\nDati del periodo: {f}\nPeriodo precedente: {prev}\nErrori ricorrenti: {weak}"
         model = os.environ.get("GEMINI_MODEL_FREE") if tier == "Plus" else os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
