@@ -308,3 +308,9 @@ Le analisi fatte sul server (primo caricamento di un utente) restano a profondit
 - Contenuti in `frontend/src/lib/openings-data.ts` (IT/EN; ES usa l'inglese). Tutte le mosse sono state verificate (legalità e matti). Per aggiungere un'apertura basta una nuova voce in `OPENINGS`.
 - **Esegui `supabase/018_openings.sql`** (tabella `opening_cards`).
 - Backend: `GET /train/openings/progress`, `POST /train/openings/answer`.
+
+## v3.37 — Biblioteca trappole (231, da Ochess)
+- **Dati**: `frontend/src/lib/ochess-data.ts` (generato; 36 aperture, 231 trappole). Ogni riga: id `oc-<apertura>-NN`, titolo, ECO, mosse SAN, indice della mossa-trappola, mosse sicure, chi tende la trappola, descrizione (EN).
+- **Validazione**: ogni linea è stata controllata con un motore mini (mosse legali, scacchi/matti, matto in 1 per scartare «mosse sicure» sbagliate). Modalità «tendi» per tutte, «evita» per 205 (le altre 26 non hanno una mossa sicura verificata → solo «tendi»).
+- **App**: `lib/ochess.ts` converte i dati nel formato `Opening/OpLine/Drill` (SAN canonicalizzate con chess.js); `OpeningsTab` la carica **solo su richiesta** (pulsante «Biblioteca trappole») o subito se l'utente ha già progressi `oc-*`. Nessuna modifica al backend/SQL: stessi endpoint e `opening_cards`.
+- **Note**: descrizioni in inglese ed estratte automaticamente (parafrasate); traduzione IT da fare. Dati importati con il permesso dei proprietari di Ochess: conserva la conferma scritta.

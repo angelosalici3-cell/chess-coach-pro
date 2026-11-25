@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useApp } from "../app";
 import { tc } from "../../lib/train-copy";
-import { ALL_DRILLS, OPENINGS, type Drill, type Opening, type T2 } from "../../lib/openings-data";
+import { ALL_DRILLS as BASE_DRILLS, OPENINGS as BASE_OPENINGS, type Drill, type Opening, type T2 } from "../../lib/openings-data";
 import OpeningDrill from "./OpeningDrill";
 
 type Card = { box: number; due_at: string };
@@ -16,6 +16,14 @@ export default function OpeningsTab({ onProgress }: { onProgress: () => void }) 
   const [open, setOpen] = useState<string | null>(null);        // apertura aperta
   const [run, setRun] = useState<{ drill: Drill; n: number } | null>(null);
   const [err, setErr] = useState("");
+  const [lib, setLib] = useState(false);                          // biblioteca Ochess (231 trappole) caricata solo quando serve
+  const [extra, setExtra] = useState<{ openings: Opening[]; drills: Drill[] }>({ openings: [], drills: [] });
+  const OPENINGS = useMemo(() => [...BASE_OPENINGS, ...extra.openings], [extra]);
+  const ALL_DRILLS = useMemo(() => [...BASE_DRILLS, ...extra.drills], [extra]);
+  const showLib = async () => {
+    if (!extra.openings.length) { const m = await import("../../lib/ochess"); setExtra({ openings: m.OCHESS_OPENINGS, drills: m.OCHESS_DRILLS }); }
+    setLib(true);
+  };
 
   const load = useCallback(async () => {
     try {
@@ -23,6 +31,9 @@ export default function OpeningsTab({ onProgress }: { onProgress: () => void }) 
       const m: Record<string, Card> = {};
       for (const c of r.cards || []) m[c.line_id] = { box: c.box, due_at: c.due_at };
       setCards(m);
+      if (Object.keys(m).some((k) => k.startsWith("oc-"))) {   // ha già progressi nella biblioteca: caricala subito
+        const x = await import("../../lib/ochess"); setExtra({ openings: x.OCHESS_OPENINGS, drills: x.OCHESS_DRILLS }); setLib(true);
+      }
     } catch (x: any) { setErr(x.message); }
     setReady(true);
   }, [call]);
@@ -36,7 +47,7 @@ export default function OpeningsTab({ onProgress }: { onProgress: () => void }) 
   };
   const dueList = useMemo(
     () => ALL_DRILLS.filter((d) => status(d.key) === "due").sort((a, b) => Date.parse(cards[a.key].due_at) - Date.parse(cards[b.key].due_at)),
-    [cards],   // eslint-disable-line react-hooks/exhaustive-deps
+    [cards, ALL_DRILLS],   // eslint-disable-line react-hooks/exhaustive-deps
   );
   const learned = ALL_DRILLS.filter((d) => status(d.key) === "learned").length;
 
@@ -73,7 +84,7 @@ export default function OpeningsTab({ onProgress }: { onProgress: () => void }) 
   }
 
   const op = open ? OPENINGS.find((o) => o.id === open) : null;
-  if (op) return <OpeningPage op={op} status={status} onBack={() => setOpen(null)} onStart={start} lang={lang} />;
+  if (op) return <OpeningPage op={op} drills={ALL_DRILLS} status={status} onBack={() => setOpen(null)} onStart={start} lang={lang} />;
 
   const cta = dueList[0] || nextOf(ALL_DRILLS);
   return (
@@ -90,7 +101,7 @@ export default function OpeningsTab({ onProgress }: { onProgress: () => void }) 
       </div>
       <p className="muted small" style={{ margin: "0 0 .9rem" }}>{tc("opTrapNote", lang)}</p>
       <div className="opgrid">
-        {OPENINGS.map((o) => {
+        {OPENINGS.filter((o) => (lib ? true : !o.id.startsWith("oc-"))).map((o) => {
           const ds = ALL_DRILLS.filter((d) => d.opening.id === o.id);
           const due = ds.filter((d) => status(d.key) === "due").length;
           return (
@@ -111,12 +122,18 @@ export default function OpeningsTab({ onProgress }: { onProgress: () => void }) 
           );
         })}
       </div>
-      <p className="muted small" style={{ marginTop: "1rem" }}>{tc("opMoreSoon", lang)}</p>
+      {!lib && (
+        <div className="oplib">
+          <button className="btn btn-ghost" onClick={showLib}>{tc("opLibOpen", lang)}</button>
+          <span className="muted small">{tc("opLibNote", lang)}</span>
+        </div>
+      )}
+      {lib && <p className="muted small" style={{ marginTop: "1rem" }}>{tc("opLibEn", lang)}</p>}
     </div>
   );
 }
 
-function OpeningPage({ op, status, onBack, onStart, lang }: { op: Opening; status: (k: string) => Status; onBack: () => void; onStart: (d: Drill) => void; lang: any }) {
+function OpeningPage({ op, drills, status, onBack, onStart, lang }: { op: Opening; drills: Drill[]; status: (k: string) => Status; onBack: () => void; onStart: (d: Drill) => void; lang: any }) {
   const label = (s: Status) => s === "new" ? tc("opNew", lang) : s === "due" ? tc("opDue", lang) : s === "learned" ? tc("opMastered", lang) : tc("opLearning", lang);
   return (
     <div className="opwrap">
@@ -125,7 +142,7 @@ function OpeningPage({ op, status, onBack, onStart, lang }: { op: Opening; statu
       <p className="muted">{tx(op.blurb, lang)} · {op.side === "w" ? tc("opWhite", lang) : tc("opBlack", lang)}</p>
       <div className="oplist">
         {op.lines.map((l) => {
-          const ds = ALL_DRILLS.filter((d) => d.line.id === l.id);
+          const ds = drills.filter((d) => d.line.id === l.id);
           return (
             <div key={l.id} className="oprow">
               <div className="oprow-main">

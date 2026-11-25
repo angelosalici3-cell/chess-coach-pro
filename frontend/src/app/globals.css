@@ -1113,3 +1113,6 @@ a.dr-btn { padding: .55rem .8rem; border: 1px solid var(--line-2); border-radius
 .opst { font-style: normal; font-weight: 500; font-size: .75rem; margin-left: .5rem; opacity: .8; }
 .opmoves { margin: 0; font-variant-numeric: tabular-nums; color: var(--mute); line-height: 1.7; word-break: break-word; }
 @media (max-width: 640px) { .opgrid { grid-template-columns: 1fr; } .oprow-btns { width: 100%; } .oprow-btns .btn { flex: 1 1 auto; } }
+
+/* v3.37 biblioteca trappole (Ochess) */
+.oplib { display: flex; align-items: center; gap: .8rem; flex-wrap: wrap; margin-top: 1rem; }
