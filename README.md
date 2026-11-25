@@ -286,3 +286,6 @@ Le analisi fatte sul server (primo caricamento di un utente) restano a profondit
 
 ## v3.32.1
 - Correzione: con le versioni recenti di stripe-python gli oggetti non hanno `.get()`. Webhook e conferma donazione convertono l'oggetto in dizionario (`_plain`) prima di leggerlo.
+
+## v3.33
+- Scheda di ringraziamento più compatta su telefono: scudo più piccolo, testi ridotti, pulsanti sempre visibili.

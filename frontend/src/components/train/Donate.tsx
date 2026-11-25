@@ -58,7 +58,7 @@ function Thanks({ thanks }: { thanks: boolean }) {
   return (
     <section className={"card thx t" + tier} aria-live="polite">
       {burst.length > 0 && <div className="burst" aria-hidden="true">{burst.map((b, i) => <i key={i} style={{ background: b.c, ["--dx" as string]: `${b.dx}px`, ["--dy" as string]: `${b.dy}px`, ["--rot" as string]: `${b.rot}deg` }} />)}</div>}
-      <div className="thx-shield"><Shield id="supporter" tier={tier} size={150} /></div>
+      <div className="thx-shield"><Shield id="supporter" tier={tier} /></div>
       <div className="thx-tag">{t.name} · {tname}</div>
       <h2>{thanks ? t.h : t.back}</h2>
       {thanks ? <p>{t.p.replace("{n}", String(sh.value))}</p> : <p className="muted">{t.total}: <b>{sh.value} €</b></p>}
