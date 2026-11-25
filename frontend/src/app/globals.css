@@ -1076,3 +1076,17 @@ a.dr-btn { padding: .55rem .8rem; border: 1px solid var(--line-2); border-radius
 @keyframes thxSh { to { background-position: -200% 0; } }
 @media (prefers-reduced-motion: reduce) { .thx-shield, .thx-ph { animation: none; } }
 .don-hint { margin: .7rem 0 0; }
+
+/* v3.34 chiusura della scheda di ringraziamento */
+.thx-x { position: absolute; top: .6rem; right: .6rem; z-index: 2; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; cursor: pointer;
+  background: color-mix(in srgb, var(--ink) 55%, transparent); border: 1px solid var(--line-2); color: var(--ice); backdrop-filter: blur(4px); transition: background .2s, border-color .2s, transform .2s; }
+.thx-x:hover { background: var(--ink-3); border-color: var(--gl, var(--ember)); transform: rotate(90deg); }
+.thx-x:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+.thx-mini { display: flex; align-items: center; gap: .8rem; width: 100%; padding: .6rem .8rem; text-align: left; color: var(--ice); cursor: pointer; font: inherit;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--gl, var(--ember)) 16%, var(--ink-2)), var(--ink-2) 70%); }
+.thx-mini.t1 { --gl: #e9ab78; } .thx-mini.t2 { --gl: #c3cde6; } .thx-mini.t3 { --gl: #ffd56a; }
+.thx-mini:hover { border-color: var(--gl, var(--ember)); }
+.thx-mini-sh svg.shield { width: 36px; height: 39px; display: block; overflow: visible; }
+.thx-mini-tx { flex: 1; min-width: 0; display: grid; line-height: 1.25; } .thx-mini-tx b { font-size: .92rem; } .thx-mini-tx small { color: var(--mute); }
+.thx-mini-go { font-size: .82rem; font-weight: 700; color: var(--gl, var(--ember-2)); }
+@media (prefers-reduced-motion: reduce) { .thx-x { transition: none; } .thx-x:hover { transform: none; } }

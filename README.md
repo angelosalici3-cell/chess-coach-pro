@@ -289,3 +289,6 @@ Le analisi fatte sul server (primo caricamento di un utente) restano a profondit
 
 ## v3.33
 - Scheda di ringraziamento più compatta su telefono: scudo più piccolo, testi ridotti, pulsanti sempre visibili.
+
+## v3.34
+- Scheda di ringraziamento chiudibile con una X in alto a destra. Da chiusa resta una riga compatta con lo scudo (si riapre toccandola); la scelta è ricordata sul dispositivo finché non si dona di nuovo.
