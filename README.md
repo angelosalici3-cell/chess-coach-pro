@@ -265,3 +265,6 @@ Le analisi fatte sul server (primo caricamento di un utente) restano a profondit
 - Lettera del coach in Premi > Percorso: layout editoriale con paragrafi brevi e numeri evidenziati.
 - Donazione spostata in una pagina `/dashboard/support`, aperta dal menu laterale con l'icona del caffè (Stripe torna lì dopo il pagamento).
 - Elenco partite: gravi, errori e imprecisioni (v3.25, incluso).
+
+## v3.27
+- Menu laterale riprogettato: scheda piano con consumo lezioni in alto, voci con icona raggruppate in Account e Aiuto, caffè, lingua a tre pulsanti, "Esci" e "Elimina account" in fondo (voce meno evidente).

@@ -988,6 +988,29 @@ a.dr-btn { padding: .55rem .8rem; border: 1px solid var(--line-2); border-radius
 .jy-stats .jy-stat { background: none; border: 0; border-radius: 0; box-shadow: none; padding: .9rem 1rem; }
 .jy-stats .jy-stat + .jy-stat { border-left: 1px solid var(--line); }
 .jy-stats .jy-cap { padding: 0 1rem .8rem; }
-.dr-coffee { display: flex; gap: .8rem; align-items: center; padding: .8rem; border-radius: 14px; border: 1px solid var(--line-2); color: var(--ice); background: color-mix(in srgb, var(--ember) 8%, transparent); }
-.dr-coffee:hover { border-color: var(--ember); }
-.dr-cup { width: 2.4rem; height: 2.4rem; border-radius: 50%; display: grid; place-items: center; background: var(--ember); color: #1a0b05; flex: none; }
+
+/* v3.27 menu laterale riprogettato */
+.drawer-body.dn { padding: .9rem 1rem 1.2rem; display: grid; gap: 1.1rem; align-content: start; }
+.drawer-body.dn section, .drawer-body.dn nav { padding: 0; border: 0; }
+.dn-plan { display: grid; gap: .45rem; padding: .95rem 1rem; border-radius: 16px; border: 1px solid var(--line-2); background: linear-gradient(135deg, color-mix(in srgb, var(--ember) 14%, var(--ink-2)), var(--ink-2) 70%); color: var(--ice); }
+.dn-plan:hover { border-color: var(--ember); }
+.dn-plan-top, .dn-plan-row { display: flex; justify-content: space-between; align-items: center; gap: .8rem; }
+.dn-plan-go { font-size: .82rem; font-weight: 700; color: var(--ember-2); }
+.dn-plan-row { font-size: .9rem; } .dn-plan-row span { color: var(--mute); }
+.dn-plan-meta { font-size: .8rem; color: var(--mute); }
+.dn-group h3 { margin: 0 0 .3rem; padding: 0 .2rem; font-size: .78rem; font-weight: 700; color: var(--mute); letter-spacing: .04em; }
+.dn-item { display: flex; align-items: center; gap: .8rem; width: 100%; min-height: 48px; padding: .4rem .5rem; border: 0; background: none; border-radius: 12px; color: var(--ice); text-align: left; cursor: pointer; font: inherit; }
+.dn-item:hover, .dn-item:focus-visible { background: var(--ink-3); }
+.dn-ic { flex: none; width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: var(--ink-3); color: var(--ice); }
+.dn-ic.warm { background: var(--ember); color: #1a0b05; }
+.dn-tx { flex: 1; min-width: 0; display: grid; line-height: 1.25; }
+.dn-tx b { font-weight: 600; font-size: .96rem; } .dn-tx small { color: var(--mute); font-size: .78rem; }
+.dn-chev { color: var(--mute); font-size: 1.2rem; }
+.dn-coffee { display: flex; align-items: center; gap: .8rem; padding: .7rem .8rem; border-radius: 14px; border: 1px dashed var(--line-2); color: var(--ice); min-height: 56px; }
+.dn-coffee:hover { border-color: var(--ember); background: color-mix(in srgb, var(--ember) 8%, transparent); }
+.dn-lang { display: grid; grid-template-columns: repeat(3, 1fr); gap: .3rem; padding: .25rem; border-radius: 12px; background: var(--ink-3); }
+.dn-lang button { min-height: 40px; border: 0; border-radius: 9px; background: none; color: var(--mute); font: inherit; font-weight: 600; font-size: .85rem; cursor: pointer; }
+.dn-lang button.on { background: var(--ember); color: #1a0b05; }
+.dn-foot { gap: .8rem; }
+.dn-del { color: var(--mute); text-decoration: underline; text-underline-offset: 3px; min-height: 44px; display: inline-flex; align-items: center; }
+.dn-del:hover { color: var(--bad); }
