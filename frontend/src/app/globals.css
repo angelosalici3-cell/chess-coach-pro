@@ -1090,3 +1090,26 @@ a.dr-btn { padding: .55rem .8rem; border: 1px solid var(--line-2); border-radius
 .thx-mini-tx { flex: 1; min-width: 0; display: grid; line-height: 1.25; } .thx-mini-tx b { font-size: .92rem; } .thx-mini-tx small { color: var(--mute); }
 .thx-mini-go { font-size: .82rem; font-weight: 700; color: var(--gl, var(--ember-2)); }
 @media (prefers-reduced-motion: reduce) { .thx-x { transition: none; } .thx-x:hover { transform: none; } }
+
+/* ===== v3.35 · Aperture e trappole ===== */
+.opwrap { display: flex; flex-direction: column; }
+.opbar { display: flex; align-items: center; justify-content: space-between; gap: .8rem; flex-wrap: wrap; margin-bottom: .6rem; }
+.opstats { font-size: 1.05rem; }
+.opstats b { font-family: var(--f-display); font-size: 1.5rem; margin-right: .1rem; }
+.opgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: .8rem; }
+.opcard { display: flex; flex-direction: column; align-items: stretch; gap: .5rem; text-align: left; padding: 1rem; border-radius: 16px; background: var(--ink-2); border: 1px solid var(--line); font-weight: 400; transition: border-color .15s, transform .15s; }
+.opcard:hover:not(:disabled) { border-color: var(--ember); transform: translateY(-2px); }
+.opcard-top { display: flex; align-items: center; justify-content: space-between; gap: .5rem; font-family: var(--f-display); font-size: 1.08rem; }
+.opcard-blurb { line-height: 1.4; min-height: 2.8em; }
+.opdots { display: flex; gap: .3rem; flex-wrap: wrap; }
+.opdot { width: .7rem; height: .7rem; border-radius: 50%; background: var(--line-2); display: inline-block; }
+.opdot.learning { background: var(--amber); } .opdot.learned { background: var(--mint); } .opdot.due { background: var(--ember); }
+.opcard-foot { display: flex; align-items: center; justify-content: space-between; }
+.opdue { font-style: normal; color: var(--ember-2); font-weight: 600; }
+.oplist { display: flex; flex-direction: column; gap: .6rem; margin-top: .6rem; }
+.oprow { display: flex; align-items: center; justify-content: space-between; gap: .8rem; flex-wrap: wrap; padding: .8rem 1rem; border-radius: 14px; background: var(--ink-2); border: 1px solid var(--line); }
+.oprow-main { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; min-width: 0; }
+.oprow-btns { display: flex; gap: .5rem; flex-wrap: wrap; }
+.opst { font-style: normal; font-weight: 500; font-size: .75rem; margin-left: .5rem; opacity: .8; }
+.opmoves { margin: 0; font-variant-numeric: tabular-nums; color: var(--mute); line-height: 1.7; word-break: break-word; }
+@media (max-width: 640px) { .opgrid { grid-template-columns: 1fr; } .oprow-btns { width: 100%; } .oprow-btns .btn { flex: 1 1 auto; } }

@@ -59,36 +59,76 @@ def overview(u=Depends(current_user)):
     email = u["email"]
     st = get_stats(email)
     errs = _errors(email, "id")
-    cards = sb.table("mistake_cards").select("error_id,due_at").eq("user_email", email).execute().data
+    cards = sb.table("mistake_cards").select("error_id,due_at,box").eq("user_email", email).execute().data
     carded = {c["error_id"] for c in cards}
     due = sum(1 for c in cards if c["due_at"] <= _now().isoformat())
-    return {"stats": {**st, "current_streak": _live_streak(st)}, "mistakes_total": len(errs),
+    solved = sum(1 for c in cards if (c.get("box") or 1) >= T.RETIRED_BOX)
+    return {"stats": {**st, "current_streak": _live_streak(st)}, "mistakes_total": len(errs), "mistakes_solved": solved,
             "mistakes_new": sum(1 for e in errs if str(e["id"]) not in carded), "mistakes_due": due,
             "done_today": st.get("last_train_date") == datetime.date.today().isoformat(),
             "puzzles_available": _count(sb.table("puzzles").select("id", count="exact").limit(1)) > 0}
 
 
 # ---------------------------------------------------------------- ripasso dei propri errori
+_ERR_COLS = "id,fen,best_move,mossa_critica,eval_loss_cp,game_id,ply,categoria_errore,apertura"
+REVISIT_CHANCE = 0.2   # ogni tanto, tra gli errori da ripassare, ne esce uno già risolto
+
+
+def _random_solved(email: str, only_ids: set | None = None):
+    """Un errore già risolto scelto a caso (ripasso a sorpresa)."""
+    rows = sb.table("mistake_cards").select("error_id").eq("user_email", email).gte("box", T.RETIRED_BOX).limit(500).execute().data
+    ids = [r["error_id"] for r in rows if only_ids is None or str(r["error_id"]) in only_ids]
+    random.shuffle(ids)
+    for eid in ids[:5]:
+        e = sb.table("errori_utenti").select(_ERR_COLS).eq("id", eid).eq("user_email", email).limit(1).execute().data
+        if e:
+            return e[0]
+    return None
+
+
+def _solved_count(email: str) -> int:
+    return _count(sb.table("mistake_cards").select("error_id", count="exact").eq("user_email", email).gte("box", T.RETIRED_BOX).limit(1))
+
+
+def _next_due(email: str):
+    nxt = (sb.table("mistake_cards").select("due_at").eq("user_email", email).lt("box", T.RETIRED_BOX)
+           .order("due_at").limit(1).execute().data)
+    return nxt[0]["due_at"] if nxt else None
+
+
 @router.get("/train/mistakes/next")
-def mistakes_next(tag: str | None = None, u=Depends(current_user)):
+def mistakes_next(tag: str | None = None, revisit: bool = False, u=Depends(current_user)):
     email, now = u["email"], _now().isoformat()
+    if revisit:
+        e = _random_solved(email)
+        if e:
+            return {"error": e, "new": False, "revisit": True}
+        return {"error": None, "reason": "no_solved", "next_due": _next_due(email)}
     if tag:
         return _tag_next(email, tag, now)
     for _ in range(3):
-        due = sb.table("mistake_cards").select("error_id").eq("user_email", email).lte("due_at", now).order("due_at").limit(1).execute().data
+        due = sb.table("mistake_cards").select("error_id").eq("user_email", email).lte("due_at", now).lt("box", T.RETIRED_BOX).order("due_at").limit(1).execute().data
         if not due:
             break
-        e = sb.table("errori_utenti").select("id,fen,best_move,mossa_critica,eval_loss_cp,game_id,ply,categoria_errore,apertura").eq("id", due[0]["error_id"]).eq("user_email", email).limit(1).execute().data
+        e = sb.table("errori_utenti").select(_ERR_COLS).eq("id", due[0]["error_id"]).eq("user_email", email).limit(1).execute().data
         if e:
+            if random.random() < REVISIT_CHANCE:
+                r = _random_solved(email)
+                if r:
+                    return {"error": r, "new": False, "revisit": True}
             return {"error": e[0], "new": False}
         sb.table("mistake_cards").delete().eq("user_email", email).eq("error_id", due[0]["error_id"]).execute()  # errore cancellato
     carded = {c["error_id"] for c in sb.table("mistake_cards").select("error_id").eq("user_email", email).execute().data}
     errs = _errors(email)
     for e in errs:
         if str(e["id"]) not in carded:
+            if random.random() < REVISIT_CHANCE:
+                r = _random_solved(email)
+                if r:
+                    return {"error": r, "new": False, "revisit": True}
             return {"error": e, "new": True}
-    nxt = sb.table("mistake_cards").select("due_at").eq("user_email", email).order("due_at").limit(1).execute().data
-    return {"error": None, "reason": "no_errors" if not errs else "all_done", "next_due": nxt[0]["due_at"] if nxt else None}
+    return {"error": None, "reason": "no_errors" if not errs else "all_done", "next_due": _next_due(email),
+            "solved": _solved_count(email)}
 
 
 def _tag_next(email: str, tag: str, now: str):
@@ -106,14 +146,21 @@ def _tag_next(email: str, tag: str, now: str):
         return {"error": None, "reason": "no_errors", "next_due": None}
     errs.sort(key=lambda e: -(e.get("eval_loss_cp") or 0))
     ids = [e["id"] for e in errs]
-    cards = {str(c["error_id"]): c["due_at"] for c in sb.table("mistake_cards").select("error_id,due_at").eq("user_email", email).in_("error_id", ids).execute().data}
-    due = sorted((e for e in errs if str(e["id"]) in cards and cards[str(e["id"])] <= now), key=lambda e: cards[str(e["id"])])
+    tcards = sb.table("mistake_cards").select("error_id,due_at,box").eq("user_email", email).in_("error_id", ids).execute().data
+    cards = {str(c["error_id"]): c["due_at"] for c in tcards}
+    solved = {str(c["error_id"]) for c in tcards if (c.get("box") or 1) >= T.RETIRED_BOX}
+    due = sorted((e for e in errs if str(e["id"]) in cards and str(e["id"]) not in solved and cards[str(e["id"])] <= now), key=lambda e: cards[str(e["id"])])
     if due:
         return {"error": due[0], "new": False}
     for e in errs:
         if str(e["id"]) not in cards:
             return {"error": e, "new": True}
-    return {"error": None, "reason": "all_done", "next_due": min(cards.values()) if cards else None}
+    if solved and random.random() < 0.5:   # tutto fatto: ogni tanto uno già risolto, a sorpresa
+        r = next((e for e in random.sample(errs, len(errs)) if str(e["id"]) in solved), None)
+        if r:
+            return {"error": r, "new": False, "revisit": True}
+    pend = [v for k, v in cards.items() if k not in solved]
+    return {"error": None, "reason": "all_done", "next_due": min(pend) if pend else None, "solved": len(solved)}
 
 
 @router.get("/patterns")
@@ -135,15 +182,43 @@ def mistakes_answer(body: MistakeAns, u=Depends(current_user)):
         raise HTTPException(404, "not_found")
     row = sb.table("mistake_cards").select("*").eq("user_email", email).eq("error_id", body.error_id).limit(1).execute().data
     card = row[0] if row else {"user_email": email, "error_id": body.error_id, "box": 1, "attempts": 0, "correct": 0}
+    was_solved = T.is_retired(card["box"])
     box, due = T.leitner_next(card["box"], body.correct, _now())
     sb.table("mistake_cards").upsert({**card, "box": box, "due_at": due.isoformat(), "attempts": card["attempts"] + 1,
                                       "correct": card["correct"] + (1 if body.correct else 0), "last_at": _now().isoformat()},
                                      on_conflict="user_email,error_id").execute()
     st = get_stats(email)
     patch = T.touch_streak(st, datetime.date.today())
-    if body.correct:
+    if body.correct and not was_solved:   # un ripasso a sorpresa non conta due volte
         patch["mistakes_fixed"] = (st.get("mistakes_fixed") or 0) + 1
     st = save_stats(email, patch)
+    return {"box": box, "due_at": due.isoformat(), "solved": T.is_retired(box), "was_solved": was_solved, "stats": {**st, "current_streak": _live_streak(st)}}
+
+
+# ---------------------------------------------------------------- aperture e trappole (memoria)
+@router.get("/train/openings/progress")
+def openings_progress(u=Depends(current_user)):
+    rows = sb.table("opening_cards").select("line_id,box,due_at,attempts,correct").eq("user_email", u["email"]).limit(1000).execute().data
+    return {"cards": rows, "now": _now().isoformat()}
+
+
+class OpeningAns(BaseModel):
+    line_id: str
+    correct: bool
+
+
+@router.post("/train/openings/answer")
+def openings_answer(body: OpeningAns, u=Depends(current_user)):
+    email = u["email"]
+    if not re.fullmatch(r"[a-z0-9][a-z0-9\-]{1,60}(:a)?", body.line_id):
+        raise HTTPException(400, "bad_line")
+    row = sb.table("opening_cards").select("*").eq("user_email", email).eq("line_id", body.line_id).limit(1).execute().data
+    card = row[0] if row else {"user_email": email, "line_id": body.line_id, "box": 1, "attempts": 0, "correct": 0}
+    box, due = T.memo_next(card["box"], body.correct, _now())
+    sb.table("opening_cards").upsert({**card, "box": box, "due_at": due.isoformat(), "attempts": card["attempts"] + 1,
+                                      "correct": card["correct"] + (1 if body.correct else 0), "last_at": _now().isoformat()},
+                                     on_conflict="user_email,line_id").execute()
+    st = save_stats(email, T.touch_streak(get_stats(email), datetime.date.today()))
     return {"box": box, "due_at": due.isoformat(), "stats": {**st, "current_streak": _live_streak(st)}}
 
 

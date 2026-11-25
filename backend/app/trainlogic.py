@@ -44,8 +44,32 @@ def elo_update(rating: int, puzzle_rating: int, solved: bool) -> int:
     return max(RATING_MIN, min(RATING_MAX, round(rating + K_FACTOR * ((1 if solved else 0) - expected))))
 
 
+RETIRED_BOX = 5            # errore risolto: esce dalla coda
+RETIRED_AT = datetime.datetime(2099, 1, 1, tzinfo=datetime.timezone.utc)
+SOLVE_AFTER = 2           # risposte giuste di fila per considerarlo risolto
+
+
+def is_retired(box: int) -> bool:
+    return box >= RETIRED_BOX
+
+
 def leitner_next(box: int, correct: bool, now: datetime.datetime):
-    """(nuova casella, prossima scadenza). Errore: si riparte dalla casella 1 tra 10 minuti."""
+    """(nuova casella, prossima scadenza).
+    Errore: si riparte dalla casella 1 tra 10 minuti (anche per un errore già risolto, che torna in coda).
+    2 risposte giuste di fila (ripasso domani, poi risolto): l'errore esce dalla coda e non si ripresenta
+    da solo; ricompare solo nei ripassi casuali occasionali."""
+    if not correct:
+        return 1, now + datetime.timedelta(minutes=10)
+    if is_retired(box):
+        return RETIRED_BOX, RETIRED_AT
+    nb = box + 1
+    if nb >= SOLVE_AFTER + 1:
+        return RETIRED_BOX, RETIRED_AT
+    return nb, now + datetime.timedelta(days=LEITNER_DAYS[nb])
+
+
+def memo_next(box: int, correct: bool, now: datetime.datetime):
+    """Ripasso a memoria (linee di apertura): 5 caselle, poi ogni 35 giorni. Errore: si riparte tra 10 minuti."""
     if not correct:
         return 1, now + datetime.timedelta(minutes=10)
     if box >= 5:

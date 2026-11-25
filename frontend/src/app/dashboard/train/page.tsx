@@ -4,11 +4,12 @@ import { useRouter } from "next/navigation";
 import { useApp } from "../../../components/app";
 import MistakeDrill from "../../../components/train/MistakeDrill";
 import PuzzleTrainer from "../../../components/train/PuzzleTrainer";
+import OpeningsTab from "../../../components/train/OpeningsTab";
 import { Seg } from "../../../components/ui/Seg";
 import { tc } from "../../../lib/train-copy";
 import { patternTitle, pc } from "../../../lib/pattern-copy";
 
-type Tab = "mistakes" | "puzzles";
+type Tab = "mistakes" | "puzzles" | "openings";
 
 export default function TrainPage() {
   const { call, lang } = useApp();
@@ -24,6 +25,7 @@ export default function TrainPage() {
     setTag(sp.get("tag") || "");
     setReady(true);
     if (q === "puzzles") setTab("puzzles");
+    if (q === "openings") setTab("openings");
     if (q === "badges" || q === "cards") router.replace(`/dashboard/rewards?tab=${q}`);   // vecchi collegamenti: premi e carte ora hanno la loro scheda
   }, [router]);
   const refresh = useCallback(() => { call("/train/overview").then(setOv).catch(() => {}); }, [call]);
@@ -35,7 +37,7 @@ export default function TrainPage() {
     <>
       <div className="pagehead">
         <h1>{tc("trainTitle", lang)}</h1>
-        <Seg<Tab> value={tab} onChange={pick} items={[{ v: "mistakes", label: tc("tabMistakes", lang), n: ov?.mistakes_due }, { v: "puzzles", label: tc("tabPuzzles", lang) }]} />
+        <Seg<Tab> value={tab} onChange={pick} items={[{ v: "mistakes", label: tc("tabMistakes", lang), n: ov?.mistakes_due }, { v: "puzzles", label: tc("tabPuzzles", lang) }, { v: "openings", label: tc("tabOpenings", lang) }]} />
       </div>
       {st && (
         <div className="trainstrip" aria-label="stats">
@@ -51,7 +53,7 @@ export default function TrainPage() {
           <button className="btn btn-ghost btn-sm" onClick={() => { setTag(""); window.history.replaceState(null, "", "?tab=mistakes"); }}>{pc("drillAll", lang)}</button>
         </div>
       )}
-      {!ready ? null : tab === "mistakes" ? <MistakeDrill onProgress={refresh} tag={tag || undefined} /> : <PuzzleTrainer onProgress={refresh} />}
+      {!ready ? null : tab === "mistakes" ? <MistakeDrill onProgress={refresh} tag={tag || undefined} /> : tab === "puzzles" ? <PuzzleTrainer onProgress={refresh} /> : <OpeningsTab onProgress={refresh} />}
     </>
   );
 }

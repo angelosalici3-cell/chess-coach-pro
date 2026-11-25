@@ -23,15 +23,16 @@ export default function MistakeDrill({ onProgress, tag }: { onProgress: () => vo
   const answered = useRef(false);
   const e = card?.error;
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (revisit?: boolean) => {
     setErr("");
     try {
-      const r = await call("/train/mistakes/next" + (tag ? "?tag=" + encodeURIComponent(tag) : ""));
+      const r = await call("/train/mistakes/next" + (tag ? "?tag=" + encodeURIComponent(tag) : revisit === true ? "?revisit=1" : ""), { cache: "no-store" });
       setCard(r);
       if (r.error) { setFen(r.error.fen); setState("ask"); setTries(0); setHint(false); setLast(null); setBack(""); answered.current = false; }
     } catch (x: any) { setErr(x.message); }
   }, [call, tag]);
   useEffect(() => { load(); }, [load]);
+  const nextCard = () => load();
 
   const best = useMemo(() => {
     if (!e) return null;
@@ -44,7 +45,8 @@ export default function MistakeDrill({ onProgress, tag }: { onProgress: () => vo
     try {
       const r = await call("/train/mistakes/answer", { method: "POST", body: JSON.stringify({ error_id: String(e.id), correct }) });
       const days = Math.round((Date.parse(r.due_at) - Date.now()) / 86400000);
-      setBack(tc("comesBack", lang, { d: days < 1 ? tc("inMinutes", lang) : days === 1 ? tc("inOneDay", lang) : tc("inDays", lang, { n: days }) }));
+      setBack(r.solved ? tc("solvedMsg", lang)
+        : tc("comesBack", lang, { d: days < 1 ? tc("inMinutes", lang) : days === 1 ? tc("inOneDay", lang) : tc("inDays", lang, { n: days }) }));
       onProgress();
     } catch (x: any) { setErr(x.message); }
   };
@@ -73,7 +75,18 @@ export default function MistakeDrill({ onProgress, tag }: { onProgress: () => vo
   if (!e) {
     return (
       <div className="card muted">
-        {card.reason === "no_errors" ? tc("emptyNoErrors", lang) : tc("emptyAllDone", lang, { when: card.next_due ? new Date(card.next_due).toLocaleDateString(lang) : "—" })}
+        <p style={{ margin: 0 }}>
+          {card.reason === "no_errors" ? tc("emptyNoErrors", lang)
+            : card.reason === "no_solved" ? tc("noSolved", lang)
+            : card.next_due ? tc("emptyAllDone", lang, { when: new Date(card.next_due).toLocaleDateString(lang) })
+            : tc("emptyAllDone", lang, { when: "—" }).split(".")[0] + "."}
+        </p>
+        {card.solved > 0 && !tag && (
+          <div className="row" style={{ justifyContent: "flex-start", marginTop: 12, alignItems: "center" }}>
+            <span className="chip">{tc("solvedCount", lang, { n: String(card.solved) })}</span>
+            <button className="btn btn-ghost btn-sm" onClick={() => load(true)}>{tc("revisitBtn", lang)}</button>
+          </div>
+        )}
       </div>
     );
   }
@@ -87,7 +100,7 @@ export default function MistakeDrill({ onProgress, tag }: { onProgress: () => vo
       <ChessBoard fen={fen} flip={!white} last={last} onDrop={done ? undefined : drop} marks={marks} shake={shake} />
       <div className="drill-info">
         <div className="chips" style={{ margin: 0 }}>
-          <span className="chip on">{card.new ? tc("cardNew", lang) : tc("cardReview", lang)}</span>
+          <span className="chip on">{card.revisit ? tc("cardRevisit", lang) : card.new ? tc("cardNew", lang) : tc("cardReview", lang)}</span>
           {e.categoria_errore && <span className="chip">{e.categoria_errore}</span>}
         </div>
         <h2>{tc("drillAsk", lang)}</h2>
@@ -108,7 +121,7 @@ export default function MistakeDrill({ onProgress, tag }: { onProgress: () => vo
             </>
           ) : (
             <>
-              <button className="btn btn-primary" onClick={load}>{tc("nextCard", lang)}</button>
+              <button className="btn btn-primary" onClick={nextCard}>{tc("nextCard", lang)}</button>
               <Link href={`/dashboard/games/${e.game_id}`} className="btn btn-ghost btn-sm">{tc("seeGame", lang)}</Link>
             </>
           )}

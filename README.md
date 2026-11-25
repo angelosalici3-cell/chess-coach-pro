@@ -292,3 +292,19 @@ Le analisi fatte sul server (primo caricamento di un utente) restano a profondit
 
 ## v3.34
 - Scheda di ringraziamento chiudibile con una X in alto a destra. Da chiusa resta una riga compatta con lo scudo (si riapre toccandola); la scelta è ricordata sul dispositivo finché non si dona di nuovo.
+
+## v3.35 — Ripasso errori: si esce quando risolti
+- Un errore esce dalla coda dopo **2 risposte giuste di fila** (domani → risolto). Sbagliare riparte dalla casella 1.
+- Gli errori risolti **non tornano più da soli**; con probabilità ~20% (`REVISIT_CHANCE` in `train.py`) ne esce uno a caso come «Ripasso a sorpresa». Se lo sbagli, torna in coda.
+- A coda vuota compare il pulsante «Rivedi un errore risolto» e il contatore dei risolti.
+- **Esegui `supabase/017_mistakes_retire.sql`** (le schede già in casella 3-5 diventano risolte).
+- Soglie modificabili: `SOLVE_AFTER` in `trainlogic.py`.
+
+## v3.36 — Percorsi di aperture e trappole
+- Nuova scheda **Allenamento → Aperture**: 13 aperture (Italiana, Spagnola, Petrov, Siciliana, Caro-Kann, Francese, Gambetto di Donna, Londra, Indiana di Re, Inglese, Olandese, Budapest, Matto del Barbiere), 11 linee principali e 9 trappole.
+- Le linee si giocano **a memoria**: l'avversario risponde da solo, tu ripeti le mosse del tuo lato (3 errori sulla stessa mossa → viene mostrata).
+- Ogni trappola ha **due esercizi**: «Tendi la trappola» (giochi tu il lato che la tende) e «Evita la trappola» (giochi il lato che rischia e al momento critico devi trovare la mossa sicura).
+- Ripasso con ripetizione a intervalli (1, 3, 7, 16, 35 giorni); pulsante «Ripasso di oggi» con le linee da ripassare.
+- Contenuti in `frontend/src/lib/openings-data.ts` (IT/EN; ES usa l'inglese). Tutte le mosse sono state verificate (legalità e matti). Per aggiungere un'apertura basta una nuova voce in `OPENINGS`.
+- **Esegui `supabase/018_openings.sql`** (tabella `opening_cards`).
+- Backend: `GET /train/openings/progress`, `POST /train/openings/answer`.
