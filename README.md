@@ -273,3 +273,6 @@ Le analisi fatte sul server (primo caricamento di un utente) restano a profondit
 - Punteggio: il grafico e il livello usano il punteggio dopo la partita (inizio della partita successiva, variazione nel PGN su Lichess, oppure punteggio attuale letto dalla piattaforma).
 - Elenco partite: i conteggi di gravi, errori e imprecisioni sono letti a pagine dalle mosse analizzate (prima Supabase tagliava a 1000 righe).
 - Studio su telefono: riquadri compatti a due colonne e schede al posto della tabella nella scheda Creator.
+
+## v3.29
+- Elenco partite: tre badge (rosso gravi, arancione errori, grigio imprecisioni) con solo il numero, più una legenda sopra l'elenco. Il nome dell'avversario torna visibile su telefono.

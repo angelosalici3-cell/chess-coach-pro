@@ -69,6 +69,13 @@ export default function GamesList() {
           </div>
         </>
       )}
+      {games && games.length > 0 && (
+        <div className="glegend" role="note">
+          <span><i className="gb sev" aria-hidden="true" />{u("gLegSevere", lang)}</span>
+          <span><i className="gb mis" aria-hidden="true" />{u("gLegMistake", lang)}</span>
+          <span><i className="gb ina" aria-hidden="true" />{u("gLegInacc", lang)}</span>
+        </div>
+      )}
       {games?.length === 0 && <div className="card muted">{t("empty")}</div>}
       {games && games.length > 0 && list.length === 0 && <div className="card muted">{u("gNoMatch", lang)}</div>}
       {groups.map((gr) => (
@@ -85,12 +92,11 @@ export default function GamesList() {
                 {g.analyzed_at ? (
                   <>
                     <b>{g.accuracy_user != null ? Math.round(g.accuracy_user) : "—"}{g.accuracy_user != null && <small>%</small>}</b>
-                    <span className="small">{(() => {
-                      const parts: [number, string, string, string, string][] = [[g.blunders, "bad", "gSevere1", "gSevere", ""], [g.mistakes, "warn", "gErr1", "gMistakes", ""], [g.inaccuracies || 0, "muted", "gInacc1", "gInacc", ""]];
-                      const shown = parts.filter((p) => p[0] > 0);
-                      if (!shown.length) return <span className="ok">{u("gClean", lang)}</span>;
-                      return shown.map((p, k) => <span key={p[2]} className={p[1]}>{k ? " · " : ""}{p[0] === 1 ? u(p[2] as any, lang) : u(p[3] as any, lang, { n: p[0] })}</span>);
-                    })()}</span>
+                    <span className="gbadges" aria-label={`${g.blunders} ${u("gLegSevere", lang)}, ${g.mistakes} ${u("gLegMistake", lang)}, ${g.inaccuracies || 0} ${u("gLegInacc", lang)}`}>
+                      <i className={"gb sev" + (g.blunders ? "" : " z")}>{g.blunders}</i>
+                      <i className={"gb mis" + (g.mistakes ? "" : " z")}>{g.mistakes}</i>
+                      <i className={"gb ina" + (g.inaccuracies ? "" : " z")}>{g.inaccuracies || 0}</i>
+                    </span>
                   </>
                 ) : <span className="tag muted">{t("notAnalyzed")}</span>}
               </span>

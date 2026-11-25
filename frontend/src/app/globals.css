@@ -1041,3 +1041,15 @@ a.dr-btn { padding: .55rem .8rem; border: 1px solid var(--line-2); border-radius
   .st { gap: .7rem; }
   .st .card { padding: .85rem; }
 }
+
+/* v3.29 elenco partite: badge colorati con il numero di errori */
+.gbadges { display: flex; gap: .3rem; align-items: center; }
+.gb { display: inline-grid; place-items: center; min-width: 1.7rem; height: 1.7rem; padding: 0 .3rem; border-radius: 7px; font-style: normal; font-weight: 800; font-size: .82rem; font-variant-numeric: tabular-nums; }
+.gb.sev { background: var(--bad); color: #1a0508; }
+.gb.mis { background: var(--ember); color: #1a0b05; }
+.gb.ina { background: #6b7494; color: #0b0f1e; }
+.gb.z { background: transparent; box-shadow: inset 0 0 0 1px var(--line-2); color: var(--mute); font-weight: 600; }
+.glegend { display: flex; flex-wrap: wrap; gap: .4rem 1rem; align-items: center; margin: .2rem .2rem .8rem; font-size: .78rem; color: var(--mute); }
+.glegend span { display: inline-flex; align-items: center; gap: .4rem; }
+.glegend .gb { min-width: .9rem; width: .9rem; height: .9rem; border-radius: 4px; padding: 0; }
+.gside { gap: .35rem; }
