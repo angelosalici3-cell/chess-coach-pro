@@ -405,6 +405,18 @@ def donate(body: DonateIn, u=Depends(current_user)):
 
 
 
+def _plain(o):
+    """Oggetto Stripe -> dizionario normale. Le versioni recenti della libreria non hanno più .get() sugli oggetti."""
+    for m in ("to_dict_recursive", "to_dict"):
+        f = getattr(o, m, None)
+        if callable(f):
+            try:
+                return f()
+            except Exception:
+                pass
+    return o
+
+
 class DonateConfirmIn(BaseModel):
     session_id: str
 
@@ -414,7 +426,7 @@ def donate_confirm(body: DonateConfirmIn, u=Depends(current_user)):
     """Al ritorno da Stripe verifica il pagamento direttamente e registra la donazione: lo scudo non dipende dall'arrivo del webhook.
     Idempotente: se il webhook l'ha già registrata non succede niente."""
     try:
-        ses = stripe.checkout.Session.retrieve(body.session_id)
+        ses = _plain(stripe.checkout.Session.retrieve(body.session_id))
     except Exception:
         raise HTTPException(400, "session_not_found")
     meta = ses.get("metadata") or {}
@@ -465,7 +477,7 @@ async def webhook(request: Request, bg: BackgroundTasks):
             await request.body(), request.headers.get("stripe-signature", ""), os.environ["STRIPE_WEBHOOK_SECRET"])
     except Exception:
         raise HTTPException(400, "bad_signature")
-    obj = ev["data"]["object"]
+    obj = _plain(ev["data"]["object"])
     if ev["type"] == "checkout.session.completed" and (obj.get("metadata") or {}).get("kind") == "donation":
         email = obj["metadata"].get("email")
         try:
@@ -511,7 +523,7 @@ async def webhook(request: Request, bg: BackgroundTasks):
             pass
     elif ev["type"] == "charge.dispute.created":
         try:
-            ch = stripe.Charge.retrieve(obj["charge"])
+            ch = _plain(stripe.Charge.retrieve(obj["charge"]))
             em, tier = _email_of_customer(ch.get("customer"))
         except Exception:
             em, tier = None, None

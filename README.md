@@ -283,3 +283,6 @@ Le analisi fatte sul server (primo caricamento di un utente) restano a profondit
 
 ## v3.31
 - Scudo Sostenitore: soglie 5 € bronzo, 10 € argento, 20 € oro (somma delle donazioni). Importi rapidi 5, 10, 20 e importo libero con indicazione dello scudo che si ottiene.
+
+## v3.32.1
+- Correzione: con le versioni recenti di stripe-python gli oggetti non hanno `.get()`. Webhook e conferma donazione convertono l'oggetto in dizionario (`_plain`) prima di leggerlo.

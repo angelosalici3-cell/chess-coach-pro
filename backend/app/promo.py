@@ -79,6 +79,10 @@ def _code_from_session(session_id: str) -> str | None:
     """Codice digitato nella pagina di pagamento Stripe (anche senza link)."""
     try:
         s = stripe.checkout.Session.retrieve(session_id, expand=["total_details.breakdown"])
+        for f in ("to_dict_recursive", "to_dict"):   # le versioni recenti di stripe-python non hanno .get() sugli oggetti
+            if callable(getattr(s, f, None)):
+                s = getattr(s, f)()
+                break
         for d in s["total_details"]["breakdown"]["discounts"]:
             pc = d["discount"].get("promotion_code")
             if pc:
