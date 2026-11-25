@@ -8,9 +8,9 @@ import { cardFonts, shareOrSave } from "../../lib/cardExport";
 import { makeShieldPng } from "../../lib/shieldShare";
 
 const TH = {
-  it: { h: "Grazie di cuore!", p: "Con {n} € ci aiuti a tenere acceso il motore che analizza ogni tua partita e a costruire nuovi allenamenti. Questo scudo è il nostro modo di dirti grazie: è tuo, e puoi mostrarlo.", name: "Scudo Sostenitore", tiers: ["Bronzo", "Argento", "Oro"], next: "Ancora {x} € e il tuo scudo diventa {t}.", top: "Hai il massimo livello: sei tra le persone che reggono EloRise.", share: "Condividi lo scudo", see: "Vedi i tuoi scudi", sign: "Angelo, EloRise", wait: "Sto preparando il tuo scudo…", back: "Il tuo scudo Sostenitore", total: "Totale donato", again: "Vuoi aggiungere altro?", under: "Da 5 € ricevi lo scudo Sostenitore: bronzo da 5 €, argento da 10 €, oro da 20 €.", gets: "Con questo importo ricevi lo scudo {t}." },
-  en: { h: "Thank you, truly!", p: "With €{n} you help keep the engine running that analyses every one of your games, and fund new training. This shield is our way of saying thanks: it is yours to show.", name: "Supporter shield", tiers: ["Bronze", "Silver", "Gold"], next: "€{x} more and your shield becomes {t}.", top: "You are at the top level: you help keep EloRise going.", share: "Share the shield", see: "See your shields", sign: "Angelo, EloRise", wait: "Preparing your shield…", back: "Your Supporter shield", total: "Total donated", again: "Want to add more?", under: "From €5 you get the Supporter shield: bronze from €5, silver from €10, gold from €20.", gets: "This amount gets you the {t} shield." },
-  es: { h: "¡Gracias de corazón!", p: "Con {n} € ayudas a mantener el motor que analiza cada una de tus partidas y a crear nuevos entrenamientos. Este escudo es nuestra forma de darte las gracias: es tuyo y puedes enseñarlo.", name: "Escudo Mecenas", tiers: ["Bronce", "Plata", "Oro"], next: "Con {x} € más tu escudo pasa a {t}.", top: "Tienes el nivel máximo: ayudas a sostener EloRise.", share: "Compartir el escudo", see: "Ver tus escudos", sign: "Angelo, EloRise", wait: "Preparando tu escudo…", back: "Tu escudo Mecenas", total: "Total donado", again: "¿Quieres añadir más?", under: "Desde 5 € recibes el escudo Mecenas: bronce desde 5 €, plata desde 10 €, oro desde 20 €.", gets: "Con este importe recibes el escudo de {t}." },
+  it: { h: "Grazie di cuore!", p: "Con {n} € ci aiuti a tenere acceso il motore che analizza ogni tua partita e a costruire nuovi allenamenti. Questo scudo è il nostro modo di dirti grazie: è tuo, e puoi mostrarlo.", name: "Scudo Sostenitore", tiers: ["Bronzo", "Argento", "Oro"], next: "Ancora {x} € e il tuo scudo diventa {t}.", top: "Hai il massimo livello: sei tra le persone che reggono EloRise.", share: "Condividi lo scudo", see: "Vedi i tuoi scudi", sign: "Angelo, EloRise", wait: "Sto preparando il tuo scudo…", late: "Il pagamento è arrivato, ma lo scudo non è ancora comparso. Riapri questa pagina tra qualche minuto: lo troverai qui e in Premi > Traguardi.", back: "Il tuo scudo Sostenitore", total: "Totale donato", again: "Vuoi aggiungere altro?", under: "Da 5 € ricevi lo scudo Sostenitore: bronzo da 5 €, argento da 10 €, oro da 20 €.", gets: "Con questo importo ricevi lo scudo {t}." },
+  en: { h: "Thank you, truly!", p: "With €{n} you help keep the engine running that analyses every one of your games, and fund new training. This shield is our way of saying thanks: it is yours to show.", name: "Supporter shield", tiers: ["Bronze", "Silver", "Gold"], next: "€{x} more and your shield becomes {t}.", top: "You are at the top level: you help keep EloRise going.", share: "Share the shield", see: "See your shields", sign: "Angelo, EloRise", wait: "Preparing your shield…", late: "Your payment went through, but the shield has not shown up yet. Reopen this page in a few minutes: you will find it here and under Rewards > Milestones.", back: "Your Supporter shield", total: "Total donated", again: "Want to add more?", under: "From €5 you get the Supporter shield: bronze from €5, silver from €10, gold from €20.", gets: "This amount gets you the {t} shield." },
+  es: { h: "¡Gracias de corazón!", p: "Con {n} € ayudas a mantener el motor que analiza cada una de tus partidas y a crear nuevos entrenamientos. Este escudo es nuestra forma de darte las gracias: es tuyo y puedes enseñarlo.", name: "Escudo Mecenas", tiers: ["Bronce", "Plata", "Oro"], next: "Con {x} € más tu escudo pasa a {t}.", top: "Tienes el nivel máximo: ayudas a sostener EloRise.", share: "Compartir el escudo", see: "Ver tus escudos", sign: "Angelo, EloRise", wait: "Preparando tu escudo…", late: "El pago llegó, pero el escudo aún no ha aparecido. Vuelve a abrir esta página en unos minutos: lo encontrarás aquí y en Premios > Logros.", back: "Tu escudo Mecenas", total: "Total donado", again: "¿Quieres añadir más?", under: "Desde 5 € recibes el escudo Mecenas: bronce desde 5 €, plata desde 10 €, oro desde 20 €.", gets: "Con este importe recibes el escudo de {t}." },
 } as const;
 const CONF = ["#ff6b3d", "#ffd56a", "#4ee3b0", "#5aa9ff", "#ff5d8f"];
 const TIERS = [5, 10, 20];   // soglie dello scudo Sostenitore: bronzo, argento, oro (stesse del backend)
@@ -22,13 +22,19 @@ function Thanks({ thanks }: { thanks: boolean }) {
   const [tries, setTries] = useState(0);
   const [burst, setBurst] = useState<{ dx: number; dy: number; rot: number; c: string }[]>([]);
   const [msg, setMsg] = useState("");
+  const [failed, setFailed] = useState(false);
   useEffect(() => {
     let live = true;
-    call("/achievements").then((a: any) => {
+    const sid = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("session_id") : null;
+    const read = () => call("/achievements", { cache: "no-store" }).then((a: any) => {   // no-store: la memoria dell'app darebbe l'elenco di prima
       if (!live) return;
-      const s = (a.shields || []).find((x: any) => x.id === "supporter");
-      if (s) setSh(s); else if (thanks && tries < 6) setTimeout(() => live && setTries((n) => n + 1), 2000);   // il pagamento arriva con un attimo di ritardo
-    }).catch(() => {});
+      const x = (a.shields || []).find((y: any) => y.id === "supporter");
+      if (x) setSh(x); else if (thanks && tries < 40) setTimeout(() => live && setTries((n) => n + 1), 3000);
+      else if (thanks) setFailed(true);
+    }).catch(() => { if (live && thanks && tries < 40) setTimeout(() => live && setTries((n) => n + 1), 3000); });
+    // al primo giro conferma il pagamento direttamente con Stripe: non si aspetta il webhook
+    if (thanks && sid && tries === 0) call("/billing/donate/confirm", { method: "POST", body: JSON.stringify({ session_id: sid }) }).catch(() => {}).finally(read);
+    else read();
     return () => { live = false; };
   }, [call, tries, thanks]);
   useEffect(() => {
@@ -40,7 +46,7 @@ function Thanks({ thanks }: { thanks: boolean }) {
     return () => clearTimeout(id);
   }, [sh, thanks]);
   if (!sh && !thanks) return null;
-  if (!sh) return <section className="card thx thx-wait"><div className="thx-ph" aria-hidden="true" /><div><h2>{t.h}</h2><p className="muted">{t.wait}</p></div></section>;
+  if (!sh) return <section className="card thx thx-wait"><div className="thx-ph" aria-hidden="true" /><div><h2>{t.h}</h2><p className="muted">{failed ? t.late : t.wait}</p></div></section>;
   const tier = Math.max(1, sh.tier), tname = t.tiers[tier - 1], nextAt = TIERS[sh.tier] ?? null;
   const share = async () => {
     try {

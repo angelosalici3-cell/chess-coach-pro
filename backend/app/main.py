@@ -399,9 +399,38 @@ def donate(body: DonateIn, u=Depends(current_user)):
     ses = stripe.checkout.Session.create(
         mode="payment", customer_email=u["email"], locale=lang,
         line_items=[{"quantity": 1, "price_data": {"currency": "eur", "unit_amount": body.amount * 100, "product_data": {"name": name}}}],
-        success_url=f"{FRONTEND_URL}/dashboard/support?thanks=1", cancel_url=f"{FRONTEND_URL}/dashboard/support",
+        success_url=f"{FRONTEND_URL}/dashboard/support?thanks=1&session_id={{CHECKOUT_SESSION_ID}}", cancel_url=f"{FRONTEND_URL}/dashboard/support",
         metadata={"email": u["email"], "kind": "donation"})
     return {"url": ses.url}
+
+
+
+class DonateConfirmIn(BaseModel):
+    session_id: str
+
+
+@app.post("/billing/donate/confirm")
+def donate_confirm(body: DonateConfirmIn, u=Depends(current_user)):
+    """Al ritorno da Stripe verifica il pagamento direttamente e registra la donazione: lo scudo non dipende dall'arrivo del webhook.
+    Idempotente: se il webhook l'ha già registrata non succede niente."""
+    try:
+        ses = stripe.checkout.Session.retrieve(body.session_id)
+    except Exception:
+        raise HTTPException(400, "session_not_found")
+    meta = ses.get("metadata") or {}
+    if meta.get("kind") != "donation" or (meta.get("email") or "").lower() != u["email"].lower():
+        raise HTTPException(403, "not_yours")
+    if ses.get("payment_status") != "paid":
+        return {"ok": False, "status": ses.get("payment_status")}
+    amount = (ses.get("amount_total") or 0) / 100
+    try:
+        sb.table("donations").upsert({"user_email": u["email"], "amount": amount, "stripe_session_id": ses["id"]}, on_conflict="stripe_session_id").execute()
+    except Exception as e:
+        log.warning("donazione non registrata (confirm): %s", e)
+        raise HTTPException(500, "donations_table_missing")
+    _log_payment("donation", u["email"], amount, None, ses["id"])
+    cache.bust(u["email"])
+    return {"ok": True, "amount": amount}
 
 
 @app.post("/billing/portal")
