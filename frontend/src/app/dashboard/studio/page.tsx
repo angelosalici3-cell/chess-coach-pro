@@ -280,7 +280,7 @@ function CreatorsTab() {
       <section className="st-kpis">
         {[["Visite", t.clicks], ["Iscritti", t.signups], ["Abbonati", t.payers], ["Incassi da codici", eur(t.revenue)], ["Margine generato", eur(t.margin)], ["Costo creator", eur(t.cost_total)], ["Da pagare", eur(t.due)]].map(([l, v]: any) => <div key={l} className="card st-kpi"><div className="muted small">{l}</div><b className="jy-big">{v}</b></div>)}
       </section>
-      <section className="card st-tablewrap">
+      <section className="card st-tablewrap st-desk">
         <table className="st-table">
           <thead><tr><th>Creator</th><th>Profilo</th><th>Dati fiscali</th><th>Iscritti</th><th>Abbonati</th><th>Margine</th><th>Maturato</th><th>Tetto</th><th>Da pagare</th><th /></tr></thead>
           <tbody>{d.creators.map((c: any) => (
@@ -297,6 +297,23 @@ function CreatorsTab() {
           ))}</tbody>
         </table>
         {d.creators.length === 0 && <p className="muted" style={{ margin: ".6rem 0 0" }}>Nessun creator ancora: abilitane uno qui sotto.</p>}
+      </section>
+      <section className="st-ccards">
+        {d.creators.map((c: any) => (
+          <article key={c.email} className={"card st-cc" + (!c.active ? " off" : "")}>
+            <div className="st-row"><button className="st-cname" onClick={() => setSee(c)}><b>{c.name}</b><span className="muted small">{c.code}</span></button><span className={"st-pill " + (c.tax_ok ? "ok" : "warn")}>{c.tax_ok ? (REGIMES[c.regime] || "ok") : "dati mancanti"}</span></div>
+            <div className="st-cstats">
+              <div><span>Iscritti</span><b>{c.signups}</b></div><div><span>Abbonati</span><b>{c.payers}</b></div>
+              <div><span>Maturato</span><b>{eur(c.earned)}</b></div><div><span>Da pagare</span><b>{eur(c.due)}</b></div>
+            </div>
+            {c.capped && <p className="muted small" style={{ margin: 0 }}>Compenso limitato dal tetto.</p>}
+            <div className="st-cctl">
+              <label className="st-lab">Profilo<select value={c.profile} onChange={(e) => post(`/studio/admin/creators/${encodeURIComponent(c.email)}`, { profile: e.target.value }, "Profilo aggiornato")}>{Object.entries(PROFILES).map(([k, v]) => <option key={k} value={k}>{v.name}</option>)}</select></label>
+              <label className="st-lab">Tetto %<input type="number" min={0} max={60} defaultValue={c.cap_pct} onBlur={(e) => Number(e.target.value) !== c.cap_pct && post(`/studio/admin/creators/${encodeURIComponent(c.email)}`, { cap_pct: Number(e.target.value) }, "Tetto aggiornato")} /></label>
+            </div>
+            <div className="st-cbtn"><button className="btn btn-sm" onClick={() => setSee(c)}>Vedi dettaglio</button><button className="btn btn-sm" onClick={() => post(`/studio/admin/creators/${encodeURIComponent(c.email)}`, { active: !c.active }, c.active ? "Disattivato" : "Riattivato")}>{c.active ? "Disattiva" : "Attiva"}</button></div>
+          </article>
+        ))}
       </section>
       <section className="st-two">
         <form className="card st-form" onSubmit={(e) => { e.preventDefault(); post("/studio/admin/creators", { ...f, code: f.code.toUpperCase() }, "Creator abilitato.", () => setF({ ...f, email: "", name: "", code: "" })); }}>

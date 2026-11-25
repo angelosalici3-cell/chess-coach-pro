@@ -1014,3 +1014,30 @@ a.dr-btn { padding: .55rem .8rem; border: 1px solid var(--line-2); border-radius
 .dn-foot { gap: .8rem; }
 .dn-del { color: var(--mute); text-decoration: underline; text-underline-offset: 3px; min-height: 44px; display: inline-flex; align-items: center; }
 .dn-del:hover { color: var(--bad); }
+
+/* v3.27 Studio: riquadri compatti e schede creator su telefono */
+.st-kpi { gap: 0; padding: .8rem .9rem; }
+.st-kpi .jy-big { font-size: 1.4rem; line-height: 1.15; }
+.st-kpi .small { font-size: .74rem; line-height: 1.3; }
+.st-ccards { display: none; gap: .7rem; }
+.st-cc { display: grid; gap: .7rem; }
+.st-cc.off { opacity: .55; }
+.st-cname { background: none; border: 0; padding: 0; color: var(--ice); text-align: left; display: grid; cursor: pointer; font: inherit; }
+.st-cstats { display: grid; grid-template-columns: repeat(2, 1fr); gap: .5rem; }
+.st-cstats > div { background: var(--ink-3); border-radius: 12px; padding: .55rem .7rem; display: grid; }
+.st-cstats span { font-size: .72rem; color: var(--mute); } .st-cstats b { font-size: 1.1rem; font-variant-numeric: tabular-nums; }
+.st-cctl { display: grid; grid-template-columns: 2fr 1fr; gap: .6rem; }
+.st-cbtn { display: flex; gap: .5rem; flex-wrap: wrap; }
+.st-cbtn .btn { flex: 1; min-height: 44px; }
+@media (max-width: 700px) {
+  .st-kpis { grid-template-columns: repeat(2, 1fr); gap: .5rem; }
+  .st-kpis > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+  .st-kpi { padding: .65rem .75rem; }
+  .st-kpi .jy-big { font-size: 1.2rem; }
+  .st-hero { padding: 1rem; } .st-hero h2 { font-size: 1.2rem; }
+  .st-desk { display: none; }
+  .st-ccards { display: grid; }
+  .st-tab { padding: .45rem .9rem; flex: none; }
+  .st { gap: .7rem; }
+  .st .card { padding: .85rem; }
+}

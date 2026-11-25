@@ -4,6 +4,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 import os
 
+import httpx as _hx
 import stripe
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -150,29 +151,33 @@ def list_games(u=Depends(current_user)):
             .eq("user_email", u["email"]).order("played_at", desc=True).limit(300).execute().data)
     mine = _mine(u)
     rows = [g for g in rows if _is_mine(g, mine)]
-    errs: dict = {}
-    for e in sb.table("errori_utenti").select("game_id,classification").eq("user_email", u["email"]).in_("classification", ["mistake", "blunder"]).limit(5000).execute().data:
-        c = errs.setdefault(e["game_id"], {"blunder": 0, "mistake": 0})
-        c[e["classification"]] += 1
-    # imprecisioni: non stanno in errori_utenti ma nelle mosse; così l'elenco conta quanto il dettaglio della partita
-    inacc: dict = {}
+    # conteggi dalle mosse analizzate (stessa fonte del dettaglio partita), a pagine: Supabase restituisce al massimo 1000 righe per richiesta
+    cnt: dict = {}
     ids = [g["id"] for g in rows]
-    for i in range(0, len(ids), 50):
-        try:
-            for m in sb.table("moves").select("game_id").in_("game_id", ids[i:i + 50]).eq("is_user_move", True).eq("classification", "inaccuracy").limit(5000).execute().data:
-                inacc[m["game_id"]] = inacc.get(m["game_id"], 0) + 1
-        except Exception:
-            break
+    for i in range(0, len(ids), 25):
+        off = 0
+        while True:
+            try:
+                page = (sb.table("moves").select("game_id,classification").in_("game_id", ids[i:i + 25]).eq("is_user_move", True)
+                        .in_("classification", ["blunder", "mistake", "inaccuracy"]).order("game_id").order("ply").range(off, off + 999).execute().data or [])
+            except Exception:
+                break
+            for m in page:
+                c = cnt.setdefault(m["game_id"], {"blunder": 0, "mistake": 0, "inaccuracy": 0})
+                c[m["classification"]] += 1
+            if len(page) < 1000:
+                break
+            off += 1000
     out = []
     for g in rows:
         c, res = g["user_color"], g["result"]
         outcome = None
         if c and res in ("1-0", "0-1", "1/2-1/2"):
             outcome = "d" if res == "1/2-1/2" else "w" if (res == "1-0") == (c == "white") else "l"
-        e = errs.get(g["id"], {"blunder": 0, "mistake": 0})
+        e = cnt.get(g["id"], {"blunder": 0, "mistake": 0, "inaccuracy": 0})
         out.append({**g, "outcome": outcome, "me": (g["white"] if c == "white" else g["black"]) if c else None,
                     "opp": (g["black"] if c == "white" else g["white"]) if c else None,
-                    "speed": _speed(g["time_control"]), "blunders": e["blunder"], "mistakes": e["mistake"], "inaccuracies": inacc.get(g["id"], 0)})
+                    "speed": _speed(g["time_control"]), "blunders": e["blunder"], "mistakes": e["mistake"], "inaccuracies": e["inaccuracy"]})
     return out
 
 
@@ -526,6 +531,39 @@ def _elo(pgn: str, color: str):
     return int(m.group(1)) if m else None
 
 
+def _elo_diff(pgn: str, color: str):
+    """Variazione di punteggio della partita, quando la piattaforma la scrive nel PGN (Lichess)."""
+    m = re.search(rf'\[{"White" if color == "white" else "Black"}RatingDiff "([+-]?\d+)"\]', pgn or "")
+    return int(m.group(1)) if m else None
+
+
+_LIVE: dict = {}
+_LIVE_KEY = {"chesscom": {"bullet": "chess_bullet", "blitz": "chess_blitz", "rapid": "chess_rapid", "daily": "chess_daily"},
+             "lichess": {"bullet": "bullet", "blitz": "blitz", "rapid": "rapid", "classical": "classical", "daily": "correspondence"}}
+
+
+def _live_rating(src: str, uname: str, speed: str):
+    """Punteggio attuale (dopo l'ultima partita) letto dalla piattaforma; None se non raggiungibile. Cache di 5 minuti."""
+    key = (src, uname, speed)
+    hit = _LIVE.get(key)
+    if hit and time.time() - hit[0] < 300:
+        return hit[1]
+    val = None
+    try:
+        name = _LIVE_KEY.get(src, {}).get(speed)
+        if name:
+            if src == "lichess":
+                r = _hx.get(f"https://lichess.org/api/user/{uname}", timeout=4.0, headers={"User-Agent": "EloRise/1.0"})
+                val = (r.json().get("perfs", {}).get(name) or {}).get("rating") if r.status_code == 200 else None
+            else:
+                r = _hx.get(f"https://api.chess.com/pub/player/{uname}/stats", timeout=4.0, headers={"User-Agent": "EloRise/1.0"})
+                val = ((r.json().get(name) or {}).get("last") or {}).get("rating") if r.status_code == 200 else None
+    except Exception:
+        val = None
+    _LIVE[key] = (time.time(), val)
+    return val
+
+
 def _speed(tc: str | None):
     """Categoria di ritmo come Lichess: durata stimata = base + 40 * incremento."""
     m = re.match(r"^(\d+)(?:\+(\d+))?$", tc or "")
@@ -551,7 +589,7 @@ def _stats(u):
     mine = _mine(u)
     rows = [g for g in rows if _is_mine(g, mine)]
     w = d = l = 0
-    ops, rating, accs, disp, cnt = {}, {}, [], {}, {}
+    ops, rating, accs, disp, cnt, seq = {}, {}, [], {}, {}, {}
     for g in rows:
         c, res = g["user_color"], g["result"]
         if c and res in ("1-0", "0-1", "1/2-1/2"):
@@ -565,10 +603,22 @@ def _stats(u):
             uname = g["white"] if c == "white" else g["black"]
             disp.setdefault((g["source"], (uname or "").lower()), uname)
             k3 = (g["source"], (uname or "").lower(), _speed(g["time_control"]))
-            rating.setdefault(k3, {})[g["played_at"][:10]] = elo  # un valore al giorno: l'ultimo
+            seq.setdefault(k3, []).append((g["played_at"][:10], elo, _elo_diff(g["pgn"], c)))   # punteggio a inizio partita e variazione
             cnt[k3] = cnt.get(k3, 0) + 1                          # partite per ritmo: serve a scegliere il grafico predefinito
         if g["accuracy_user"] is not None:
             accs.append(float(g["accuracy_user"]))
+    # il PGN dà il punteggio a inizio partita: quello dopo la partita è l'inizio della successiva dello stesso ritmo,
+    # e per l'ultima la variazione scritta nel PGN oppure il punteggio attuale letto dalla piattaforma
+    lives = {k3: _pool.submit(_live_rating, k3[0], k3[1], k3[2]) for k3, v in seq.items() if v and v[-1][2] is None}
+    for k3, items in seq.items():
+        for i, (day, pre, diff) in enumerate(items):
+            if i + 1 < len(items):
+                after = items[i + 1][1]
+            elif diff is not None:
+                after = pre + diff
+            else:
+                after = lives[k3].result() or pre
+            rating.setdefault(k3, {})[day] = after   # un valore al giorno: l'ultimo
     cats = Counter(r["categoria_errore"] for r in sb.table("errori_utenti").select("categoria_errore").eq("user_email", u["email"]).in_("classification", ["mistake", "blunder"]).execute().data if r["categoria_errore"])
     # un grafico per account con una serie per ritmo, un punto al giorno (l'ultimo rating del giorno)
     order = ["bullet", "blitz", "rapid", "classical", "daily", "other"]

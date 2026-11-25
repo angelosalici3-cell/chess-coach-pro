@@ -268,3 +268,8 @@ Le analisi fatte sul server (primo caricamento di un utente) restano a profondit
 
 ## v3.27
 - Menu laterale riprogettato: scheda piano con consumo lezioni in alto, voci con icona raggruppate in Account e Aiuto, caffè, lingua a tre pulsanti, "Esci" e "Elimina account" in fondo (voce meno evidente).
+
+## v3.28
+- Punteggio: il grafico e il livello usano il punteggio dopo la partita (inizio della partita successiva, variazione nel PGN su Lichess, oppure punteggio attuale letto dalla piattaforma).
+- Elenco partite: i conteggi di gravi, errori e imprecisioni sono letti a pagine dalle mosse analizzate (prima Supabase tagliava a 1000 righe).
+- Studio su telefono: riquadri compatti a due colonne e schede al posto della tabella nella scheda Creator.
