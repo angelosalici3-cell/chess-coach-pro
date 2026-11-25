@@ -1,6 +1,71 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useApp } from "../app";
+import Shield from "../Shield";
+import { tc } from "../../lib/train-copy";
+import { cardFonts, shareOrSave } from "../../lib/cardExport";
+import { makeShieldPng } from "../../lib/shieldShare";
+
+const TH = {
+  it: { h: "Grazie di cuore!", p: "Con {n} € ci aiuti a tenere acceso il motore che analizza ogni tua partita e a costruire nuovi allenamenti. Questo scudo è il nostro modo di dirti grazie: è tuo, e puoi mostrarlo.", name: "Scudo Sostenitore", tiers: ["Bronzo", "Argento", "Oro"], next: "Ancora {x} € e il tuo scudo diventa {t}.", top: "Hai il massimo livello: sei tra le persone che reggono EloRise.", share: "Condividi lo scudo", see: "Vedi i tuoi scudi", sign: "Angelo, EloRise", wait: "Sto preparando il tuo scudo…", back: "Il tuo scudo Sostenitore", total: "Totale donato", again: "Vuoi aggiungere altro?", under: "Da 5 € ricevi lo scudo Sostenitore: bronzo da 5 €, argento da 10 €, oro da 20 €.", gets: "Con questo importo ricevi lo scudo {t}." },
+  en: { h: "Thank you, truly!", p: "With €{n} you help keep the engine running that analyses every one of your games, and fund new training. This shield is our way of saying thanks: it is yours to show.", name: "Supporter shield", tiers: ["Bronze", "Silver", "Gold"], next: "€{x} more and your shield becomes {t}.", top: "You are at the top level: you help keep EloRise going.", share: "Share the shield", see: "See your shields", sign: "Angelo, EloRise", wait: "Preparing your shield…", back: "Your Supporter shield", total: "Total donated", again: "Want to add more?", under: "From €5 you get the Supporter shield: bronze from €5, silver from €10, gold from €20.", gets: "This amount gets you the {t} shield." },
+  es: { h: "¡Gracias de corazón!", p: "Con {n} € ayudas a mantener el motor que analiza cada una de tus partidas y a crear nuevos entrenamientos. Este escudo es nuestra forma de darte las gracias: es tuyo y puedes enseñarlo.", name: "Escudo Mecenas", tiers: ["Bronce", "Plata", "Oro"], next: "Con {x} € más tu escudo pasa a {t}.", top: "Tienes el nivel máximo: ayudas a sostener EloRise.", share: "Compartir el escudo", see: "Ver tus escudos", sign: "Angelo, EloRise", wait: "Preparando tu escudo…", back: "Tu escudo Mecenas", total: "Total donado", again: "¿Quieres añadir más?", under: "Desde 5 € recibes el escudo Mecenas: bronce desde 5 €, plata desde 10 €, oro desde 20 €.", gets: "Con este importe recibes el escudo de {t}." },
+} as const;
+const CONF = ["#ff6b3d", "#ffd56a", "#4ee3b0", "#5aa9ff", "#ff5d8f"];
+const TIERS = [5, 10, 20];   // soglie dello scudo Sostenitore: bronzo, argento, oro (stesse del backend)
+
+function Thanks({ thanks }: { thanks: boolean }) {
+  const { call, lang } = useApp();
+  const t = TH[lang] || TH.it;
+  const [sh, setSh] = useState<any>(null);
+  const [tries, setTries] = useState(0);
+  const [burst, setBurst] = useState<{ dx: number; dy: number; rot: number; c: string }[]>([]);
+  const [msg, setMsg] = useState("");
+  useEffect(() => {
+    let live = true;
+    call("/achievements").then((a: any) => {
+      if (!live) return;
+      const s = (a.shields || []).find((x: any) => x.id === "supporter");
+      if (s) setSh(s); else if (thanks && tries < 6) setTimeout(() => live && setTries((n) => n + 1), 2000);   // il pagamento arriva con un attimo di ritardo
+    }).catch(() => {});
+    return () => { live = false; };
+  }, [call, tries, thanks]);
+  useEffect(() => {
+    if (!sh || !thanks) return;
+    try { if (sessionStorage.getItem("elo:thx")) return; sessionStorage.setItem("elo:thx", "1"); } catch {}
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    setBurst(Array.from({ length: 46 }, (_, i) => ({ dx: (Math.random() - 0.5) * 520, dy: -120 + Math.random() * 520, rot: Math.random() * 720 - 360, c: CONF[i % CONF.length] })));
+    const id = setTimeout(() => setBurst([]), 1800);
+    return () => clearTimeout(id);
+  }, [sh, thanks]);
+  if (!sh && !thanks) return null;
+  if (!sh) return <section className="card thx thx-wait"><div className="thx-ph" aria-hidden="true" /><div><h2>{t.h}</h2><p className="muted">{t.wait}</p></div></section>;
+  const tier = Math.max(1, sh.tier), tname = t.tiers[tier - 1], nextAt = TIERS[sh.tier] ?? null;
+  const share = async () => {
+    try {
+      const png = await makeShieldPng({ id: "supporter", tier, title: t.name, tierLabel: tname, detail: `${sh.value} €`, brand: "CHESS COACH" }, await cardFonts());
+      const r = await shareOrSave(png, `elorise-supporter-${tier}.png`, `${t.name} · ${tname}`);
+      setMsg(r === "shared" ? tc("cardShared", lang) : r === "saved" ? tc("cardSaved", lang) : "");
+    } catch { setMsg(tc("cardFail", lang)); }
+  };
+  return (
+    <section className={"card thx t" + tier} aria-live="polite">
+      {burst.length > 0 && <div className="burst" aria-hidden="true">{burst.map((b, i) => <i key={i} style={{ background: b.c, ["--dx" as string]: `${b.dx}px`, ["--dy" as string]: `${b.dy}px`, ["--rot" as string]: `${b.rot}deg` }} />)}</div>}
+      <div className="thx-shield"><Shield id="supporter" tier={tier} size={150} /></div>
+      <div className="thx-tag">{t.name} · {tname}</div>
+      <h2>{thanks ? t.h : t.back}</h2>
+      {thanks ? <p>{t.p.replace("{n}", String(sh.value))}</p> : <p className="muted">{t.total}: <b>{sh.value} €</b></p>}
+      <p className="thx-next muted small">{nextAt ? t.next.replace("{x}", String(nextAt - sh.value)).replace("{t}", t.tiers[tier]) : t.top}</p>
+      <div className="thx-btns">
+        <button className="btn btn-primary" onClick={share}>{t.share}</button>
+        <Link className="btn btn-ghost" href="/dashboard/rewards?tab=badges">{t.see}</Link>
+      </div>
+      {msg && <div className="muted small">{msg}</div>}
+      {thanks && <div className="thx-sign">{t.sign}</div>}
+    </section>
+  );
+}
 
 const T = {
   it: { h: "Sostieni EloRise", p: "EloRise cresce grazie a chi lo usa. Una donazione una tantum finanzia il motore di analisi e i nuovi allenamenti. Come grazie ricevi lo scudo Sostenitore, da condividere.", o: "Altro importo", go: "Dona {n} €", thanks: "Grazie! Il tuo scudo Sostenitore è nella scheda Scudi.", err: "Non è partito il pagamento. Riprova." },
@@ -23,16 +88,19 @@ export default function Donate() {
     catch { setErr(t.err); setBusy(false); }
   };
   return (
+    <>
+    <Thanks thanks={thanks} />
     <section id="support" className="card don">
-      <h2 className="jy-h" style={{ margin: 0 }}>{t.h}</h2>
-      {thanks ? <div className="note ok">{t.thanks}</div> : null}
+      <h2 className="jy-h" style={{ margin: 0 }}>{thanks ? TH[lang]?.again || TH.it.again : t.h}</h2>
       <p className="muted" style={{ margin: ".4rem 0 .8rem", maxWidth: "62ch" }}>{t.p}</p>
       <div className="chips">
-        {[3, 5, 10].map((v) => <button key={v} className={"chip" + (!custom && n === v ? " on" : "")} onClick={() => { setN(v); setCustom(""); }}>{v} €</button>)}
+        {[5, 10, 20].map((v) => <button key={v} className={"chip" + (!custom && n === v ? " on" : "")} onClick={() => { setN(v); setCustom(""); }}>{v} €</button>)}
         <input className="don-in" inputMode="numeric" placeholder={t.o} value={custom} onChange={(e) => setCustom(e.target.value.replace(/\D/g, "").slice(0, 3))} aria-label={t.o} />
       </div>
-      <button className="btn btn-primary" style={{ marginTop: ".8rem" }} disabled={busy} onClick={go}>{t.go.replace("{n}", String(amount))}</button>
+      <p className="muted small don-hint">{(() => { const th = TH[lang] || TH.it, k = TIERS.filter((x) => amount >= x).length; return k ? th.gets.replace("{t}", th.tiers[k - 1].toLowerCase()) : th.under; })()}</p>
+      <button className="btn btn-primary" style={{ marginTop: ".4rem" }} disabled={busy} onClick={go}>{t.go.replace("{n}", String(amount))}</button>
       {err && <div className="note err">{err}</div>}
     </section>
+    </>
   );
 }

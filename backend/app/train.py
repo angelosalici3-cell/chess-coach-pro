@@ -265,7 +265,7 @@ def _ach(email: str) -> dict:
         gifts = sum(float(d["amount"]) for d in sb.table("donations").select("amount").eq("user_email", email).execute().data)
     except Exception:   # tabella non ancora creata (014 non eseguito)
         gifts = 0
-    sup = [{"id": "supporter", "value": int(gifts), "tiers": [3, 10, 30], "tier": T.shield_tier(int(gifts), [3, 10, 30])}] if gifts > 0 else []
+    sup = [{"id": "supporter", "value": int(gifts), "tiers": [5, 10, 20], "tier": T.shield_tier(int(gifts), [5, 10, 20])}] if gifts > 0 else []
     return {"xp": xp, "level": lvl, "level_xp": T.xp_for_level(lvl), "next_xp": T.xp_for_level(lvl + 1), "bonus_lessons": bonus,
             "shields": [{"id": sid, "value": m[sid], "tiers": tiers, "tier": T.shield_tier(m[sid], tiers)} for sid, tiers in T.SHIELDS] + sup
                        + [{"id": "op_" + oid, "value": n, "tiers": CL.OPEN_TIERS, "tier": CL.tier_of(n), "kind": "opening", "color": next(o["color"] for o in CL.OPENINGS if o["id"] == oid)}

@@ -1053,3 +1053,23 @@ a.dr-btn { padding: .55rem .8rem; border: 1px solid var(--line-2); border-radius
 .glegend span { display: inline-flex; align-items: center; gap: .4rem; }
 .glegend .gb { min-width: .9rem; width: .9rem; height: .9rem; border-radius: 4px; padding: 0; }
 .gside { gap: .35rem; }
+
+/* v3.30 ringraziamento donazione */
+.support-col { display: grid; gap: 1rem; max-width: 640px; margin-top: .8rem; }
+.thx { position: relative; display: grid; justify-items: center; text-align: center; gap: .6rem; padding: 1.8rem 1.4rem 1.5rem; overflow: hidden; border-color: var(--line-2);
+  background: radial-gradient(120% 70% at 50% 0%, color-mix(in srgb, var(--gl, var(--ember)) 28%, transparent), transparent 65%), var(--ink-2); }
+.thx.t1 { --gl: #e9ab78; } .thx.t2 { --gl: #c3cde6; } .thx.t3 { --gl: #ffd56a; border-color: rgba(255, 213, 106, .45); }
+.thx-shield { filter: drop-shadow(0 14px 28px color-mix(in srgb, var(--gl, var(--ember)) 55%, transparent)); animation: thxIn .7s cubic-bezier(.2, .9, .3, 1.2) both; }
+.thx-shield svg.shield { width: 150px; height: 162px; overflow: visible; }
+.thx-tag { font-size: .8rem; font-weight: 700; letter-spacing: .05em; color: var(--gl, var(--ember-2)); }
+.thx h2 { margin: 0; font-size: 1.7rem; }
+.thx p { margin: 0; max-width: 44ch; line-height: 1.6; }
+.thx-btns { display: flex; flex-wrap: wrap; gap: .6rem; justify-content: center; margin-top: .4rem; }
+.thx-btns .btn { min-height: 46px; }
+.thx-sign { margin-top: .3rem; font-family: var(--f-display); font-weight: 700; color: var(--mute); }
+.thx-wait { grid-auto-flow: column; justify-content: center; align-items: center; text-align: left; }
+.thx-ph { width: 54px; height: 58px; border-radius: 14px 14px 26px 26px; background: linear-gradient(110deg, var(--ink-3) 30%, var(--line-2) 50%, var(--ink-3) 70%); background-size: 200% 100%; animation: thxSh 1.4s linear infinite; }
+@keyframes thxIn { from { opacity: 0; transform: scale(.6) translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes thxSh { to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .thx-shield, .thx-ph { animation: none; } }
+.don-hint { margin: .7rem 0 0; }

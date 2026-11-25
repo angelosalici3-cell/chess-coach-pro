@@ -276,3 +276,10 @@ Le analisi fatte sul server (primo caricamento di un utente) restano a profondit
 
 ## v3.29
 - Elenco partite: tre badge (rosso gravi, arancione errori, grigio imprecisioni) con solo il numero, più una legenda sopra l'elenco. Il nome dell'avversario torna visibile su telefono.
+
+## v3.30
+- Dopo una donazione la pagina `/dashboard/support` mostra una scheda di ringraziamento: scudo Sostenitore animato (bronzo, argento o oro), messaggio personale, coriandoli una sola volta, traguardo successivo, pulsanti per condividere lo scudo e vedere gli scudi. Chi ha già donato rivede lo scudo ogni volta che apre la pagina. Se il pagamento arriva con qualche secondo di ritardo, la pagina riprova da sola.
+- La firma ("Angelo, EloRise") è nel testo `sign` in `Donate.tsx`.
+
+## v3.31
+- Scudo Sostenitore: soglie 5 € bronzo, 10 € argento, 20 € oro (somma delle donazioni). Importi rapidi 5, 10, 20 e importo libero con indicazione dello scudo che si ottiene.
