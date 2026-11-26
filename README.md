@@ -330,3 +330,9 @@ Le analisi fatte sul server (primo caricamento di un utente) restano a profondit
 - Le letture delle mosse (`/games`, `/games/{id}`, lezioni, tempo, pattern, statistiche) seguono `analysis_of`. Alla cancellazione di un account le mosse usate da altri passano a uno di loro.
 - **Messaggio in Home**: non dice più «Nessuna partita nuova da scaricare». Ora: «Scaricate N nuove partite» / «Le tue N partite sono già qui: le stiamo analizzando» / «Tutto aggiornato: le tue N partite sono già qui e analizzate» / «Non ci sono ancora partite per i tuoi account…».
 - Test della logica con un database finto: stessa partita riusata, colore opposto no, nessuna mossa duplicata, passaggio delle mosse alla cancellazione.
+
+## v3.41 — Linguetta errori in alto a destra
+- Revisione partita (mobile ≤860px): la linguetta arancione "Errori N ▼" ora sta in alto a destra, subito sotto la topbar, e non copre più il bordo della scacchiera.
+- Il pannello errori/mosse scende dall'alto verso il basso da sotto la topbar (scorrevole, si ferma sopra la tabbar). Chiude con ✕, tocco sullo sfondo, Esc o saltando a una mossa.
+- L'altezza della topbar è letta dal vivo (`--tbh`), quindi funziona anche con la barra di stato/notch.
+- File: `globals.css`, `dashboard/games/[id]/page.tsx`.

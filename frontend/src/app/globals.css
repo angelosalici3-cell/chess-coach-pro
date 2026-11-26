@@ -1117,7 +1117,7 @@ a.dr-btn { padding: .55rem .8rem; border: 1px solid var(--line-2); border-radius
 /* v3.37 biblioteca trappole (Ochess) */
 .oplib { display: flex; align-items: center; gap: .8rem; flex-wrap: wrap; margin-top: 1rem; }
 
-/* v3.38 revisione partita: grafici sotto la scacchiera, errori in un cassetto a sinistra su mobile */
+/* v3.38 revisione partita: grafici sotto la scacchiera, errori in un pannello a tendina in alto a destra su mobile */
 .gv-charts { display: flex; flex-direction: column; gap: .8rem; }
 .gv-ct { margin: 0; font-family: var(--f-display); font-size: 1.05rem; letter-spacing: -.02em; }
 .gv-cn { margin: .15rem 0 .6rem; }
@@ -1129,24 +1129,27 @@ a.dr-btn { padding: .55rem .8rem; border: 1px solid var(--line-2); border-radius
 @media (max-width: 860px) {
   .gv { grid-template-columns: minmax(0, 1fr); }
   .gv-tab {
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .45rem;
-    position: fixed; left: 0; top: 42%; z-index: 40; min-height: 112px; width: 46px;
-    padding: .6rem 0; padding-left: env(safe-area-inset-left, 0px);
-    border: 0; border-radius: 0 18px 18px 0; cursor: pointer;
-    background: linear-gradient(180deg, var(--ember-2), var(--ember)); color: var(--ink);
-    box-shadow: 0 10px 28px rgba(255, 107, 61, .35); font-weight: 800; transition: transform .15s ease, box-shadow .15s ease;
+    display: flex; align-items: center; gap: .5rem;
+    position: fixed; right: 0; top: calc(var(--tbh, 56px) + .6rem); z-index: 25; min-height: 44px;
+    padding: 0 .9rem 0 1.05rem; padding-right: calc(.9rem + env(safe-area-inset-right, 0px));
+    border: 0; border-radius: 22px 0 0 22px; cursor: pointer;
+    background: linear-gradient(90deg, var(--ember-2), var(--ember)); color: var(--ink);
+    box-shadow: 0 8px 24px rgba(255, 107, 61, .35); font-weight: 800; font-size: .9rem;
+    transition: transform .15s ease, box-shadow .15s ease, opacity .15s ease;
   }
-  .gv-tab:hover { transform: translateX(2px); }
-  .gv-tab-t { writing-mode: vertical-rl; transform: rotate(180deg); font-size: .85rem; letter-spacing: .02em; }
+  .gv-tab:hover { transform: translateX(-2px); }
+  .gv-tab[aria-expanded="true"] { opacity: 0; pointer-events: none; }
+  .gv-tab-c { font-size: .7rem; transition: transform .2s ease; }
   .gv-tab-n { min-width: 1.5rem; height: 1.5rem; padding: 0 .3rem; border-radius: 999px; background: var(--ink); color: var(--ember-2); font-size: .8rem; display: flex; align-items: center; justify-content: center; }
-  .gv-scrim { display: block; position: fixed; inset: 0; z-index: 94; background: rgba(5, 8, 20, .62); backdrop-filter: blur(3px); opacity: 0; visibility: hidden; transition: opacity .2s ease, visibility .2s; }
+  .gv-scrim { display: block; position: fixed; left: 0; right: 0; bottom: 0; top: var(--tbh, 56px); z-index: 18; background: rgba(5, 8, 20, .62); backdrop-filter: blur(3px); opacity: 0; visibility: hidden; transition: opacity .2s ease, visibility .2s; }
   .gv-scrim.on { opacity: 1; visibility: visible; }
   .gv-panel {
-    position: fixed; z-index: 95; top: 0; bottom: 0; left: 0; width: min(88vw, 400px); max-height: none;
-    padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom, 0px)); padding-left: calc(1rem + env(safe-area-inset-left, 0px));
-    background: var(--ink-2); border-right: 1px solid var(--line-2); border-radius: 0 22px 22px 0; box-shadow: 24px 0 60px rgba(0, 0, 0, .5);
+    position: fixed; z-index: 19; top: var(--tbh, 56px); left: 0; right: 0; width: auto;
+    max-height: calc(100dvh - var(--tbh, 56px) - 84px - env(safe-area-inset-bottom, 0px));
+    padding: .9rem 1rem 1rem; padding-left: max(1rem, env(safe-area-inset-left, 0px)); padding-right: max(1rem, env(safe-area-inset-right, 0px));
+    background: var(--ink-2); border-bottom: 1px solid var(--line-2); border-radius: 0 0 22px 22px; box-shadow: 0 24px 60px rgba(0, 0, 0, .5);
     overflow-y: auto; overscroll-behavior: contain;
-    transform: translateX(-104%); visibility: hidden; transition: transform .26s cubic-bezier(.2, .8, .2, 1), visibility .26s;
+    transform: translateY(-105%); visibility: hidden; transition: transform .28s cubic-bezier(.2, .8, .2, 1), visibility .28s;
   }
   .gv-panel.open { transform: none; visibility: visible; }
   .gv-phead { display: flex; align-items: center; justify-content: space-between; gap: .6rem; font-family: var(--f-display); font-size: 1.15rem; }
@@ -1162,3 +1165,5 @@ a.dr-btn { padding: .55rem .8rem; border: 1px solid var(--line-2); border-radius
 .opcard:hover svg.opshield { transform: translateY(-2px) rotate(-2deg); }
 .ophead { display: flex; align-items: center; gap: 1rem; margin: .8rem 0 .4rem; }
 @media (prefers-reduced-motion: reduce) { .opcard:hover svg.opshield { transform: none; } }
+
+/* v3.41 linguetta errori in alto a destra, pannello che scende da sotto la topbar */

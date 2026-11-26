@@ -31,7 +31,7 @@ export default function GamePage() {
   const [queued, setQueued] = useState(false);
   const [timeData, setTimeData] = useState<any>(null);
   const [tab, setTab] = useState<"errors" | "moves">("errors");
-  const [drawer, setDrawer] = useState(false);   // su mobile l'elenco errori è un cassetto a sinistra
+  const [drawer, setDrawer] = useState(false);   // su mobile l'elenco errori è un tendina dall'alto
 
   useEffect(() => {
     call(`/games/${id}`).then((x) => {
@@ -51,6 +51,15 @@ export default function GamePage() {
     window.addEventListener("keydown", key); mq.addEventListener("change", wide);
     return () => { document.body.style.overflow = prev; window.removeEventListener("keydown", key); mq.removeEventListener("change", wide); };
   }, [drawer]);
+  useEffect(() => {   // altezza reale della topbar, per agganciare linguetta e pannello subito sotto
+    const el = document.querySelector<HTMLElement>(".topbar");
+    if (!el) return;
+    const set = () => document.documentElement.style.setProperty("--tbh", `${el.getBoundingClientRect().height}px`);
+    set();
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(set) : null;
+    ro?.observe(el); window.addEventListener("resize", set);
+    return () => { ro?.disconnect(); window.removeEventListener("resize", set); document.documentElement.style.removeProperty("--tbh"); };
+  }, []);
   const jump = (n: number) => { setPly(n); setDrawer(false); };   // dal cassetto si salta alla mossa e si torna alla scacchiera
 
   const msg = (e: any) => (e.message === "quota_exhausted" ? t("quota") : e.message === "gm_busy" ? t("gmBusy") : e.message === "gm_failed" ? t("gmFailed") : e.message);
@@ -171,8 +180,9 @@ export default function GamePage() {
         </div>
 
         <button type="button" className="gv-tab" onClick={() => setDrawer(true)} aria-label={GT[lang].open} aria-expanded={drawer} aria-controls="gv-drawer">
-          <span className="gv-tab-t">{GT[lang].errors}</span>
+          <span>{GT[lang].errors}</span>
           {items.length > 0 && <b className="gv-tab-n">{items.length}</b>}
+          <span className="gv-tab-c" aria-hidden="true">▼</span>
         </button>
         <div className={"gv-scrim" + (drawer ? " on" : "")} onClick={() => setDrawer(false)} aria-hidden="true" />
         <aside id="gv-drawer" className={"gv-panel" + (drawer ? " open" : "")} aria-label={GT[lang].drawer}>
