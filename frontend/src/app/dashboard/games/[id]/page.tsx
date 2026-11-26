@@ -11,9 +11,9 @@ import { u } from "../../../../lib/ui-copy";
 import { Seg } from "../../../../components/ui/Seg";
 
 const GT = {
-  it: { errors: "Errori", charts: "Grafici", moves: "Mosse", eval: "Valutazione", loss: "Perdita", time: "Tempo" },
-  en: { errors: "Mistakes", charts: "Charts", moves: "Moves", eval: "Evaluation", loss: "Loss", time: "Time" },
-  es: { errors: "Errores", charts: "Gráficos", moves: "Jugadas", eval: "Evaluación", loss: "Pérdida", time: "Tiempo" },
+  it: { errors: "Errori", charts: "Grafici", moves: "Mosse", eval: "Valutazione", loss: "Perdita", time: "Tempo", drawer: "Errori e lezioni", close: "Chiudi", open: "Apri errori e lezioni", evalT: "Andamento del punteggio", timeT: "Tempo per mossa", lossT: "Perdita per mossa" },
+  en: { errors: "Mistakes", charts: "Charts", moves: "Moves", eval: "Evaluation", loss: "Loss", time: "Time", drawer: "Mistakes and lessons", close: "Close", open: "Open mistakes and lessons", evalT: "Score over the game", timeT: "Time per move", lossT: "Loss per move" },
+  es: { errors: "Errores", charts: "Gráficos", moves: "Jugadas", eval: "Evaluación", loss: "Pérdida", time: "Tiempo", drawer: "Errores y lecciones", close: "Cerrar", open: "Abrir errores y lecciones", evalT: "Evolución de la puntuación", timeT: "Tiempo por jugada", lossT: "Pérdida por jugada" },
 } as const;
 
 const START = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
@@ -30,8 +30,8 @@ export default function GamePage() {
   const [busy, setBusy] = useState<number | null>(null);
   const [queued, setQueued] = useState(false);
   const [timeData, setTimeData] = useState<any>(null);
-  const [tab, setTab] = useState<"errors" | "charts" | "moves">("errors");
-  const [chart, setChart] = useState<"eval" | "loss" | "time">("eval");
+  const [tab, setTab] = useState<"errors" | "moves">("errors");
+  const [drawer, setDrawer] = useState(false);   // su mobile l'elenco errori è un cassetto a sinistra
 
   useEffect(() => {
     call(`/games/${id}`).then((x) => {
@@ -40,6 +40,18 @@ export default function GamePage() {
     }).catch((e) => setErr(e.message));
     call(`/games/${id}/time`).then(setTimeData).catch(() => setTimeData({ available: false }));
   }, [id, call]);
+
+  useEffect(() => {
+    if (!drawer) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const key = (e: KeyboardEvent) => { if (e.key === "Escape") setDrawer(false); };
+    const mq = window.matchMedia("(min-width: 861px)");
+    const wide = () => { if (mq.matches) setDrawer(false); };
+    window.addEventListener("keydown", key); mq.addEventListener("change", wide);
+    return () => { document.body.style.overflow = prev; window.removeEventListener("keydown", key); mq.removeEventListener("change", wide); };
+  }, [drawer]);
+  const jump = (n: number) => { setPly(n); setDrawer(false); };   // dal cassetto si salta alla mossa e si torna alla scacchiera
 
   const msg = (e: any) => (e.message === "quota_exhausted" ? t("quota") : e.message === "gm_busy" ? t("gmBusy") : e.message === "gm_failed" ? t("gmFailed") : e.message);
 
@@ -104,17 +116,17 @@ export default function GamePage() {
         <div className="card row"><span className="muted">{queued ? t("analyzingGame") : t("notAnalyzed")}</span>{!queued && <button className="btn btn-primary" onClick={analyze}>{t("analyze")}</button>}</div>
       )}
       <div className="gv">
-        <div className="gv-board">
-          <ChessBoard fen={fenNow} flip={g.user_color === "black"} last={frame?.uci} />
-          <div className="ctrls">
-            <button onClick={() => setPly(0)} aria-label="Start">⏮</button>
-            <button onClick={() => setPly(Math.max(0, ply - 1))} aria-label="Back">◀</button>
-            <span className="muted small">{t("moveNo")} {ply === 0 ? "—" : `${lbl(ply)}`}</span>
-            <button onClick={() => setPly(Math.min(d.moves.length, ply + 1))} aria-label="Next">▶</button>
-            <button onClick={() => setPly(d.moves.length)} aria-label="End">⏭</button>
+        <div className="gv-main">
+          <div className="gv-board">
+            <ChessBoard fen={fenNow} flip={g.user_color === "black"} last={frame?.uci} />
+            <div className="ctrls">
+              <button onClick={() => setPly(0)} aria-label="Start">⏮</button>
+              <button onClick={() => setPly(Math.max(0, ply - 1))} aria-label="Back">◀</button>
+              <span className="muted small">{t("moveNo")} {ply === 0 ? "—" : `${lbl(ply)}`}</span>
+              <button onClick={() => setPly(Math.min(d.moves.length, ply + 1))} aria-label="Next">▶</button>
+              <button onClick={() => setPly(d.moves.length)} aria-label="End">⏭</button>
+            </div>
           </div>
-        </div>
-        <div className="gv-panel">
           {g.analyzed_at && critical && (
             <div className="critical">
               <div><span className="ctag">{u("critTitle", lang)}</span>
@@ -123,7 +135,52 @@ export default function GamePage() {
             </div>
           )}
           {g.analyzed_at && !critical && d.moves.length > 0 && <p className="muted small" style={{ margin: ".2rem 0" }}>{u("critNone", lang)}</p>}
-          <Seg<"errors" | "charts" | "moves"> value={tab} onChange={setTab} items={[{ v: "errors", label: GT[lang].errors, n: items.length }, { v: "charts", label: GT[lang].charts }, { v: "moves", label: GT[lang].moves }]} />
+
+          {g.analyzed_at && (
+            <div className="gv-charts">
+              {evals.length > 2 && (
+                <section className="card chartcard gv-chart" aria-label={GT[lang].evalT}>
+                  <h2 className="gv-ct">{GT[lang].evalT}</h2>
+                  <p className="muted small gv-cn">{u("evalNote", lang)}</p>
+                  <EvalChart evals={evals} active={ply} onPick={setPly} critical={critical?.m.ply} />
+                </section>
+              )}
+              {timeData?.available && (
+                <section className="card chartcard gv-chart" aria-label={GT[lang].timeT}>
+                  <h2 className="gv-ct">{GT[lang].timeT}</h2>
+                  <TimeChart data={timeData} active={ply} onPick={setPly} />
+                </section>
+              )}
+              {chartPts.some((p) => p.loss > 0) && (
+                <section className="card chartcard gv-chart" aria-label={GT[lang].lossT}>
+                  <h2 className="gv-ct">{GT[lang].lossT}</h2>
+                  <p className="muted small gv-cn">{t("lossNote")}</p>
+                  <LossChart pts={chartPts} active={ply} onPick={setPly} />
+                  <div className="loss-legend">
+                    <span><i style={{ background: "var(--bad)" }} />{t("clsBlunder")}</span>
+                    <span><i style={{ background: "var(--ember)" }} />{t("clsMistake")}</span>
+                    <span><i style={{ background: "var(--amber)" }} />{t("clsInacc")}</span>
+                    <span><i style={{ background: "var(--mint)" }} />{t("lossYou")}</span>
+                    <span><i style={{ background: "var(--mute)", opacity: 0.5 }} />{t("lossOpp")}</span>
+                  </div>
+                </section>
+              )}
+              {timeData && !timeData.available && <p className="muted small">{tc("noClock", lang)}</p>}
+            </div>
+          )}
+        </div>
+
+        <button type="button" className="gv-tab" onClick={() => setDrawer(true)} aria-label={GT[lang].open} aria-expanded={drawer} aria-controls="gv-drawer">
+          <span className="gv-tab-t">{GT[lang].errors}</span>
+          {items.length > 0 && <b className="gv-tab-n">{items.length}</b>}
+        </button>
+        <div className={"gv-scrim" + (drawer ? " on" : "")} onClick={() => setDrawer(false)} aria-hidden="true" />
+        <aside id="gv-drawer" className={"gv-panel" + (drawer ? " open" : "")} aria-label={GT[lang].drawer}>
+          <div className="gv-phead">
+            <b>{GT[lang].drawer}</b>
+            <button type="button" className="gv-x" onClick={() => setDrawer(false)} aria-label={GT[lang].close}>✕</button>
+          </div>
+          <Seg<"errors" | "moves"> value={tab} onChange={setTab} items={[{ v: "errors", label: GT[lang].errors, n: items.length }, { v: "moves", label: GT[lang].moves }]} />
 
           {tab === "errors" && (
             <div className="gv-scroll">
@@ -133,8 +190,8 @@ export default function GamePage() {
                 return (
                   <div key={m.ply} className={"card gv-err" + (m.ply === ply ? " on" : "")}>
                     <div className="row">
-                      <button className="gv-pick" onClick={() => setPly(m.ply)} aria-label="Show">
-                        <span className="gv-top"><b>{lbl(m.ply)} {m.san}</b><span className="tag" style={{ color: CLS[m.classification] }}>{tagName(m.classification)}</span></span>
+                      <button className="gv-pick" onClick={() => jump(m.ply)} aria-label="Show">
+                        <span className="gv-top"><i className="gv-dot" style={{ background: CLS[m.classification] }} /><b>{lbl(m.ply)} {m.san}</b><span className="tag" style={{ color: CLS[m.classification] }}>{tagName(m.classification)}</span></span>
                         <span className="muted small gv-best">{t("best")}: {best || "—"}{loss ? `, −${(loss / 100).toFixed(1)}` : ""}</span>
                       </button>
                       {!lessons[key] && <button className="btn btn-primary gv-ask" disabled={busy === key} onClick={() => lesson(key, m.ply, !!e)}>{busy === key ? t("thinking") : t("askLesson")}</button>}
@@ -146,45 +203,18 @@ export default function GamePage() {
             </div>
           )}
 
-          {tab === "charts" && (
-            <div className="card chartcard gv-chart">
-              <Seg<"eval" | "loss" | "time"> value={chart} onChange={setChart} items={[
-                { v: "eval", label: GT[lang].eval }, { v: "loss", label: GT[lang].loss },
-                ...(timeData?.available ? [{ v: "time" as const, label: GT[lang].time }] : []),
-              ]} />
-              {chart === "eval" && (evals.length > 2 && g.analyzed_at
-                ? <><p className="muted small" style={{ margin: ".5rem 0" }}>{u("evalNote", lang)}</p><EvalChart evals={evals} active={ply} onPick={setPly} critical={critical?.m.ply} /></>
-                : <p className="muted">{t("notAnalyzed")}</p>)}
-              {chart === "loss" && (chartPts.some((p) => p.loss > 0)
-                ? <>
-                    <p className="muted small" style={{ margin: ".5rem 0" }}>{t("lossNote")}</p>
-                    <LossChart pts={chartPts} active={ply} onPick={setPly} />
-                    <div className="loss-legend">
-                      <span><i style={{ background: "var(--bad)" }} />{t("clsBlunder")}</span>
-                      <span><i style={{ background: "var(--ember)" }} />{t("clsMistake")}</span>
-                      <span><i style={{ background: "var(--amber)" }} />{t("clsInacc")}</span>
-                      <span><i style={{ background: "var(--mint)" }} />{t("lossYou")}</span>
-                      <span><i style={{ background: "var(--mute)", opacity: 0.5 }} />{t("lossOpp")}</span>
-                    </div>
-                  </>
-                : <p className="muted">{t("notAnalyzed")}</p>)}
-              {chart === "time" && timeData?.available && <TimeChart data={timeData} active={ply} onPick={setPly} />}
-              {timeData && !timeData.available && chart !== "time" && <p className="muted small" style={{ marginTop: ".6rem" }}>{tc("noClock", lang)}</p>}
-            </div>
-          )}
-
           {tab === "moves" && (
             <div className="card movelist gv-scroll">
               <div className="chips">
                 {d.moves.map((m: any) => (
-                  <button key={m.ply} className={m.ply === ply ? "chip on" : "chip"} style={{ color: CLS[m.classification] }} onClick={() => setPly(m.ply)}>
+                  <button key={m.ply} className={m.ply === ply ? "chip on" : "chip"} style={{ color: CLS[m.classification] }} onClick={() => jump(m.ply)}>
                     {lbl(m.ply)} {m.san}
                   </button>
                 ))}
               </div>
             </div>
           )}
-        </div>
+        </aside>
       </div>
     </>
   );

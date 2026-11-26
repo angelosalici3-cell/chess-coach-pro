@@ -839,14 +839,14 @@ a.dr-btn { padding: .55rem .8rem; border: 1px solid var(--line-2); border-radius
 .hm-ins .card { margin-top: 0; }
 @media (max-width: 860px) { .hm-top { grid-template-columns: minmax(0, 1fr); } .hm-top .hm-sum { order: -1; } }
 .gv { display: grid; grid-template-columns: minmax(0, 460px) minmax(0, 1fr); gap: 1.2rem; align-items: start; margin: .6rem 0; }
-.gv-board { position: sticky; top: 1rem; }
-.gv-panel { min-width: 0; display: flex; flex-direction: column; gap: .7rem; }
-.gv-panel .critical { margin: 0; }
+.gv-main { min-width: 0; display: flex; flex-direction: column; gap: .8rem; }
+.gv-panel { min-width: 0; display: flex; flex-direction: column; gap: .7rem; position: sticky; top: 1rem; align-self: start; }
+.gv-main .critical { margin: 0; }
 .gv-scroll { max-height: min(560px, calc(100svh - 230px)); overflow: auto; }
 .gv-err { margin: .4rem 0; } .gv-err.on { border-color: var(--ember); }
 .gv-pick { background: none; border: none; color: inherit; text-align: left; padding: 0; flex: 1; min-width: 0; cursor: pointer; }
 .gv-chart { margin: 0; }
-@media (max-width: 860px) { .gv { grid-template-columns: minmax(0, 1fr); } .gv-board { position: static; } .gv-scroll { max-height: none; } }
+
 
 /* ===== v3.17: elenco partite, premi, piani ===== */
 .gsum { display: flex; flex-wrap: wrap; gap: .3rem 1.2rem; margin: .2rem 0 .8rem; color: var(--mute); font-size: .92rem; }
@@ -1116,3 +1116,41 @@ a.dr-btn { padding: .55rem .8rem; border: 1px solid var(--line-2); border-radius
 
 /* v3.37 biblioteca trappole (Ochess) */
 .oplib { display: flex; align-items: center; gap: .8rem; flex-wrap: wrap; margin-top: 1rem; }
+
+/* v3.38 revisione partita: grafici sotto la scacchiera, errori in un cassetto a sinistra su mobile */
+.gv-charts { display: flex; flex-direction: column; gap: .8rem; }
+.gv-ct { margin: 0; font-family: var(--f-display); font-size: 1.05rem; letter-spacing: -.02em; }
+.gv-cn { margin: .15rem 0 .6rem; }
+.gv-phead, .gv-tab, .gv-scrim { display: none; }
+.gv-dot { width: .55rem; height: .55rem; border-radius: 50%; flex: none; }
+.gv-err { transition: transform .15s ease, border-color .15s ease; }
+.gv-err:hover { transform: translateY(-2px); }
+.gv-err .btn:active, .gv-x:active, .gv-tab:active { transform: scale(.97); }
+@media (max-width: 860px) {
+  .gv { grid-template-columns: minmax(0, 1fr); }
+  .gv-tab {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .45rem;
+    position: fixed; left: 0; top: 42%; z-index: 40; min-height: 112px; width: 46px;
+    padding: .6rem 0; padding-left: env(safe-area-inset-left, 0px);
+    border: 0; border-radius: 0 18px 18px 0; cursor: pointer;
+    background: linear-gradient(180deg, var(--ember-2), var(--ember)); color: var(--ink);
+    box-shadow: 0 10px 28px rgba(255, 107, 61, .35); font-weight: 800; transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .gv-tab:hover { transform: translateX(2px); }
+  .gv-tab-t { writing-mode: vertical-rl; transform: rotate(180deg); font-size: .85rem; letter-spacing: .02em; }
+  .gv-tab-n { min-width: 1.5rem; height: 1.5rem; padding: 0 .3rem; border-radius: 999px; background: var(--ink); color: var(--ember-2); font-size: .8rem; display: flex; align-items: center; justify-content: center; }
+  .gv-scrim { display: block; position: fixed; inset: 0; z-index: 94; background: rgba(5, 8, 20, .62); backdrop-filter: blur(3px); opacity: 0; visibility: hidden; transition: opacity .2s ease, visibility .2s; }
+  .gv-scrim.on { opacity: 1; visibility: visible; }
+  .gv-panel {
+    position: fixed; z-index: 95; top: 0; bottom: 0; left: 0; width: min(88vw, 400px); max-height: none;
+    padding: 1rem 1rem calc(1rem + env(safe-area-inset-bottom, 0px)); padding-left: calc(1rem + env(safe-area-inset-left, 0px));
+    background: var(--ink-2); border-right: 1px solid var(--line-2); border-radius: 0 22px 22px 0; box-shadow: 24px 0 60px rgba(0, 0, 0, .5);
+    overflow-y: auto; overscroll-behavior: contain;
+    transform: translateX(-104%); visibility: hidden; transition: transform .26s cubic-bezier(.2, .8, .2, 1), visibility .26s;
+  }
+  .gv-panel.open { transform: none; visibility: visible; }
+  .gv-phead { display: flex; align-items: center; justify-content: space-between; gap: .6rem; font-family: var(--f-display); font-size: 1.15rem; }
+  .gv-x { width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line-2); background: var(--ink-3); color: var(--ice); font-size: 1rem; cursor: pointer; }
+  .gv-scroll { max-height: none; overflow: visible; }
+}
+@media (prefers-reduced-motion: reduce) { .gv-panel, .gv-scrim, .gv-tab, .gv-err { transition: none; } }

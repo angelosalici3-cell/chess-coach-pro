@@ -314,3 +314,8 @@ Le analisi fatte sul server (primo caricamento di un utente) restano a profondit
 - **Validazione**: ogni linea è stata controllata con un motore mini (mosse legali, scacchi/matti, matto in 1 per scartare «mosse sicure» sbagliate). Modalità «tendi» per tutte, «evita» per 205 (le altre 26 non hanno una mossa sicura verificata → solo «tendi»).
 - **App**: `lib/ochess.ts` converte i dati nel formato `Opening/OpLine/Drill` (SAN canonicalizzate con chess.js); `OpeningsTab` la carica **solo su richiesta** (pulsante «Biblioteca trappole») o subito se l'utente ha già progressi `oc-*`. Nessuna modifica al backend/SQL: stessi endpoint e `opening_cards`.
 - **Note**: descrizioni in inglese ed estratte automaticamente (parafrasate); traduzione IT da fare. Dati importati con il permesso dei proprietari di Ochess: conserva la conferma scritta.
+
+## v3.38 — Revisione partita: grafici sotto la scacchiera e cassetto errori
+- I grafici (andamento del punteggio, tempo per mossa, perdita per mossa) sono sempre visibili sotto la scacchiera, uno sotto l'altro, senza più la scheda «Grafici».
+- Su mobile (≤860px) errori, lezioni e mosse stanno in un cassetto a sinistra: si apre dalla linguetta arancione sul bordo o con lo scorrimento da lì; toccando un errore la scacchiera salta alla mossa e il cassetto si chiude. Esc o tocco fuori lo chiudono.
+- Su desktop il pannello resta a destra, fisso mentre scorri. File: `app/dashboard/games/[id]/page.tsx`, `app/globals.css`. Nessuna modifica a backend/SQL.
