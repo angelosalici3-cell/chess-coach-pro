@@ -184,7 +184,7 @@ def analyze_game(game: dict) -> None:
         b2.push(mv)
         keys.append(fkey(b2.fen()))
     # con il motore locale si riusano solo valutazioni almeno quasi altrettanto profonde; quelle superficiali si rifanno e si sostituiscono
-    shared = cache_get(list(dict.fromkeys(keys)), min_depth=(LOCAL_DEPTH - 2) if STOCKFISH else 0)
+    ev_cached = cache_get(list(dict.fromkeys(keys)), min_depth=(LOCAL_DEPTH - 2) if STOCKFISH else 0)
     fresh: dict = {}
     move_rows, err_rows, losses, prev = [], [], [], 0.0
     miss = 0  # valutazioni non ricevute dal motore (limite di richieste, rete)
@@ -192,8 +192,8 @@ def analyze_game(game: dict) -> None:
         def ev(fen):
             if fen not in cache:
                 k = fkey(fen)
-                if k in shared:
-                    cache[fen] = shared[k]
+                if k in ev_cached:
+                    cache[fen] = ev_cached[k]
                 else:
                     dep = LOCAL_DEPTH
                     cache[fen] = eval_local(fen) if STOCKFISH else (None, None)
@@ -265,4 +265,4 @@ def analyze_game(game: dict) -> None:
             last = e
     if last:
         raise last
-    log.info("analizzata %s: %d errori; posizioni %d, dalla memoria %d, dal motore %d", game["id"], len(err_rows), len(set(keys)), len(set(keys) & set(shared)), len(fresh))
+    log.info("analizzata %s: %d errori; posizioni %d, dalla memoria %d, dal motore %d", game["id"], len(err_rows), len(set(keys)), len(set(keys) & set(ev_cached)), len(fresh))

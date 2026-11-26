@@ -336,3 +336,6 @@ Le analisi fatte sul server (primo caricamento di un utente) restano a profondit
 - Il pannello errori/mosse scende dall'alto verso il basso da sotto la topbar (scorrevole, si ferma sopra la tabbar). Chiude con ✕, tocco sullo sfondo, Esc o saltando a una mossa.
 - L'altezza della topbar è letta dal vivo (`--tbh`), quindi funziona anche con la barra di stato/notch.
 - File: `globals.css`, `dashboard/games/[id]/page.tsx`.
+
+### v3.41.1 — fix analisi
+- `engine.py`: la variabile locale `shared` (cache valutazioni) oscurava il modulo `shared` e faceva fallire l'analisi ("cannot access local variable 'shared'"). Rinominata `ev_cached`.
