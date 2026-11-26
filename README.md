@@ -319,3 +319,7 @@ Le analisi fatte sul server (primo caricamento di un utente) restano a profondit
 - I grafici (andamento del punteggio, tempo per mossa, perdita per mossa) sono sempre visibili sotto la scacchiera, uno sotto l'altro, senza più la scheda «Grafici».
 - Su mobile (≤860px) errori, lezioni e mosse stanno in un cassetto a sinistra: si apre dalla linguetta arancione sul bordo o con lo scorrimento da lì; toccando un errore la scacchiera salta alla mossa e il cassetto si chiude. Esc o tocco fuori lo chiudono.
 - Su desktop il pannello resta a destra, fisso mentre scorri. File: `app/dashboard/games/[id]/page.tsx`, `app/globals.css`. Nessuna modifica a backend/SQL.
+
+## v3.39 — Scudi delle aperture e correzione modalità «evita»
+- **Bug**: nella modalità «evita la trappola» la mossa critica (es. ...dxe5 nel Matto di Légal) non veniva accettata: il controllo `i >= endAt` la bloccava. Ora in «evita» la mossa all'indice `blunderAt` è consentita (`OpeningDrill.tsx`).
+- **Scudi**: ogni apertura ha il suo scudo (stessa grafica dei traguardi): grigio = non iniziata, bronzo = iniziata, argento = metà imparata, oro = tutta imparata. Il puntino in basso indica il lato (bianco/nero). Emblema a tratto scelto dal nome: spade incrociate per i gambetti, torre per le difese, alfiere, cavallo, donna, re, pedone (`lib/opening-icons.ts`, `components/train/OpeningShield.tsx`). Vale anche per la biblioteca da 231 trappole.

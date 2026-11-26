@@ -4,6 +4,7 @@ import { useApp } from "../app";
 import { tc } from "../../lib/train-copy";
 import { ALL_DRILLS as BASE_DRILLS, OPENINGS as BASE_OPENINGS, type Drill, type Opening, type T2 } from "../../lib/openings-data";
 import OpeningDrill from "./OpeningDrill";
+import OpeningShield from "./OpeningShield";
 
 type Card = { box: number; due_at: string };
 type Status = "new" | "due" | "learning" | "learned";
@@ -51,6 +52,15 @@ export default function OpeningsTab({ onProgress }: { onProgress: () => void }) 
   );
   const learned = ALL_DRILLS.filter((d) => status(d.key) === "learned").length;
 
+  // metallo dello scudo: grigio = mai iniziata, bronzo = iniziata, argento = metà imparata, oro = tutta imparata
+  const tierOf = (o: Opening): 0 | 1 | 2 | 3 => {
+    const ds = ALL_DRILLS.filter((d) => d.opening.id === o.id);
+    const started = ds.filter((d) => status(d.key) !== "new").length;
+    const done = ds.filter((d) => status(d.key) === "learned").length;
+    if (!ds.length || !started) return 0;
+    return done === ds.length ? 3 : done * 2 >= ds.length ? 2 : 1;
+  };
+
   const nextOf = (scope: Drill[], skip?: string): Drill | null => {
     const pool = scope.filter((d) => d.key !== skip);
     return pool.filter((d) => status(d.key) === "due")[0] || pool.filter((d) => status(d.key) === "new")[0] || null;
@@ -84,7 +94,7 @@ export default function OpeningsTab({ onProgress }: { onProgress: () => void }) 
   }
 
   const op = open ? OPENINGS.find((o) => o.id === open) : null;
-  if (op) return <OpeningPage op={op} drills={ALL_DRILLS} status={status} onBack={() => setOpen(null)} onStart={start} lang={lang} />;
+  if (op) return <OpeningPage op={op} drills={ALL_DRILLS} tier={tierOf(op)} status={status} onBack={() => setOpen(null)} onStart={start} lang={lang} />;
 
   const cta = dueList[0] || nextOf(ALL_DRILLS);
   return (
@@ -106,17 +116,20 @@ export default function OpeningsTab({ onProgress }: { onProgress: () => void }) 
           const due = ds.filter((d) => status(d.key) === "due").length;
           return (
             <button key={o.id} className="opcard" onClick={() => setOpen(o.id)}>
-              <span className="opcard-top">
-                <b>{tx(o.name, lang)}</b>
-                <span className="chip">{o.eco}</span>
-              </span>
-              <span className="muted small opcard-blurb">{tx(o.blurb, lang)}</span>
-              <span className="opdots" aria-hidden="true">
-                {ds.map((d) => <i key={d.key} className={"opdot " + status(d.key)} />)}
-              </span>
-              <span className="opcard-foot small muted">
-                {o.side === "w" ? tc("opWhite", lang) : tc("opBlack", lang)}
-                {due > 0 && <em className="opdue">{due} {tc("opDue", lang).toLowerCase()}</em>}
+              <span className="opcard-ic"><OpeningShield id={o.id} name={o.name.en} tier={tierOf(o)} side={o.side} size={56} /></span>
+              <span className="opcard-body">
+                <span className="opcard-top">
+                  <b>{tx(o.name, lang)}</b>
+                  <span className="chip">{o.eco}</span>
+                </span>
+                <span className="muted small opcard-blurb">{tx(o.blurb, lang)}</span>
+                <span className="opdots" aria-hidden="true">
+                  {ds.map((d) => <i key={d.key} className={"opdot " + status(d.key)} />)}
+                </span>
+                <span className="opcard-foot small muted">
+                  {o.side === "w" ? tc("opWhite", lang) : tc("opBlack", lang)}
+                  {due > 0 && <em className="opdue">{due} {tc("opDue", lang).toLowerCase()}</em>}
+                </span>
               </span>
             </button>
           );
@@ -133,13 +146,18 @@ export default function OpeningsTab({ onProgress }: { onProgress: () => void }) 
   );
 }
 
-function OpeningPage({ op, drills, status, onBack, onStart, lang }: { op: Opening; drills: Drill[]; status: (k: string) => Status; onBack: () => void; onStart: (d: Drill) => void; lang: any }) {
+function OpeningPage({ op, drills, tier, status, onBack, onStart, lang }: { op: Opening; drills: Drill[]; tier: 0 | 1 | 2 | 3; status: (k: string) => Status; onBack: () => void; onStart: (d: Drill) => void; lang: any }) {
   const label = (s: Status) => s === "new" ? tc("opNew", lang) : s === "due" ? tc("opDue", lang) : s === "learned" ? tc("opMastered", lang) : tc("opLearning", lang);
   return (
     <div className="opwrap">
       <button className="btn btn-ghost btn-sm" onClick={onBack}>← {tc("opBack", lang)}</button>
-      <h2 style={{ marginTop: ".8rem" }}>{tx(op.name, lang)} <span className="chip" style={{ verticalAlign: "middle" }}>{op.eco}</span></h2>
-      <p className="muted">{tx(op.blurb, lang)} · {op.side === "w" ? tc("opWhite", lang) : tc("opBlack", lang)}</p>
+      <div className="ophead">
+        <OpeningShield id={op.id} name={op.name.en} tier={tier} side={op.side} size={84} />
+        <div>
+          <h2 style={{ margin: 0 }}>{tx(op.name, lang)} <span className="chip" style={{ verticalAlign: "middle" }}>{op.eco}</span></h2>
+          <p className="muted" style={{ margin: ".3rem 0 0" }}>{tx(op.blurb, lang)} · {op.side === "w" ? tc("opWhite", lang) : tc("opBlack", lang)}</p>
+        </div>
+      </div>
       <div className="oplist">
         {op.lines.map((l) => {
           const ds = drills.filter((d) => d.line.id === l.id);

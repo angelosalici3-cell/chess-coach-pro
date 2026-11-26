@@ -1097,7 +1097,7 @@ a.dr-btn { padding: .55rem .8rem; border: 1px solid var(--line-2); border-radius
 .opstats { font-size: 1.05rem; }
 .opstats b { font-family: var(--f-display); font-size: 1.5rem; margin-right: .1rem; }
 .opgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: .8rem; }
-.opcard { display: flex; flex-direction: column; align-items: stretch; gap: .5rem; text-align: left; padding: 1rem; border-radius: 16px; background: var(--ink-2); border: 1px solid var(--line); font-weight: 400; transition: border-color .15s, transform .15s; }
+.opcard { display: flex; flex-direction: row; align-items: flex-start; gap: .8rem; text-align: left; padding: 1rem; border-radius: 16px; background: var(--ink-2); border: 1px solid var(--line); font-weight: 400; transition: border-color .15s, transform .15s; }
 .opcard:hover:not(:disabled) { border-color: var(--ember); transform: translateY(-2px); }
 .opcard-top { display: flex; align-items: center; justify-content: space-between; gap: .5rem; font-family: var(--f-display); font-size: 1.08rem; }
 .opcard-blurb { line-height: 1.4; min-height: 2.8em; }
@@ -1154,3 +1154,11 @@ a.dr-btn { padding: .55rem .8rem; border: 1px solid var(--line-2); border-radius
   .gv-scroll { max-height: none; overflow: visible; }
 }
 @media (prefers-reduced-motion: reduce) { .gv-panel, .gv-scrim, .gv-tab, .gv-err { transition: none; } }
+
+/* v3.38 scudi delle aperture */
+.opcard-ic { flex: none; }
+.opcard-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: .5rem; }
+.opcard svg.opshield, .ophead svg.opshield { overflow: visible; display: block; transition: transform .2s; }
+.opcard:hover svg.opshield { transform: translateY(-2px) rotate(-2deg); }
+.ophead { display: flex; align-items: center; gap: 1rem; margin: .8rem 0 .4rem; }
+@media (prefers-reduced-motion: reduce) { .opcard:hover svg.opshield { transform: none; } }

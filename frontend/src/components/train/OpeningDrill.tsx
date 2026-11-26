@@ -71,7 +71,7 @@ export default function OpeningDrill({ drill, onFinish, onNext, onRepeat, onExit
 
   const bad = () => { setShake(true); setTimeout(() => setShake(false), 380); };
   const drop = (from: string, to: string) => {
-    if (status !== "play" || over || i >= endAt || !userTurn(i)) return false;
+    if (status !== "play" || over || (mode === "avoid" ? i > endAt : i >= endAt) || !userTurn(i)) return false;   // in «evita» la mossa critica è proprio all'indice endAt
     const c = new Chess(fens[i]);
     let mv;
     try { mv = c.move({ from, to, promotion: "q" }); } catch { return false; }
