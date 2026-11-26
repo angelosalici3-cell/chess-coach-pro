@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from . import cache, pgnlite
+from . import shared as SH
 from . import patterns as P
 from . import cardlogic as CL
 from . import trainlogic as T
@@ -307,12 +308,12 @@ def _game_rows(email: str) -> list[dict]:
 def ensure_highlights(email: str, limit: int = 15) -> int:
     """Calcola rimonta e mosse brillanti per le partite analizzate prima dell'introduzione della funzione (poche alla volta)."""
     try:
-        todo = (sb.table("games").select("id,user_color").eq("user_email", email).not_.is_("analyzed_at", "null").is_("highlights", "null")
+        todo = (sb.table("games").select("id,user_color" + SH.extra()).eq("user_email", email).not_.is_("analyzed_at", "null").is_("highlights", "null")
                 .not_.is_("user_color", "null").order("played_at", desc=True).limit(limit).execute().data)
     except Exception:
         return 0
     for g in todo:
-        rows = sb.table("moves").select("ply,eval_cp,fen_after,is_user_move").eq("game_id", g["id"]).order("ply").limit(1000).execute().data
+        rows = sb.table("moves").select("ply,eval_cp,fen_after,is_user_move").eq("game_id", SH.mid(g)).order("ply").limit(1000).execute().data
         sb.table("games").update({"highlights": CL.highlights_from_moves(rows, g["user_color"]) if rows else {"v": 1, "low_cp": None, "brilliant": []}}).eq("id", g["id"]).execute()
     return len(todo)
 
@@ -428,14 +429,14 @@ def _fetch_moves(ids: list[str]) -> dict:
 
 @router.get("/games/{game_id}/time")
 def game_time(game_id: str, u=Depends(current_user)):
-    g = sb.table("games").select("pgn,time_control,user_color").eq("id", game_id).eq("user_email", u["email"]).limit(1).execute().data
+    g = sb.table("games").select("pgn,time_control,user_color" + SH.extra()).eq("id", game_id).eq("user_email", u["email"]).limit(1).execute().data
     if not g:
         raise HTTPException(404, "not_found")
     g = g[0]
     mt = pgnlite.move_times(g["pgn"], g["time_control"])
     if mt is None:
         return {"available": False}
-    loss = _losses(sb.table("moves").select("ply,eval_cp").eq("game_id", game_id).execute().data)
+    loss = _losses(sb.table("moves").select("ply,eval_cp").eq("game_id", SH.mid(g)).execute().data)
     white = g["user_color"] == "white"
     for m in mt:
         m["you"] = (m["ply"] % 2 == 1) == white
@@ -447,11 +448,14 @@ def game_time(game_id: str, u=Depends(current_user)):
 @router.get("/stats/time")
 def stats_time(u=Depends(current_user)):
     email = u["email"]
-    games = (sb.table("games").select("id,pgn,time_control,user_color,result").eq("user_email", email).eq("has_clock", True)
+    games = (sb.table("games").select("id,pgn,time_control,user_color,result" + SH.extra()).eq("user_email", email).eq("has_clock", True)
              .not_.is_("analyzed_at", "null").not_.is_("user_color", "null").order("played_at", desc=True).limit(80).execute().data)
     if not games:
         return {"games": 0}
-    by = _fetch_moves([g["id"] for g in games])
+    by = _fetch_moves(list(dict.fromkeys(SH.mid(g) for g in games)))
+    for g in games:                       # analisi condivisa: le mosse stanno nella partita originale
+        if g["id"] not in by and SH.mid(g) in by:
+            by[g["id"]] = by[SH.mid(g)]
     n_games = n_moves = trouble = fast_err = fast_all = lost_time = 0
     spent_sum = 0.0
     loss_t, cnt_t, loss_n, cnt_n = 0, 0, 0, 0

@@ -5,7 +5,7 @@ import datetime
 import math
 import re
 
-from . import cache, pgnlite
+from . import cache, pgnlite, shared
 
 ERR_WIN = 15          # errore = almeno 15 punti di probabilità di vittoria persi (perdere pedoni quando la partita è già decisa non conta)
 BLUNDER_WIN = 30
@@ -203,12 +203,12 @@ def load(email, limit=150):
     from .db import sb
     prof = {(p["piattaforma"], (p["username"] or "").lower()) for p in
             sb.table("profili_scacchi").select("piattaforma,username").eq("user_email", email).execute().data}
-    cols = "id,played_at,time_control,result,pgn,user_color,opening_name,accuracy_user,white,black,source"
+    cols = "id,played_at,time_control,result,pgn,user_color,opening_name,accuracy_user,white,black,source" + shared.extra()
     games = (sb.table("games").select(cols).eq("user_email", email).not_.is_("analyzed_at", "null").not_.is_("user_color", "null")
              .order("played_at", desc=True).limit(limit).execute().data)
     games = [g for g in games if not prof or (g["source"], ((g["white"] if g["user_color"] == "white" else g["black"]) or "").lower()) in prof]
     by: dict = {}
-    ids = [g["id"] for g in games]
+    ids = list(dict.fromkeys(shared.mid(g) for g in games))
     for i in range(0, len(ids), 10):
         start = 0
         while True:
@@ -219,6 +219,9 @@ def load(email, limit=150):
             if len(rows) < 1000:
                 break
             start += 1000
+    for g in games:                       # le partite con analisi condivisa vedono le mosse della partita originale
+        if g["id"] not in by and shared.mid(g) in by:
+            by[g["id"]] = by[shared.mid(g)]
     return games, by
 
 

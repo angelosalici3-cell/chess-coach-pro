@@ -15,6 +15,7 @@ import httpx
 
 from .cardlogic import highlights_from_moves
 from .db import sb
+from . import shared
 
 log = logging.getLogger("engine")
 API = "https://chess-api.com/v1"
@@ -173,6 +174,8 @@ def analyze_game(game: dict) -> None:
     now = datetime.datetime.now(datetime.timezone.utc).isoformat()
     if not pg or not color:
         sb.table("games").update({"analyzed_at": now}).eq("id", game["id"]).execute()
+        return
+    if shared.reuse(game, color, now):   # stessa partita già analizzata da un altro utente (stesso colore): niente motore, niente mosse duplicate
         return
     board, moves, cache = pg.board(), list(pg.mainline_moves()), {}
     # posizioni già valutate (da questo o da altri utenti, o dal motore in passato): niente nuova chiamata

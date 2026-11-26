@@ -188,17 +188,21 @@ def start_job(email: str, limit: int, imported: int) -> dict:
     rows = (sb.table("games").select("id").eq("user_email", email).is_("analyzed_at", "null")
             .not_.is_("user_color", "null").order("played_at", desc=True).limit(limit).execute().data)
     ids = [r["id"] for r in rows]
+    try:   # quante partite ha l'utente in tutto: serve a dire il messaggio giusto (tutto aggiornato / già qui, in analisi)
+        have = sb.table("games").select("id", count="exact").eq("user_email", email).not_.is_("user_color", "null").limit(1).execute().count or 0
+    except Exception:
+        have = 0
     with _lock:
         busy = email in _running
         if ids and not busy:
             _running.add(email)
     if not ids:
-        _jobs[email] = {"state": "done", "total": 0, "done": 0, "failed": 0, "imported": imported, "ok": 0}
+        _jobs[email] = {"state": "done", "total": 0, "done": 0, "failed": 0, "imported": imported, "ok": 0, "have": have}
     elif busy:
-        _jobs[email] = {"state": "queued", "total": len(ids), "done": 0, "failed": 0, "imported": imported, "ok": 0}
+        _jobs[email] = {"state": "queued", "total": len(ids), "done": 0, "failed": 0, "imported": imported, "ok": 0, "have": have}
         ids = []
     else:
-        _jobs[email] = {"state": "running", "total": len(ids), "done": 0, "failed": 0, "imported": imported, "ok": 0}
+        _jobs[email] = {"state": "running", "total": len(ids), "done": 0, "failed": 0, "imported": imported, "ok": 0, "have": have}
     return {"ids": ids, "status": job_status(email)}
 
 

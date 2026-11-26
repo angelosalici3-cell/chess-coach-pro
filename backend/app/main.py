@@ -17,6 +17,7 @@ from fastapi import BackgroundTasks
 
 from core.plans import get_plan, stripe_price_id
 from .db import sb
+from . import shared as SH
 from .engine import analyze_game
 from . import cache, mailer
 from .auth import current_user, tier_from, tier_of
@@ -147,13 +148,14 @@ def delete_profile(profile_id: int, u=Depends(current_user)):
 def list_games(u=Depends(current_user)):
     """Elenco per la pagina Partite: esito, ritmo, errori per partita, già calcolati qui così il telefono non deve fare altre richieste."""
     rows = (sb.table("games")
-            .select("id,white,black,user_color,result,opening_name,played_at,accuracy_user,analyzed_at,source,time_control")
+            .select("id,white,black,user_color,result,opening_name,played_at,accuracy_user,analyzed_at,source,time_control" + SH.extra())
             .eq("user_email", u["email"]).order("played_at", desc=True).limit(300).execute().data)
     mine = _mine(u)
     rows = [g for g in rows if _is_mine(g, mine)]
     # conteggi dalle mosse analizzate (stessa fonte del dettaglio partita), a pagine: Supabase restituisce al massimo 1000 righe per richiesta
     cnt: dict = {}
-    ids = [g["id"] for g in rows]
+    mp = {g["id"]: SH.mid(g) for g in rows}          # id della partita che contiene le mosse (può essere condivisa)
+    ids = list(dict.fromkeys(mp.values()))
     for i in range(0, len(ids), 25):
         off = 0
         while True:
@@ -174,7 +176,7 @@ def list_games(u=Depends(current_user)):
         outcome = None
         if c and res in ("1-0", "0-1", "1/2-1/2"):
             outcome = "d" if res == "1/2-1/2" else "w" if (res == "1-0") == (c == "white") else "l"
-        e = cnt.get(g["id"], {"blunder": 0, "mistake": 0, "inaccuracy": 0})
+        e = cnt.get(mp[g["id"]], {"blunder": 0, "mistake": 0, "inaccuracy": 0})
         out.append({**g, "outcome": outcome, "me": (g["white"] if c == "white" else g["black"]) if c else None,
                     "opp": (g["black"] if c == "white" else g["white"]) if c else None,
                     "speed": _speed(g["time_control"]), "blunders": e["blunder"], "mistakes": e["mistake"], "inaccuracies": e["inaccuracy"]})
@@ -202,7 +204,9 @@ def get_game(game_id: str, u=Depends(current_user)):
     g = sb.table("games").select("*").eq("id", game_id).eq("user_email", u["email"]).limit(1).execute().data
     if not g:
         raise HTTPException(404, "not_found")
-    moves = sb.table("moves").select("*").eq("game_id", game_id).order("ply").execute().data
+    moves = sb.table("moves").select("*").eq("game_id", SH.mid(g[0])).order("ply").execute().data
+    for m in moves:
+        m["game_id"] = game_id
     if not moves and g[0].get("pgn"):
         moves = _moves_from_pgn(g[0])   # partita non ancora analizzata: le mosse si vedono comunque, leggendo il PGN
     errors = sb.table("errori_utenti").select("*").eq("game_id", game_id).eq("user_email", u["email"]).order("ply").execute().data
@@ -315,13 +319,13 @@ START_FEN = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 @app.post("/games/{game_id}/moves/{ply}/lesson")
 def move_lesson(game_id: str, ply: int, body: LessonIn, u=Depends(current_user)):
     """Lezione su una mossa che non è un errore salvato (le imprecisioni): crea la riga al momento della richiesta."""
-    g = sb.table("games").select("id,opening_name").eq("id", game_id).eq("user_email", u["email"]).limit(1).execute().data
+    g = sb.table("games").select("id,opening_name" + SH.extra()).eq("id", game_id).eq("user_email", u["email"]).limit(1).execute().data
     if not g:
         raise HTTPException(404, "not_found")
     ex = sb.table("errori_utenti").select("*").eq("game_id", game_id).eq("user_email", u["email"]).eq("ply", ply).limit(1).execute().data
     if ex:
         return _lesson_for(ex[0], body.lang, u["email"])
-    ms = sb.table("moves").select("*").eq("game_id", game_id).in_("ply", [ply - 1, ply]).execute().data
+    ms = sb.table("moves").select("*").eq("game_id", SH.mid(g[0])).in_("ply", [ply - 1, ply]).execute().data
     cur = next((m for m in ms if m["ply"] == ply), None)
     if not cur or not cur.get("is_user_move") or cur.get("classification") != "inaccuracy":
         raise HTTPException(404, "not_found")
@@ -549,6 +553,8 @@ def delete_me(u=Depends(current_user)):
         except Exception:
             pass
     ids = [g["id"] for g in sb.table("games").select("id").eq("user_email", email).execute().data]
+    if ids:
+        ids = SH.release_moves(ids)       # le mosse usate anche da altri utenti passano a loro
     if ids:
         sb.table("moves").delete().in_("game_id", ids).execute()
     try:
