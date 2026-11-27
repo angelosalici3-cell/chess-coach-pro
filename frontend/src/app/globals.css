@@ -1182,3 +1182,4 @@ a.dr-btn { padding: .55rem .8rem; border: 1px solid var(--line-2); border-radius
 .cfm-btns { display: flex; gap: .6rem; } .cfm-btns .btn { flex: 1; min-height: 46px; }
 @keyframes cfm-in { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .cfm-scrim { animation: none; } }
+.play-note { grid-column: 1 / -1; margin: 0; }

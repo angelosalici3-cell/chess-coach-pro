@@ -13,8 +13,8 @@ const T = {
     title: "Gioca su Lichess", intro: "Collega il tuo account Lichess e gioca da qui, con la tua interfaccia. Le partite sono vere: contano per il tuo rating e dopo la fine EloRise le analizza.",
     connect: "Collega Lichess", why: "Si apre Lichess per darmi il permesso di giocare per te. Non vedo la tua password.", as: "Collegato come", off: "Scollega",
     rules: "Qui si gioca senza aiuti: niente motore e nessun suggerimento durante la partita (regola di Lichess).",
-    tcLab: "Cadenza di gioco", modeLab: "Modalità di gioco", rfLab: "Filtro punteggi", rfNone: "Nessun limite", tcCustom: "Personalizzata", minLab: "Minuti", incLab: "Incremento (s)",
-    gBullet: "Bullet", gBlitz: "Blitz", gRapid: "Rapid", gClassical: "Classica", variantNote: "Variante: Standard",
+    slow: "Lichess permette alle app esterne solo partite rapid o più lente (almeno circa 8 minuti totali stimati: minuti + 40 × incremento). Bullet e blitz si giocano su Lichess.", tcNote: "Solo rapid e classica: è la regola di Lichess per le app esterne.", tcLab: "Cadenza di gioco", modeLab: "Modalità di gioco", rfLab: "Filtro punteggi", rfNone: "Nessun limite", tcCustom: "Personalizzata", minLab: "Minuti", incLab: "Incremento (s)",
+    gRapid: "Rapid", gClassical: "Classica", variantNote: "Variante: Standard",
     resignT: "Abbandonare la partita?", resignB: "Se abbandoni, la partita è persa.", resignOk: "Abbandona", keep: "Continua a giocare",
     drawT: "Proporre patta?", drawB: "L'avversario può accettare o rifiutare. La partita continua finché non risponde.", drawOk: "Invia richiesta", drawSent: "Patta richiesta", theyOffer: "L'avversario propone patta", decline: "Rifiuta",
     time: "Ritmo", rated: "Valida per il rating", casual: "Amichevole", search: "Cerca avversario", searching: "Cerco un avversario…", cancel: "Annulla",
@@ -27,8 +27,8 @@ const T = {
     title: "Play on Lichess", intro: "Connect your Lichess account and play from here, with your own interface. Games are real: they count for your rating, and EloRise analyzes them when they end.",
     connect: "Connect Lichess", why: "Lichess opens to give me permission to play for you. I never see your password.", as: "Connected as", off: "Disconnect",
     rules: "No help while playing: no engine and no hints during the game (Lichess rule).",
-    tcLab: "Time control", modeLab: "Game mode", rfLab: "Rating filter", rfNone: "No limit", tcCustom: "Custom", minLab: "Minutes", incLab: "Increment (s)",
-    gBullet: "Bullet", gBlitz: "Blitz", gRapid: "Rapid", gClassical: "Classical", variantNote: "Variant: Standard",
+    slow: "Lichess only allows rapid or slower games from third-party apps (about 8 minutes estimated in total: minutes + 40 × increment). Bullet and blitz are played on Lichess.", tcNote: "Rapid and classical only: that is Lichess's rule for third-party apps.", tcLab: "Time control", modeLab: "Game mode", rfLab: "Rating filter", rfNone: "No limit", tcCustom: "Custom", minLab: "Minutes", incLab: "Increment (s)",
+    gRapid: "Rapid", gClassical: "Classical", variantNote: "Variant: Standard",
     resignT: "Resign the game?", resignB: "If you resign, you lose the game.", resignOk: "Resign", keep: "Keep playing",
     drawT: "Offer a draw?", drawB: "Your opponent can accept or decline. The game goes on until they answer.", drawOk: "Send offer", drawSent: "Draw offered", theyOffer: "Your opponent offers a draw", decline: "Decline",
     time: "Time control", rated: "Rated", casual: "Casual", search: "Find an opponent", searching: "Looking for an opponent…", cancel: "Cancel",
@@ -41,8 +41,8 @@ const T = {
     title: "Juega en Lichess", intro: "Conecta tu cuenta de Lichess y juega desde aquí, con tu propia interfaz. Las partidas son reales: cuentan para tu rating y EloRise las analiza al terminar.",
     connect: "Conectar Lichess", why: "Se abre Lichess para darme permiso de jugar por ti. Nunca veo tu contraseña.", as: "Conectado como", off: "Desconectar",
     rules: "Aquí se juega sin ayudas: sin motor ni pistas durante la partida (regla de Lichess).",
-    tcLab: "Control de tiempo", modeLab: "Modo de juego", rfLab: "Filtro de puntuación", rfNone: "Sin límite", tcCustom: "Personalizado", minLab: "Minutos", incLab: "Incremento (s)",
-    gBullet: "Bullet", gBlitz: "Blitz", gRapid: "Rápida", gClassical: "Clásica", variantNote: "Variante: Estándar",
+    slow: "Lichess solo permite a las apps externas partidas rápidas o más lentas (unos 8 minutos totales estimados: minutos + 40 × incremento). Bullet y blitz se juegan en Lichess.", tcNote: "Solo rápida y clásica: es la regla de Lichess para apps externas.", tcLab: "Control de tiempo", modeLab: "Modo de juego", rfLab: "Filtro de puntuación", rfNone: "Sin límite", tcCustom: "Personalizado", minLab: "Minutos", incLab: "Incremento (s)",
+    gRapid: "Rápida", gClassical: "Clásica", variantNote: "Variante: Estándar",
     resignT: "¿Abandonar la partida?", resignB: "Si abandonas, pierdes la partida.", resignOk: "Abandonar", keep: "Seguir jugando",
     drawT: "¿Proponer tablas?", drawB: "Tu rival puede aceptar o rechazar. La partida sigue hasta que responda.", drawOk: "Enviar propuesta", drawSent: "Tablas propuestas", theyOffer: "Tu rival propone tablas", decline: "Rechazar",
     time: "Ritmo", rated: "Con rating", casual: "Amistosa", search: "Buscar rival", searching: "Buscando rival…", cancel: "Cancelar",
@@ -53,12 +53,10 @@ const T = {
   },
 } as const;
 
-// Cadenze come nell'app di Lichess: [minuti, incremento]. Se Lichess rifiuta una cadenza per le app esterne, l'errore viene mostrato.
-const TC: { g: "gBullet" | "gBlitz" | "gRapid" | "gClassical"; v: [number, number][] }[] = [
-  { g: "gBullet", v: [[1, 0], [2, 1]] },
-  { g: "gBlitz", v: [[3, 0], [3, 2], [5, 0], [5, 3]] },
-  { g: "gRapid", v: [[10, 0], [10, 5], [15, 10]] },
-  { g: "gClassical", v: [[30, 0], [30, 20]] },
+// Cadenze: [minuti, incremento]. Le app esterne (Board API) possono cercare un avversario solo in rapid e classical: bullet e blitz non sono ammessi da Lichess.
+const TC: { g: "gRapid" | "gClassical"; v: [number, number][] }[] = [
+  { g: "gRapid", v: [[10, 0], [10, 5], [15, 0], [15, 10]] },
+  { g: "gClassical", v: [[25, 0], [30, 0], [30, 20], [60, 0]] },
 ];
 const RF = ["500", "300", "200", "100", "none"];
 const perfOf = (min: number, inc: number) => { const t = min * 60 + inc * 40; return t < 30 ? "ultraBullet" : t < 180 ? "bullet" : t < 480 ? "blitz" : t < 1500 ? "rapid" : "classical"; };
@@ -101,7 +99,7 @@ export default function PlayPage() {
   const [token, setToken] = useState<string | null>(null);
   const [acct, setAcct] = useState<any>(null);
   const [linked, setLinked] = useState(true);
-  const [tc, setTc] = useState("5-0");               // "min-inc" oppure "custom"
+  const [tc, setTc] = useState("10-0");              // "min-inc" oppure "custom"
   const [cMin, setCMin] = useState("10");
   const [cInc, setCInc] = useState("0");
   const [rated, setRated] = useState(false);
@@ -224,7 +222,7 @@ export default function PlayPage() {
     const ac = new AbortController(); seekAbort.current = ac;
     try {
       let time: number, inc: number;
-      if (tc === "custom") { time = Math.min(180, Math.max(0, Number(cMin) || 0)); inc = Math.min(180, Math.max(0, Math.round(Number(cInc) || 0))); if (time === 0 && inc === 0) { setErr(L.err); setPhase("lobby"); return; } }
+      if (tc === "custom") { time = Math.min(180, Math.max(0, Number(cMin) || 0)); inc = Math.min(180, Math.max(0, Math.round(Number(cInc) || 0))); if (!["rapid", "classical"].includes(perfOf(time, inc))) { setErr(L.slow); setPhase("lobby"); return; } }
       else { const [a, b] = tc.split("-").map(Number); time = a; inc = b; }
       const rating = acct?.perfs?.[perfOf(time, inc)]?.rating;
       const w = Number(rf);
@@ -355,6 +353,7 @@ export default function PlayPage() {
               {RF.map((v) => <option key={v} value={v}>{v === "none" ? L.rfNone : `-${v} / +${v}`}</option>)}
             </select>
           </label>
+          <p className="muted small play-note">{L.tcNote}</p>
           <div className="play-f"><span>{L.variantNote.split(":")[0]}</span><div className="play-fix">{L.variantNote.split(": ")[1]}</div></div>
         </div>
         {phase === "seeking"
