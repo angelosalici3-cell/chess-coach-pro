@@ -1183,3 +1183,25 @@ a.dr-btn { padding: .55rem .8rem; border: 1px solid var(--line-2); border-radius
 @keyframes cfm-in { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .cfm-scrim { animation: none; } }
 .play-note { grid-column: 1 / -1; margin: 0; }
+
+/* v3.43 lettera del coach più grande, archivio delle lettere, filtro punteggi leggibile su mobile */
+.jy-letter .jy-lh { padding: 1.3rem 1.6rem; }
+.jy-letter .jy-av { width: 3rem; height: 3rem; font-size: 1.7rem; }
+.jy-letter .jy-lh b { font-size: 1.15rem; }
+.jy-back { margin-left: auto; }
+.jy-letter .jy-body { padding: 1.6rem 1.6rem .6rem; gap: 1.1rem; }
+.jy-letter .jy-body p { font-size: 1.15rem; line-height: 1.8; max-width: 66ch; }
+.jy-letter .jy-quote { padding: 1.5rem 1.6rem; font-size: 1.1rem; }
+.jy-letter .jy-next { padding: .6rem 1.6rem 1.4rem; border-top: 1px solid var(--line); margin-top: 1rem; display: grid; gap: .15rem; }
+.jy-arch { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+.jy-ai { width: 100%; min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: .8rem; text-align: left; padding: .6rem 1rem; border-radius: 14px; border: 1px solid var(--line); background: var(--ink-2); color: var(--ice); cursor: pointer; font: inherit; transition: border-color .15s ease, transform .15s ease; }
+.jy-ai:hover { border-color: var(--line-2); transform: translateY(-1px); }
+.jy-ai.on { border-color: var(--ember); background: var(--ink-3); }
+.jy-tag { font-size: .72rem; font-weight: 800; padding: .15rem .55rem; border-radius: 999px; background: var(--ember); color: var(--ink); flex: none; }
+@media (max-width: 560px) {
+  .jy-letter .jy-lh, .jy-letter .jy-body, .jy-letter .jy-quote, .jy-letter .jy-next { padding-left: 1.1rem; padding-right: 1.1rem; }
+  .jy-letter .jy-body p { font-size: 1.08rem; line-height: 1.75; }
+  .play-grid { grid-template-columns: minmax(0, 1fr); }
+  .play-f select, .play-f input { padding-left: .9rem; padding-right: .6rem; }
+}
+@media (prefers-reduced-motion: reduce) { .jy-ai { transition: none; } .jy-ai:hover { transform: none; } }

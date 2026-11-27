@@ -22,7 +22,7 @@ const U = {
   lqUnlimited: x("Illimitate con il tuo piano", "Unlimited with your plan", "Ilimitadas con tu plan"), lqBonus: x("+{n} bonus", "+{n} bonus", "+{n} extra"), lqUpgrade: x("Più lezioni", "Get more", "Más lecciones"),
   lessonsEmpty: x("Nessuna lezione ancora: apri una partita e tocca «Chiedi al GM» su un errore.", "No lessons yet: open a game and tap “Ask the GM” on a mistake.", "Aún no hay lecciones: abre una partida y toca «Pregunta al GM» en un error."),
   lessonOpen: x("Apri la partita", "Open the game", "Abrir la partida"),
-  rwTitle: x("Premi", "Rewards", "Premios"),
+  rwTitle: x("Profilo", "Profile", "Perfil"),
   homeToday: x("Oggi", "Today", "Hoy"),
   seeAll: x("Vedi tutto", "See all", "Ver todo"),
   themeLbl: x("Tema", "Theme", "Tema"),

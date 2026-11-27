@@ -345,3 +345,12 @@ Le analisi fatte sul server (primo caricamento di un utente) restano a profondit
 - Se Lichess rifiuta una richiesta, l'errore di Lichess viene mostrato in chiaro.
 - In partita: "Abbandona" e "Proponi patta" aprono un popup di conferma (Esc o tocco fuori annulla). Se l'avversario propone patta compare un riquadro con Accetta / Rifiuta.
 - File: `lib/lichess.ts`, `dashboard/play/page.tsx`, `globals.css`.
+
+## v3.43 — Profilo, lettere settimanali e archivio
+- La pagina "Premi" ora si chiama **Profilo** (it/en/es, anche nel testo della donazione).
+- **Lettera del coach:** ora settimanale anche per Plus (prima mensile). Pro e Elite restano settimanale + mensile (+ stagione per Elite). Layout più grande: testo da 1.15rem, riga più larga, più respiro.
+- **Prossima lettera:** sotto la lettera compare la data (il lunedì, quando si chiude la settimana) e, se servono ancora partite (minimo 3 nella settimana), quante ne mancano.
+- **Archivio:** "Tutte le lettere" elenca tutte le lettere con il periodo coperto (es. "Settimana 17–23 nov"); un tocco la apre nella pagina grande, "Torna all'ultima" riporta alla più recente. Il backend ora restituisce fino a 300 lettere e le date del periodo.
+- **Gioca su mobile:** menu della lobby a tutta larghezza sotto i 560px, così "-500 / +500" si legge per intero.
+- Le lettere si generano all'apertura del Profilo, una per periodo: chi non apre l'app per più settimane riceve solo l'ultima settimana conclusa.
+- File: `profile.py`, `Journey.tsx`, `ui-copy.ts`, `Donate.tsx`, `globals.css`.

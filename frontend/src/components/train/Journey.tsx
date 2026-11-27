@@ -8,7 +8,7 @@ const T = {
     title: "Il tuo percorso", coach: "Dal tuo coach", last30: "Ultimi 30 giorni", games: "Partite", wins: "Vittorie", acc: "Precisione", vs: "rispetto ai 30 giorni prima",
     curve: "Rating medio per mese", empty: "Il coach scrive la prima lettera dopo {n} partite analizzate. Ne hai {a}.", firstTitle: "Prima impressione",
     letters: "Le lettere del coach", week: "Lettera settimanale", month: "Lettera mensile", season: "La tua stagione", first: "Prima impressione",
-    weak: "Da sistemare", gen: "Il coach sta scrivendo…", none: "Nessuna lettera ancora", wait: "La prossima lettera arriva a fine {p}.",
+    weak: "Da sistemare", gen: "Il coach sta scrivendo…", none: "Nessuna lettera ancora", next: "Prossima lettera: {d}", need: "Per riceverla servono almeno {m} partite giocate nella settimana: finora {h}.", all: "Tutte le lettere", back: "Torna all'ultima", wk: "Settimana", mo: "Mese", latestTag: "ultima",
     pw: "settimana", pm: "mese", up: "Con {plan} il coach ti scrive ogni {per} e confronta i tuoi progressi.", see: "Vedi i piani", from: "da",
     best: "Apertura più riuscita", worst: "Da migliorare",
   },
@@ -16,7 +16,7 @@ const T = {
     title: "Your journey", coach: "From your coach", last30: "Last 30 days", games: "Games", wins: "Wins", acc: "Accuracy", vs: "vs the 30 days before",
     curve: "Average rating per month", empty: "Your coach writes the first letter after {n} analysed games. You have {a}.", firstTitle: "First impression",
     letters: "Coach letters", week: "Weekly letter", month: "Monthly letter", season: "Your season", first: "First impression",
-    weak: "To fix", gen: "The coach is writing…", none: "No letters yet", wait: "The next letter arrives at the end of the {p}.",
+    weak: "To fix", gen: "The coach is writing…", none: "No letters yet", next: "Next letter: {d}", need: "To get it you need at least {m} games played during the week: so far {h}.", all: "All letters", back: "Back to the latest", wk: "Week", mo: "Month", latestTag: "latest",
     pw: "week", pm: "month", up: "With {plan} your coach writes every {per} and compares your progress.", see: "See plans", from: "from",
     best: "Best opening", worst: "To improve",
   },
@@ -24,7 +24,7 @@ const T = {
     title: "Tu camino", coach: "De tu entrenador", last30: "Últimos 30 días", games: "Partidas", wins: "Victorias", acc: "Precisión", vs: "frente a los 30 días anteriores",
     curve: "Rating medio por mes", empty: "Tu entrenador escribe la primera carta tras {n} partidas analizadas. Tienes {a}.", firstTitle: "Primera impresión",
     letters: "Cartas del entrenador", week: "Carta semanal", month: "Carta mensual", season: "Tu temporada", first: "Primera impresión",
-    weak: "Por corregir", gen: "El entrenador está escribiendo…", none: "Aún no hay cartas", wait: "La próxima carta llega a final de {p}.",
+    weak: "Por corregir", gen: "El entrenador está escribiendo…", none: "Aún no hay cartas", next: "Próxima carta: {d}", need: "Para recibirla necesitas al menos {m} partidas jugadas en la semana: hasta ahora {h}.", all: "Todas las cartas", back: "Volver a la última", wk: "Semana", mo: "Mes", latestTag: "última",
     pw: "semana", pm: "mes", up: "Con {plan} tu entrenador te escribe cada {per} y compara tus progresos.", see: "Ver planes", from: "desde",
     best: "Mejor apertura", worst: "A mejorar",
   },
@@ -37,6 +37,16 @@ function paras(text: string): (string)[][] {
   const out: string[] = [];
   for (let i = 0; i < sents.length; i += 2) out.push(sents.slice(i, i + 2).join(" "));
   return out.map((p) => p.split(/(\d[\d.,]*\s?%?)/).filter(Boolean));
+}
+
+// periodo coperto da una lettera, es. "Settimana 17–23 nov"
+function span(r: any, t: any, lang: string): string {
+  if (r.kind === "first" || !r.from || !r.to) return new Date(r.created_at).toLocaleDateString(lang, { day: "numeric", month: "long", year: "numeric" });
+  const a = new Date(r.from + "T12:00:00"), b = new Date(r.to + "T12:00:00");
+  if (r.kind === "month") return `${t.mo} ${a.toLocaleDateString(lang, { month: "long", year: "numeric" })}`;
+  if (r.kind === "season") return `${a.toLocaleDateString(lang, { month: "short" })} – ${b.toLocaleDateString(lang, { month: "short", year: "numeric" })}`;
+  const same = a.getMonth() === b.getMonth();
+  return `${t.wk} ${a.getDate()}${same ? "" : " " + a.toLocaleDateString(lang, { month: "short" })}–${b.getDate()} ${b.toLocaleDateString(lang, { month: "short", year: "numeric" })}`;
 }
 
 function Delta({ a, b, unit = "" }: { a: number | null | undefined; b: number | null | undefined; unit?: string }) {
@@ -68,6 +78,7 @@ export default function Journey() {
   const [d, setD] = useState<any>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
+  const [sel, setSel] = useState<number | null>(null);   // lettera aperta dall'archivio (null = l'ultima)
 
   useEffect(() => {
     let live = true;
@@ -90,21 +101,29 @@ export default function Journey() {
   if (err) return <div className="note err">{err}</div>;
   if (!d) return <p className="muted">…</p>;
   const n = d.now, b = d.before, all = d.all;
-  const latest = d.reports[0], older = d.reports.slice(1);
+  const reports: any[] = d.reports;
+  const latest = reports.find((r) => r.id === sel) || reports[0];
   const kindName = (k: string) => (t as any)[k];
-  const nextKind = d.cadence?.[0];
   const plan = d.tier === "Free" ? "Plus" : null;
+  const nx = d.next;
+  const nextDate = nx ? new Date(nx.date + "T12:00:00").toLocaleDateString(lang, { weekday: "long", day: "numeric", month: "long" }) : "";
   return (
     <div className="jy">
       <section className="card jy-letter">
         <div className="jy-lh">
           <span className="jy-av" aria-hidden="true">♞</span>
-          <div><b>{t.coach}</b><div className="muted small">{latest ? `${kindName(latest.kind)} · ${new Date(latest.created_at).toLocaleDateString(lang, { day: "numeric", month: "long", year: "numeric" })}` : ""}</div></div>
+          <div><b>{t.coach}</b><div className="muted small">{latest ? `${kindName(latest.kind)} · ${span(latest, t, lang)}` : ""}</div></div>
+          {sel != null && reports[0] && sel !== reports[0].id && <button type="button" className="btn btn-sm jy-back" onClick={() => setSel(null)}>{t.back}</button>}
         </div>
         {latest ? <div className="jy-body">{paras(latest.text).map((p, i) => <p key={i}>{p.map((x, k) => (/^\d/.test(x) ? <b key={k}>{x}</b> : x))}</p>)}</div>
           : busy ? <p className="jy-quote muted">{t.gen}</p>
           : <p className="jy-quote muted">{t.empty.replace("{n}", d.first_at).replace("{a}", all.analyzed ?? 0)}</p>}
-        {nextKind && latest && <div className="muted small jy-next">{t.wait.replace("{p}", nextKind === "week" ? t.pw : t.pm)}</div>}
+        {nx && (
+          <div className="jy-next">
+            <b>{t.next.replace("{d}", nextDate)}</b>
+            {nx.have < nx.min_games && <div className="muted small">{t.need.replace("{m}", nx.min_games).replace("{h}", nx.have)}</div>}
+          </div>
+        )}
       </section>
 
       <section className="jy-stats">
@@ -127,23 +146,26 @@ export default function Journey() {
         </section>
       )}
 
-      {older.length > 0 && (
+      {reports.length > 1 && (
         <section>
-          <h2 className="jy-h">{t.letters}</h2>
-          <div className="jy-tl">
-            {older.map((r: any) => (
-              <article key={r.id} className="card jy-item">
-                <div className="muted small">{kindName(r.kind)} · {r.kind === "first" ? new Date(r.created_at).toLocaleDateString(lang) : r.period}</div>
-                <p>{r.text}</p>
-              </article>
+          <h2 className="jy-h">{t.all} <span className="muted small">({reports.length})</span></h2>
+          <ul className="jy-arch">
+            {reports.map((r: any, i: number) => (
+              <li key={r.id}>
+                <button type="button" className={"jy-ai" + ((latest && latest.id === r.id) ? " on" : "")} aria-current={latest && latest.id === r.id ? "true" : undefined}
+                  onClick={() => { setSel(i === 0 ? null : r.id); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
+                  <span><b>{kindName(r.kind)}</b><span className="muted small"> · {span(r, t, lang)}</span></span>
+                  {i === 0 && <span className="jy-tag">{t.latestTag}</span>}
+                </button>
+              </li>
             ))}
-          </div>
+          </ul>
         </section>
       )}
 
       {plan && (
         <section className="card jy-up">
-          <p style={{ margin: 0 }}>{t.up.replace("{plan}", plan).replace("{per}", t.pm)}</p>
+          <p style={{ margin: 0 }}>{t.up.replace("{plan}", plan).replace("{per}", t.pw)}</p>
           <Link href="/dashboard/plans" className="btn btn-primary btn-sm">{t.see}</Link>
         </section>
       )}

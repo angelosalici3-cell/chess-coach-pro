@@ -1,5 +1,5 @@
 """Il percorso del giocatore: fatti calcolati dal server, parole scritte dal coach (Gemini) solo per i piani a pagamento.
-Free: scheda + una prima impressione (regole, zero costo). Plus: lettera mensile. Pro: lettera settimanale. Elite: settimanale + stagione trimestrale."""
+Free: scheda + una prima impressione (regole, zero costo). Plus: lettera settimanale. Pro: settimanale + mensile. Elite: anche la stagione trimestrale."""
 import datetime
 import logging
 import os
@@ -19,7 +19,7 @@ router = APIRouter()
 LANGS = {"it": "italiano", "en": "English", "es": "español"}
 FIRST_AT = 20          # partite analizzate per la prima impressione (gratis)
 MIN_PERIOD_GAMES = 3   # sotto questa soglia non si scrive una lettera
-CADENCE = {"Free": [], "Plus": ["month"], "Pro": ["week", "month"], "Elite": ["week", "month", "season"]}
+CADENCE = {"Free": [], "Plus": ["week"], "Pro": ["week", "month"], "Elite": ["week", "month", "season"]}
 
 
 def _d(s):
@@ -81,6 +81,27 @@ def _period(kind: str, today: datetime.date):
     first = datetime.date(today.year, 3 * q + 1, 1)
     a = datetime.date(first.year - (1 if q == 0 else 0), 3 * ((q - 1) % 4) + 1, 1)
     return f"{a.year}-Q{(a.month - 1) // 3 + 1}", a, first
+
+
+def _span(kind: str, key: str):
+    """Date di inizio e fine (incluse) del periodo di una lettera, dalla sua chiave."""
+    try:
+        if kind == "week":
+            y, w = key.split("-W")
+            a = datetime.date.fromisocalendar(int(y), int(w), 1)
+            return a, a + datetime.timedelta(days=6)
+        if kind == "month":
+            a = datetime.datetime.strptime(key, "%Y-%m").date()
+            nxt = (a.replace(day=28) + datetime.timedelta(days=4)).replace(day=1)
+            return a, nxt - datetime.timedelta(days=1)
+        if kind == "season":
+            y, q = key.split("-Q")
+            a = datetime.date(int(y), 3 * (int(q) - 1) + 1, 1)
+            nxt = datetime.date(a.year + (1 if a.month == 10 else 0), (a.month + 2) % 12 + 1, 1)
+            return a, nxt - datetime.timedelta(days=1)
+    except Exception:
+        pass
+    return None, None
 
 
 def _dt(d):
@@ -150,7 +171,10 @@ def _first_due(games, have):
 def journey(u=Depends(current_user)):
     email, tier = u["email"], tier_of(u["email"])
     games = _rows(email)
-    saved = sb.table("coach_reports").select("id,kind,period,facts,text,lang,created_at").eq("user_email", email).order("created_at", desc=True).limit(40).execute().data
+    saved = sb.table("coach_reports").select("id,kind,period,facts,text,lang,created_at").eq("user_email", email).order("created_at", desc=True).limit(300).execute().data
+    for r in saved:   # periodo coperto, per mostrare "17–23 nov" invece della chiave tecnica
+        a, b = _span(r["kind"], r["period"])
+        r["from"], r["to"] = (a.isoformat() if a else None), (b.isoformat() if b else None)
     have = {(r["kind"], r["period"]) for r in saved}
     now = datetime.datetime.now()
     f30, p30 = facts(_window(games, now - datetime.timedelta(days=30), now)), facts(_window(games, now - datetime.timedelta(days=60), now - datetime.timedelta(days=30)))
@@ -161,7 +185,13 @@ def journey(u=Depends(current_user)):
             series.setdefault(g["dt"].strftime("%Y-%m"), []).append(g["elo"])
     curve = [{"m": k, "elo": round(sum(v) / len(v))} for k, v in sorted(series.items())[-12:]]
     due = _due(email, tier, games, have)
-    return {"tier": tier, "now": f30, "before": p30, "all": facts(games), "curve": curve, "reports": saved,
+    today = datetime.date.today()
+    mon = today - datetime.timedelta(days=today.weekday())
+    nxt = None
+    if tier != "Free" and "week" in CADENCE.get(tier, []):   # la lettera della settimana appena finita arriva il lunedì
+        nxt = {"date": (mon + datetime.timedelta(days=7)).isoformat(), "min_games": MIN_PERIOD_GAMES,
+               "have": len(_window(games, _dt(mon), datetime.datetime.now()))}
+    return {"tier": tier, "next": nxt, "now": f30, "before": p30, "all": facts(games), "curve": curve, "reports": saved,
             "due": [{"kind": k, "period": p} for k, p, _, _ in due] + ([{"kind": "first", "period": "first"}] if _first_due(games, have) else []),
             "cadence": CADENCE.get(tier, []), "first_at": FIRST_AT,
             "weak": _weak(email) if tier != "Free" else []}
