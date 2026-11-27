@@ -354,3 +354,6 @@ Le analisi fatte sul server (primo caricamento di un utente) restano a profondit
 - **Gioca su mobile:** menu della lobby a tutta larghezza sotto i 560px, così "-500 / +500" si legge per intero.
 - Le lettere si generano all'apertura del Profilo, una per periodo: chi non apre l'app per più settimane riceve solo l'ultima settimana conclusa.
 - File: `profile.py`, `Journey.tsx`, `ui-copy.ts`, `Donate.tsx`, `globals.css`.
+
+### v3.43.1 — Testi della home (it)
+- Ritocchi linguistici suggeriti da un lettore, applicati in modo coerente a italiano, inglese e spagnolo (stesso concetto e tono, non traduzione letterale): frase d'apertura in tre frasi brevi, descrizione di Stockfish, spiegazioni in un'unica pagina, grafico "unico", "crescita" al posto di "progresso". La riga "regola da ricordare" resta com'era.

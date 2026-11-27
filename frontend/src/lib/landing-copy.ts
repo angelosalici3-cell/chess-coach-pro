@@ -20,7 +20,7 @@ export const COPY: Record<Lang, Copy> = {
     nav: { features: "Funzioni", how: "Come funziona", pricing: "Prezzi", faq: "Domande", login: "Accedi" },
     hero: {
       title: "Smetti di perdere sempre allo stesso modo.",
-      sub: "EloRise legge le tue partite su Lichess e Chess.com, scova gli errori che ripeti e li trasforma in allenamento. Sali di Elo, non di frustrazione.",
+      sub: "EloRise legge le tue partite su Lichess e Chess.com. Scopri i tuoi errori ricorrenti e trasformali in allenamento. Fai salire il tuo Elo, non la tua frustrazione.",
       cta: "Inizia gratis", cta2: "Guarda come funziona", note: "Nessuna carta per cominciare.",
       cardTitle: "Lezione del GM", cardText: "Hai mosso un pezzo senza controllare se era difeso.", example: "esempio",
     },
@@ -30,7 +30,7 @@ export const COPY: Record<Lang, Copy> = {
       sub: "Non devi caricare nulla a mano.",
       steps: [
         { title: "Collega i tuoi account", text: "Scrivi il tuo nome utente su Lichess o Chess.com. Le tue ultime partite arrivano da sole." },
-        { title: "Il motore trova gli errori", text: "Stockfish valuta ogni mossa e segna imprecisioni, errori ed errori gravi, con la mossa migliore accanto." },
+        { title: "Il motore trova gli errori", text: "Stockfish valuta le tue mosse. Non si limita a segnalare imprecisioni, errori ed errori gravi, ma ti indica anche le mosse migliori." },
         { title: "Il GM ti spiega perché", text: "Tocca un errore e ricevi una lezione breve: cosa è successo, l'idea giusta e una regola da ricordare." },
       ],
     },
@@ -38,11 +38,11 @@ export const COPY: Record<Lang, Copy> = {
     features: {
       title: "Tutto quello che serve per smettere di ripetere gli stessi errori",
       items: [
-        { title: "Lezioni del Gran Maestro AI", text: "Una spiegazione chiara per ogni errore, nella tua lingua. Le trovi tutte salvate e filtrabili in un'unica pagina." },
+        { title: "Lezioni del Gran Maestro AI", text: "Spiegazioni chiare per ogni errore, nella tua lingua. Le trovi tutte in un'unica pagina, salvate e filtrabili." },
         { title: "Quanto ti è costata ogni mossa", text: "Un grafico per partita mostra i centesimi di pedone persi mossa dopo mossa, con errori e imprecisioni evidenziati." },
         { title: "Statistiche per apertura", text: "Scopri con quali aperture vinci e con quali perdi, e dove sbagli di più." },
         { title: "Partite che arrivano da sole", text: "Con un abbonamento le nuove partite si scaricano e si analizzano ogni notte." },
-        { title: "Il tuo rating nel tempo", text: "Segui la crescita su Lichess e Chess.com in un grafico solo." },
+        { title: "Il tuo rating nel tempo", text: "Segui la tua crescita su Lichess e Chess.com in un unico grafico." },
         { title: "In italiano, inglese e spagnolo", text: "L'app e il Gran Maestro parlano la tua lingua." },
       ],
     },
@@ -84,7 +84,7 @@ export const COPY: Record<Lang, Copy> = {
     nav: { features: "Features", how: "How it works", pricing: "Pricing", faq: "FAQ", login: "Log in" },
     hero: {
       title: "Stop losing the same way every time.",
-      sub: "EloRise reads your games on Lichess and Chess.com, spots the mistakes you keep repeating and turns them into training. Climb in Elo, not in frustration.",
+      sub: "EloRise reads your games on Lichess and Chess.com. Spot the mistakes you keep repeating and turn them into training. Raise your Elo, not your frustration.",
       cta: "Start free", cta2: "See how it works", note: "No card needed to start.",
       cardTitle: "GM lesson", cardText: "You moved a piece without checking if it was defended.", example: "example",
     },
@@ -94,7 +94,7 @@ export const COPY: Record<Lang, Copy> = {
       sub: "You never upload anything by hand.",
       steps: [
         { title: "Connect your accounts", text: "Enter your username on Lichess or Chess.com. Your latest games arrive on their own." },
-        { title: "The engine finds the mistakes", text: "Stockfish rates every move and flags inaccuracies, mistakes and blunders, with the best move next to each." },
+        { title: "The engine finds the mistakes", text: "Stockfish evaluates your moves. It doesn't stop at flagging inaccuracies, mistakes and blunders: it also shows you the best moves." },
         { title: "The GM explains why", text: "Tap a mistake and get a short lesson: what happened, the right idea and a rule to remember." },
       ],
     },
@@ -102,11 +102,11 @@ export const COPY: Record<Lang, Copy> = {
     features: {
       title: "Everything you need to stop repeating the same mistakes",
       items: [
-        { title: "AI Grandmaster lessons", text: "A clear explanation for every mistake, in your language. All of them saved and filterable on one page." },
+        { title: "AI Grandmaster lessons", text: "Clear explanations for every mistake, in your language. Find them all on one page, saved and filterable." },
         { title: "What every move cost you", text: "A chart per game shows the hundredths of a pawn lost move by move, with mistakes and inaccuracies highlighted." },
         { title: "Opening statistics", text: "See which openings you win with, which ones you lose with, and where you slip most." },
         { title: "Games that arrive on their own", text: "With a subscription, new games are downloaded and analyzed every night." },
-        { title: "Your rating over time", text: "Follow your progress on Lichess and Chess.com in a single chart." },
+        { title: "Your rating over time", text: "Follow your growth on Lichess and Chess.com in a single chart." },
         { title: "In English, Italian and Spanish", text: "The app and the Grandmaster speak your language." },
       ],
     },
@@ -148,7 +148,7 @@ export const COPY: Record<Lang, Copy> = {
     nav: { features: "Funciones", how: "Cómo funciona", pricing: "Precios", faq: "Preguntas", login: "Entrar" },
     hero: {
       title: "Deja de perder siempre de la misma forma.",
-      sub: "EloRise lee tus partidas de Lichess y Chess.com, detecta los errores que repites y los convierte en entrenamiento. Sube de Elo, no de frustración.",
+      sub: "EloRise lee tus partidas de Lichess y Chess.com. Descubre los errores que repites y conviértelos en entrenamiento. Sube tu Elo, no tu frustración.",
       cta: "Empieza gratis", cta2: "Mira cómo funciona", note: "No hace falta tarjeta para empezar.",
       cardTitle: "Lección del GM", cardText: "Moviste una pieza sin comprobar si estaba defendida.", example: "ejemplo",
     },
@@ -158,7 +158,7 @@ export const COPY: Record<Lang, Copy> = {
       sub: "No tienes que subir nada a mano.",
       steps: [
         { title: "Conecta tus cuentas", text: "Escribe tu usuario de Lichess o Chess.com. Tus últimas partidas llegan solas." },
-        { title: "El motor encuentra los errores", text: "Stockfish evalúa cada jugada y marca imprecisiones, errores y errores graves, con la mejor jugada al lado." },
+        { title: "El motor encuentra los errores", text: "Stockfish evalúa tus jugadas. No se limita a señalar imprecisiones, errores y errores graves: también te muestra las mejores jugadas." },
         { title: "El GM te explica por qué", text: "Toca un error y recibe una lección breve: qué pasó, la idea correcta y una regla para recordar." },
       ],
     },
@@ -166,11 +166,11 @@ export const COPY: Record<Lang, Copy> = {
     features: {
       title: "Todo lo que necesitas para dejar de repetir los mismos errores",
       items: [
-        { title: "Lecciones del Gran Maestro IA", text: "Una explicación clara para cada error, en tu idioma. Todas guardadas y filtrables en una sola página." },
+        { title: "Lecciones del Gran Maestro IA", text: "Explicaciones claras para cada error, en tu idioma. Las encuentras todas en una sola página, guardadas y filtrables." },
         { title: "Cuánto te costó cada jugada", text: "Un gráfico por partida muestra las centésimas de peón perdidas jugada a jugada, con errores e imprecisiones resaltados." },
         { title: "Estadísticas por apertura", text: "Descubre con qué aperturas ganas, con cuáles pierdes y dónde fallas más." },
         { title: "Partidas que llegan solas", text: "Con una suscripción, las partidas nuevas se descargan y se analizan cada noche." },
-        { title: "Tu rating en el tiempo", text: "Sigue tu progreso en Lichess y Chess.com en un solo gráfico." },
+        { title: "Tu rating en el tiempo", text: "Sigue tu crecimiento en Lichess y Chess.com en un único gráfico." },
         { title: "En español, inglés e italiano", text: "La app y el Gran Maestro hablan tu idioma." },
       ],
     },
