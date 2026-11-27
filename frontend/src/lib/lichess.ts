@@ -66,11 +66,16 @@ export const openEvents = (t: string, signal: AbortSignal) => fetch(`${BASE}/api
 export const openGame = (t: string, id: string, signal: AbortSignal) => fetch(`${BASE}/api/board/game/stream/${id}`, { headers: auth(t), signal });
 
 /** Cerca un avversario: la richiesta resta aperta finché Lichess ne trova uno (la partita arriva dal flusso eventi). Solo ritmi rapid/classical. */
-export const seek = (t: string, o: { time: number; inc: number; rated: boolean }, signal: AbortSignal) =>
-  fetch(`${BASE}/api/board/seek`, {
-    method: "POST", signal, headers: { ...auth(t), "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ rated: String(o.rated), time: String(o.time), increment: String(o.inc), variant: "standard", color: "random" }),
-  });
+export const seek = (t: string, o: { time: number; inc: number; rated: boolean; ratingRange?: string }, signal: AbortSignal) => {
+  const body = new URLSearchParams({ rated: String(o.rated), time: String(o.time), increment: String(o.inc), variant: "standard", color: "random" });
+  if (o.ratingRange) body.set("ratingRange", o.ratingRange);
+  return fetch(`${BASE}/api/board/seek`, { method: "POST", signal, headers: { ...auth(t), "Content-Type": "application/x-www-form-urlencoded" }, body });
+};
+
+/** Testo dell'errore restituito da Lichess (corpo JSON {error: ...}), se c'è. */
+export async function errText(r: Response): Promise<string> {
+  try { const d = await r.clone().json(); const e = d?.error; return typeof e === "string" ? e : e ? Object.values(e).flat().join(" ") : ""; } catch { return ""; }
+}
 
 const act = (t: string, path: string) => fetch(`${BASE}/api/board/game/${path}`, { method: "POST", headers: auth(t) });
 export const sendMove = (t: string, id: string, uci: string) => act(t, `${id}/move/${uci}`);

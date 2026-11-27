@@ -339,3 +339,9 @@ Le analisi fatte sul server (primo caricamento di un utente) restano a profondit
 
 ### v3.41.1 — fix analisi
 - `engine.py`: la variabile locale `shared` (cache valutazioni) oscurava il modulo `shared` e faceva fallire l'analisi ("cannot access local variable 'shared'"). Rinominata `ev_cached`.
+
+## v3.42 — Gioca: scelte come Lichess e conferme
+- Lobby: menu Cadenza (Bullet 1+0, 2+1 · Blitz 3+0, 3+2, 5+0, 5+3 · Rapid 10+0, 10+5, 15+10 · Classica 30+0, 30+20 · Personalizzata minuti/incremento), Modalità (Amichevole / Valida per il rating), Filtro punteggi (±100…±500 o nessun limite; usa il tuo rating della cadenza scelta). Variante: solo Standard.
+- Se Lichess rifiuta una cadenza alle app esterne, l'errore di Lichess viene mostrato in chiaro.
+- In partita: "Abbandona" e "Proponi patta" aprono un popup di conferma (Esc o tocco fuori annulla). Se l'avversario propone patta compare un riquadro con Accetta / Rifiuta.
+- File: `lib/lichess.ts`, `dashboard/play/page.tsx`, `globals.css`.

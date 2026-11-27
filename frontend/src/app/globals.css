@@ -1167,3 +1167,18 @@ a.dr-btn { padding: .55rem .8rem; border: 1px solid var(--line-2); border-radius
 @media (prefers-reduced-motion: reduce) { .opcard:hover svg.opshield { transform: none; } }
 
 /* v3.41 linguetta errori in alto a destra, pannello che scende da sotto la topbar */
+
+/* v3.42 gioca: scelte come l'app di Lichess + conferme per abbandono e patta */
+.play-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .8rem; margin: .4rem 0 1.1rem; }
+.play-f { display: grid; gap: .3rem; min-width: 0; font-size: .85rem; color: var(--mute); }
+.play-f select, .play-f input { width: 100%; min-height: 44px; border-radius: 999px; padding: .55rem 1rem; font-size: 1rem; color: var(--ice); }
+.play-fix { min-height: 44px; display: flex; align-items: center; padding: 0 1rem; border: 1px solid var(--line); border-radius: 999px; color: var(--ice); font-size: 1rem; }
+.play-go { width: 100%; min-height: 48px; }
+.play-offer { margin-bottom: .8rem; }
+.cfm-scrim { position: fixed; inset: 0; z-index: 210; display: flex; align-items: center; justify-content: center; padding: 1rem; background: rgba(5, 8, 20, .7); backdrop-filter: blur(3px); animation: cfm-in .15s ease; }
+.cfm { width: min(100%, 380px); background: var(--ink-2); border: 1px solid var(--line-2); border-radius: 20px; padding: 1.3rem; box-shadow: 0 24px 60px rgba(0, 0, 0, .55); }
+.cfm h2 { margin: 0 0 .4rem; font-family: var(--f-display); font-size: 1.25rem; }
+.cfm p { margin: 0 0 1.1rem; color: var(--mute); }
+.cfm-btns { display: flex; gap: .6rem; } .cfm-btns .btn { flex: 1; min-height: 46px; }
+@keyframes cfm-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .cfm-scrim { animation: none; } }
